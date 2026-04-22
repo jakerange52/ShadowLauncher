@@ -30,7 +30,8 @@
         </Grid.RowDefinitions>
 
         <!-- Decal Path -->
-        <TextBlock Grid.Row="0" Text="Decal Inject Path (optional)" FontWeight="SemiBold" Foreground="#AAA" Margin="0,0,0,4"/>
+        <TextBlock Grid.Row="0" Text="Decal Inject Path" FontWeight="SemiBold" Foreground="#AAA" Margin="0,0,0,4"/>
+        <TextBlock Grid.Row="0" Text="Optional — only needed for non-standard Decal installs. Leave blank to auto-detect from registry." Foreground="#666" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
         <Grid Grid.Row="1" VerticalAlignment="Top" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>

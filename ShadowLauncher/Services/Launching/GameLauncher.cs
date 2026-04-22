@@ -12,16 +12,17 @@ namespace ShadowLauncher.Services.Launching;
 /// <summary>
 /// Orchestrates launching acclient.exe for a given account/server combination.
 ///
-/// Launch strategy selection:
-///   Retail servers (no DatSetId)  — legacy path unchanged:
-///       Path A: injector.dll + Decal (bypasses mutex via injection)
-///       Path B: direct launch + MutexKiller (races to close the mutex handle)
+/// Launch strategy:
+///   All servers — launch via <see cref="DecalInjector.LaunchSuspendedAndInject"/>:
+///     acclient is created suspended, Decal's Inject.dll is loaded into it, then the
+///     main thread is resumed. Decal handles the single-instance mutex internally,
+///     enabling multi-client without any mutex manipulation.
 ///
-///   Custom-DAT servers (DatSetId present in DatRegistry.xml) — symlink path:
-///       SymlinkLauncher creates a per-instance directory containing symlinks to
-///       acclient.exe and the required DAT files, then launches from there.
-///       Each instance has a unique working directory, so AC's mutex is independent
-///       per instance — no mutex killing or DLL injection required.
+///   Custom-DAT servers (DatSetId in DatRegistry.xml) — additionally use SymlinkLauncher
+///     to create a per-instance directory with symlinks to the correct DAT files before
+///     launching, so each client sees its own working directory and DAT set.
+///
+///   No Decal — single client only, launched directly via Process.Start.
 /// </summary>
 public class GameLauncher : IGameLauncher
 {
@@ -62,9 +63,16 @@ public class GameLauncher : IGameLauncher
             // Build command-line args for this account/server combo.
             // Format varies by emulator type and secure-logon flag; see BuildLaunchArguments.
             var arguments = BuildLaunchArguments(account, server);
-            var injectorPath = Path.Combine(AppContext.BaseDirectory, "injector.dll");
 
-            // Resolve the saved default character for this account/server combo.
+            // Resolve Decal's Inject.dll — user config takes priority, then registry auto-detect.
+            // If Decal is not found, launch normally (single client only).
+            var decalInjectPath = DecalInjector.ResolveDecalInjectPath(_config.DecalPath);
+            if (decalInjectPath is not null)
+                _logger.LogInformation("Decal injection: {Path}", decalInjectPath);
+            else
+                _logger.LogInformation("Decal not found — single client launch");
+
+            // Resolve the saved default character
             // "any" or null means stay at character select instead of auto-logging in.
             var defaultChar = _loginCommandsService.GetDefaultCharacter(account.Name, server.Name);
             var launchCharacter = (string.IsNullOrEmpty(defaultChar) || defaultChar == "any")
@@ -82,10 +90,9 @@ public class GameLauncher : IGameLauncher
             int processId;
 
             // ── Path selection ─────────────────────────────────────────────────────
-            // If the server declares a DatSetId AND that set is registered in the
-            // remote DatRegistry.xml, use SymlinkLauncher (custom DATs, no mutex work).
-            // Otherwise fall through to the legacy injector/mutex-kill paths which
-            // are unchanged for all normal retail servers.
+            // If the server declares a DatSetId registered in DatRegistry.xml, prepare
+            // a per-instance symlink directory first, then launch from there.
+            // Otherwise launch directly from the configured client path.
             var datSetId = server.DatSetId;
             bool useSymlink = false;
 
@@ -131,42 +138,11 @@ public class GameLauncher : IGameLauncher
                 }
 
                 var instanceExe = Path.Combine(instanceDir, "acclient.exe");
-                var decalPath = _config.DecalPath;
-                var useInjector = File.Exists(injectorPath)
-                    && !string.IsNullOrWhiteSpace(decalPath)
-                    && File.Exists(decalPath);
 
                 System.Diagnostics.Process? process = null;
-                processId = -1;
-
-                if (useInjector)
-                {
-                    _logger.LogInformation("Symlink instance: using injector.dll with Decal");
-                    try
-                    {
-                        processId = InjectedLauncher.Launch(instanceExe, arguments, decalPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "injector.dll failed on symlink instance, falling back to direct launch");
-                        processId = -1;
-                    }
-
-                    if (processId > 0)
-                    {
-                        await Task.Delay(1000);
-                        try { process = System.Diagnostics.Process.GetProcessById(processId); } catch { }
-                    }
-                }
-
-                if (processId <= 0)
-                {
-                    // Direct launch + mutex kill
-                    _logger.LogInformation("Symlink instance: direct launch + mutex kill");
-                    processId = await FallbackLaunchInstanceAsync(instanceExe, arguments, instanceDir);
-                    if (processId > 0)
-                        try { process = System.Diagnostics.Process.GetProcessById(processId); } catch { }
-                }
+                processId = LaunchWithDecal(instanceExe, arguments, instanceDir, decalInjectPath);
+                if (processId > 0)
+                    try { process = System.Diagnostics.Process.GetProcessById(processId); } catch { }
 
                 if (processId <= 0 || process is null)
                 {
@@ -179,60 +155,11 @@ public class GameLauncher : IGameLauncher
             }
             else
             {
-                // ── Legacy retail path (unchanged) ─────────────────────────────────
-                var decalPath = _config.DecalPath;
-                var useInjector = File.Exists(injectorPath)
-                    && !string.IsNullOrWhiteSpace(decalPath)
-                    && File.Exists(decalPath);
-
-                if (useInjector)
+                processId = LaunchWithDecal(clientPath, arguments, Path.GetDirectoryName(clientPath) ?? string.Empty, decalInjectPath);
+                if (processId <= 0)
                 {
-                    // Path A: injector.dll + Decal — the injector creates the process itself so
-                    // the mutex is never contested before Decal intercepts initialisation.
-                    _logger.LogInformation("Using injector.dll launch with Decal: {Decal}", decalPath);
-
-                    try
-                    {
-                        processId = InjectedLauncher.Launch(clientPath, arguments, decalPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "injector.dll call failed, falling back to direct launch");
-                        processId = -1;
-                    }
-
-                    if (processId <= 0)
-                    {
-                        // Injector returned an invalid PID — fall back to direct launch + mutex kill.
-                        _logger.LogWarning("Injected launch returned PID {Pid}, falling back to direct launch", processId);
-                        processId = await FallbackLaunchAsync(clientPath, arguments);
-                        if (processId <= 0)
-                        {
-                            result.ErrorMessage = "Failed to launch game process.";
-                            return result;
-                        }
-                    }
-                    else
-                    {
-                        // Give the injected process a moment to initialise Decal before continuing.
-                        await Task.Delay(1000);
-                    }
-                }
-                else
-                {
-                    // Path B: No Decal / no injector — start acclient normally, then race to
-                    // close its mutex handle so a second instance can start.
-                    if (!File.Exists(injectorPath))
-                        _logger.LogInformation("injector.dll not found, using direct launch + mutex kill");
-                    else
-                        _logger.LogInformation("No Decal path configured, using direct launch + mutex kill");
-
-                    processId = await FallbackLaunchAsync(clientPath, arguments);
-                    if (processId <= 0)
-                    {
-                        result.ErrorMessage = "Failed to launch game process.";
-                        return result;
-                    }
+                    result.ErrorMessage = "Failed to launch game process.";
+                    return result;
                 }
             }
 
@@ -332,66 +259,29 @@ public class GameLauncher : IGameLauncher
         };
     }
 
-    /// <summary>
-    /// Launches acclient.exe directly via Process.Start and attempts to close its mutex
-    /// so that further instances can start. The mutex is polled up to 5 times with 1-second
-    /// delays because acclient creates it asynchronously during startup.
-    /// </summary>
-    private async Task<int> FallbackLaunchAsync(string clientPath, string arguments)
+    private int LaunchWithDecal(string exePath, string arguments, string workingDir, string? decalInjectPath)
     {
-        var process = Process.Start(new ProcessStartInfo
+        if (decalInjectPath is not null)
         {
-            FileName = clientPath,
-            Arguments = arguments,
-            UseShellExecute = false
-        });
-
-        if (process is null)
-            return -1;
-
-        for (int attempt = 0; attempt < 5 && !process.HasExited; attempt++)
-        {
-            await Task.Delay(1000);
-            if (MutexKiller.CloseMutex(process.Id))
-            {
-                _logger.LogInformation("Closed acclient mutex for PID {Pid} (attempt {Attempt})",
-                    process.Id, attempt + 1);
-                break;
-            }
+            var processId = DecalInjector.LaunchSuspendedAndInject(exePath, arguments, workingDir, decalInjectPath);
+            if (processId > 0)
+                _logger.LogInformation("Launched acclient with Decal injection, PID {Pid}", processId);
+            return processId;
         }
-
-        return process.HasExited ? -1 : process.Id;
-    }
-
-    /// <summary>
-    /// Same as <see cref="FallbackLaunchAsync"/> but launches from a symlink instance
-    /// directory so the working directory contains the correct DATs.
-    /// </summary>
-    private async Task<int> FallbackLaunchInstanceAsync(string instanceExePath, string arguments, string instanceDir)
-    {
-        var process = Process.Start(new ProcessStartInfo
+        else
         {
-            FileName = instanceExePath,
-            Arguments = arguments,
-            WorkingDirectory = instanceDir,
-            UseShellExecute = false
-        });
-
-        if (process is null)
-            return -1;
-
-        for (int attempt = 0; attempt < 5 && !process.HasExited; attempt++)
-        {
-            await Task.Delay(1000);
-            if (MutexKiller.CloseMutex(process.Id))
+            // No Decal — single client only, plain launch.
+            var process = System.Diagnostics.Process.Start(new ProcessStartInfo
             {
-                _logger.LogInformation("Closed acclient mutex for symlink instance PID {Pid} (attempt {Attempt})",
-                    process.Id, attempt + 1);
-                break;
-            }
+                FileName = exePath,
+                Arguments = arguments,
+                WorkingDirectory = workingDir,
+                UseShellExecute = false,
+            });
+            if (process is null) return -1;
+            _logger.LogInformation("Launched acclient without Decal, PID {Pid}", process.Id);
+            return process.Id;
         }
-
-        return process.HasExited ? -1 : process.Id;
     }
 
     /// <summary>
