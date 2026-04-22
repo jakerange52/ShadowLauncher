@@ -1,0 +1,30 @@
+﻿<Project Sdk="WixToolset.Sdk/5.0.2">
+
+  <PropertyGroup>
+    <OutputName>ShadowLauncher-Setup</OutputName>
+    <OutputType>Bundle</OutputType>
+    <InstallerPlatform>x86</InstallerPlatform>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <MsiPath Condition="''$(MsiPath)'' == ''">$(MSBuildThisFileDirectory)..\ShadowLauncher.Installer\bin\ShadowLauncher-Setup.msi</MsiPath>
+    <LogoFile Condition="''$(LogoFile)'' == ''">$(MSBuildThisFileDirectory)..\ShadowLauncher\SLicon.ico</LogoFile>
+    <BindPath Condition="''$(BindPath)'' == ''">$(MSBuildThisFileDirectory)bin\</BindPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <WixExtension Include="WixToolset.BootstrapperApplications.wixext"
+                  HintPath="$(USERPROFILE)\.wix\extensions\WixToolset.Bal.wixext\5.0.2\wixext5\WixToolset.BootstrapperApplications.wixext.dll" />
+    <WixExtension Include="WixToolset.Netfx.wixext" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Bundle.wxs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <WixDefine Include="MsiPath=$(MsiPath)" />
+    <WixDefine Include="LogoFile=$(LogoFile)" />
+  </ItemGroup>
+
+</Project>

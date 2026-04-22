@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Fragment>
+
+    <!--
+      Binary payload: the managed custom action DLL that calls LsaAddAccountRights.
+      WiX embeds this into the MSI so it needs no separate install step.
+    -->
+    <Binary Id="CustomActionsDll"
+            SourceFile="$(var.CustomActionsDir)ShadowLauncher.Installer.CustomActions.dll" />
+
+    <!--
+      CustomAction declaration: calls GrantSymlinkPrivilege inside the managed DLL.
+      Execute="deferred"  — runs with elevated (SYSTEM) privileges during install.
+      Impersonate="no"    — stay as SYSTEM, not the installing user.
+      Return="check"      — fail the install if the action returns failure.
+    -->
+    <CustomAction Id="GrantSymlinkPrivilege"
+                  BinaryRef="CustomActionsDll"
+                  DllEntry="GrantSymlinkPrivilege"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
+
+    <!--
+      Schedule the custom action in InstallExecuteSequence:
+      - Only runs on fresh install or upgrade (NOT="Installed"), not on repair/remove.
+      - Placed after InstallFiles so the app is on disk before privileges are set.
+    -->
+    <InstallExecuteSequence>
+      <Custom Action="GrantSymlinkPrivilege"
+               After="InstallFiles"
+               Condition="NOT Installed" />
+    </InstallExecuteSequence>
+
+  </Fragment>
+
+</Wix>

@@ -1,0 +1,37 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+out/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# .NET
+*.dll
+*.exe
+!injector.dll
+*.pdb
+*.nupkg
+*.snupkg
+project.lock.json
+artifacts/
+
+# Installer artifacts
+*.msi
+*.wixpdb
+ShadowLauncher.Installer.Bundle/bin/windowsdesktop-runtime-*.exe
+
+# User and machine-specific
+*.log
+*.cache
+launchSettings.json
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini

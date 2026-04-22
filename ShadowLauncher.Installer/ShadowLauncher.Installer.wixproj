@@ -1,0 +1,32 @@
+﻿<Project Sdk="WixToolset.Sdk/5.0.2">
+
+  <PropertyGroup>
+    <OutputName>ShadowLauncher-Setup</OutputName>
+    <OutputType>Package</OutputType>
+    <InstallerPlatform>x86</InstallerPlatform>
+    <AppVersion>0.1.0</AppVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <AppPublishDir Condition="''$(AppPublishDir)'' == ''">$(MSBuildThisFileDirectory)..\ShadowLauncher\bin\Release\net10.0-windows\</AppPublishDir>
+    <CustomActionsDir Condition="''$(CustomActionsDir)'' == ''">$(MSBuildThisFileDirectory)..\ShadowLauncher.Installer.CustomActions\bin\Release\net10.0-windows\</CustomActionsDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <WixExtension Include="WixToolset.UI.wixext" />
+    <WixExtension Include="WixToolset.Util.wixext" />
+    <WixExtension Include="WixToolset.Netfx.wixext" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Package.wxs" />
+    <Compile Include="Privileges.wxs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <WixDefine Include="AppPublishDir=$(AppPublishDir)" />
+    <WixDefine Include="CustomActionsDir=$(CustomActionsDir)" />
+  </ItemGroup>
+
+</Project>
+

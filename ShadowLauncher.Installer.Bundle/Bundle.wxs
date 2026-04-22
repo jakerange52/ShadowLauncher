@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal"
+     xmlns:netfx="http://wixtoolset.org/schemas/v4/wxs/netfx">
+
+  <Bundle Name="ShadowLauncher"
+          Version="0.1.0"
+          Manufacturer="ShadowLauncher"
+          UpgradeCode="B2C3D4E5-F6A7-8901-BCDE-EF2345678901">
+
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+          Theme="hyperlinkLicense"
+          LicenseUrl=""
+          LogoFile="$(var.LogoFile)" />
+    </BootstrapperApplication>
+
+    <!--
+      Detect .NET 10 Windows Desktop Runtime (x86).
+      Populates DOTNET10PRESENT with the version string if found, empty if not.
+    -->
+    <netfx:DotNetCoreSearch Id="DotNet10DesktopSearch"
+                            Variable="DOTNET10PRESENT"
+                            RuntimeType="desktop"
+                            Platform="x86"
+                            MajorVersion="10" />
+
+    <Chain>
+
+      <!--
+        .NET 10 Windows Desktop Runtime (x86).
+        Only runs when DOTNET10PRESENT is empty (runtime not found).
+        Compressed="no" + DownloadUrl = fetched on demand, not bundled inside the exe.
+        Permanent="yes" = uninstalling ShadowLauncher does not remove the runtime.
+      -->
+      <ExePackage Id="DotNet10DesktopRuntime"
+                  Name="windowsdesktop-runtime-10.0.6-win-x86.exe"
+                  DownloadUrl="https://dotnetcli.azureedge.net/dotnet/WindowsDesktop/10.0.6/windowsdesktop-runtime-10.0.6-win-x86.exe"
+                  DetectCondition="DOTNET10PRESENT"
+                  InstallArguments="/install /quiet /norestart"
+                  RepairArguments="/repair /quiet /norestart"
+                  UninstallArguments="/uninstall /quiet /norestart"
+                  Compressed="no"
+                  Vital="yes"
+                  Permanent="yes" />
+
+      <!-- ShadowLauncher MSI -->
+      <MsiPackage Id="ShadowLauncherMsi"
+                  SourceFile="$(var.MsiPath)"
+                  Vital="yes" />
+
+    </Chain>
+
+  </Bundle>
+
+</Wix>

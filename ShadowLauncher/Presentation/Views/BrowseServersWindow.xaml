@@ -1,0 +1,136 @@
+<Window x:Class="ShadowLauncher.Presentation.Views.BrowseServersWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:ShadowLauncher.Presentation.Controls"
+        Title="Browse Community Servers" Height="500" Width="750"
+        WindowStartupLocation="CenterOwner"
+        Background="#F2121216" WindowStyle="None" AllowsTransparency="True">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CornerRadius="12" GlassFrameThickness="0" CaptionHeight="28" ResizeBorderThickness="6"/>
+    </WindowChrome.WindowChrome>
+    <Border Background="#F2121216" CornerRadius="12" BorderBrush="#2A2A30" BorderThickness="1">
+    <Grid Margin="12">
+        <DockPanel VerticalAlignment="Top" Margin="0,-4,0,0" Height="28">
+            <TextBlock Text="Browse Community Servers" Foreground="#888" VerticalAlignment="Center" FontWeight="SemiBold"/>
+            <Button DockPanel.Dock="Right" Content="&#x2715;" Padding="8,2" FontSize="11" Click="Close_Click"
+                    Style="{DynamicResource IconButton}" Foreground="#888" HorizontalAlignment="Right"
+                    WindowChrome.IsHitTestVisibleInChrome="True"/>
+        </DockPanel>
+        <Grid Margin="0,24,0,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Search bar -->
+        <Grid Grid.Row="0" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Grid Grid.Column="0">
+                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         VerticalContentAlignment="Center" Padding="6,4" FontSize="13"
+                         x:Name="SearchBox"/>
+                <!-- Placeholder — visible only when SearchText is empty and box is not focused -->
+                <TextBlock Text="Search name, host, description..."
+                           Foreground="#555" FontSize="13"
+                           Margin="9,0,0,0" VerticalAlignment="Center"
+                           IsHitTestVisible="False">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding SearchText}" Value=""/>
+                                        <Condition Binding="{Binding IsKeyboardFocused, ElementName=SearchBox}" Value="False"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+            <Button Grid.Column="1" Content="&#x2715;" Padding="10,4" Margin="4,0,0,0"
+                    Command="{Binding ClearSearchCommand}"
+                    ToolTip="Clear search" FontSize="11" Foreground="#888"/>
+        </Grid>
+
+        <!-- Server grid -->
+        <DataGrid Grid.Row="1" ItemsSource="{Binding FilteredServers}" AutoGenerateColumns="False"
+                  IsReadOnly="True" SelectedItem="{Binding SelectedServer}"
+                  SelectionMode="Single" CanUserSortColumns="True">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="Emu" Width="55" SortMemberPath="Emulator">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <controls:HighlightTextBlock Text="{Binding Emulator}"
+                                Query="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=Window}}"
+                                Margin="2,0"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Name" Width="140" SortMemberPath="Name">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <controls:HighlightTextBlock Text="{Binding Name}"
+                                Query="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=Window}}"
+                                Margin="2,0"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Status" Width="80" SortMemberPath="PublishedStatus">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <controls:HighlightTextBlock Text="{Binding PublishedStatus}"
+                                Query="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=Window}}"
+                                Margin="2,0"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Description" Width="*" SortMemberPath="Description">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <controls:HighlightTextBlock Text="{Binding Description}"
+                                Query="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=Window}}"
+                                Margin="2,0"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Host" Width="140" SortMemberPath="Hostname">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <controls:HighlightTextBlock Text="{Binding Hostname}"
+                                Query="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=Window}}"
+                                Margin="2,0"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Port" Width="50" SortMemberPath="Port">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <controls:HighlightTextBlock Text="{Binding Port}"
+                                Query="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=Window}}"
+                                Margin="2,0"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <DockPanel Grid.Row="2" Margin="0,8,0,0">
+            <TextBlock DockPanel.Dock="Left" Text="{Binding StatusText}"
+                       VerticalAlignment="Center" Foreground="#4CAF50" FontWeight="SemiBold"/>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Close" Padding="16,6" Margin="0,0,8,0" IsCancel="True"/>
+                <Button Content="Add to My Servers" Padding="16,6" FontWeight="Bold"
+                        Command="{Binding AddSelectedCommand}"/>
+            </StackPanel>
+        </DockPanel>
+        </Grid>
+    </Grid>
+    </Border>
+</Window>

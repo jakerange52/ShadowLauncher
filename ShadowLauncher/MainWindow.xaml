@@ -1,0 +1,278 @@
+<Window x:Class="ShadowLauncher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:converters="clr-namespace:ShadowLauncher.Presentation.Converters"
+        mc:Ignorable="d"
+        Title="ShadowLauncher" Height="660" Width="900"
+        WindowStartupLocation="CenterScreen"
+        Icon="SLicon.ico"
+        Background="Transparent" WindowStyle="None" AllowsTransparency="True">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CornerRadius="12" GlassFrameThickness="0"
+                      CaptionHeight="64" ResizeBorderThickness="6"/>
+    </WindowChrome.WindowChrome>
+    <Window.Resources>
+        <converters:UptimeConverter x:Key="UptimeConverter"/>
+        <converters:OnlineStatusConverter x:Key="OnlineStatusConverter"/>
+        <converters:OnlineStatusColorConverter x:Key="OnlineStatusColorConverter"/>
+        <converters:SessionStatusConverter x:Key="SessionStatusConverter"/>
+        <converters:StringNotEmptyToVisibilityConverter x:Key="StringNotEmptyToVisibilityConverter"/>
+        <converters:WebsiteMenuVisibilityConverter x:Key="WebsiteMenuVisibilityConverter"/>
+
+    </Window.Resources>
+
+    <Border CornerRadius="12" BorderBrush="#2A2A30" BorderThickness="1">
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#FF0C0C10" Offset="0"/>
+                <GradientStop Color="#F214141C" Offset="0.5"/>
+                <GradientStop Color="#E60F0F14" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.Background>
+        <Grid Margin="14">
+            <!-- Title bar: icon + stacked title + Settings + Minimize + Close -->
+            <DockPanel VerticalAlignment="Top" Margin="0,-6,0,0" Height="64"
+                       WindowChrome.IsHitTestVisibleInChrome="True">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0">
+                    <Button Content="&#x2699;" Width="34" Height="26" Padding="0" FontSize="13"
+                            Command="{Binding SettingsCommand}" VerticalAlignment="Top" Margin="0,0,8,0"
+                            FontFamily="{DynamicResource EmojiFont}"
+                            ToolTip="Settings"/>
+                    <Button Content="&#x2500;" Width="34" Height="26" Padding="0" FontSize="12" Click="Minimize_Click"
+                            FontFamily="{DynamicResource EmojiFont}"
+                            ToolTip="Minimize" Margin="0,0,6,0"/>
+                    <Button Content="&#x2715;" Width="34" Height="26" Padding="0" FontSize="12" Click="Close_Click"
+                            FontFamily="{DynamicResource EmojiFont}"
+                            ToolTip="Close"/>
+                </StackPanel>
+                <!-- Icon + stacked title text -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image Source="SLicon.ico" Width="64" Height="64"
+                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <!-- Single TextBlock with LineBreak + BlockLineHeight gives pixel-precise line spacing -->
+                    <TextBlock FontSize="28" FontWeight="Bold"
+                               Foreground="{StaticResource RedBrush}"
+                               FontFamily="{DynamicResource TitleFont}"
+                               LineHeight="22" LineStackingStrategy="BlockLineHeight"
+                               VerticalAlignment="Center" Margin="8,0,0,0">
+                        <TextBlock.Effect>
+                            <DropShadowEffect Color="Black" BlurRadius="10" ShadowDepth="2" Opacity="0.6"/>
+                        </TextBlock.Effect>
+                        <Run Text="Shadow"/><LineBreak/><Run Text="Launcher"/>
+                    </TextBlock>
+                </StackPanel>
+            </DockPanel>
+        <Grid Margin="0,68,0,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Game Client Path -->
+        <Grid Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Game Client:" VerticalAlignment="Center"
+                       FontWeight="SemiBold" Foreground="#AAA" Margin="0,0,8,0"/>
+            <TextBox Grid.Column="1" Text="{Binding GameClientPath, UpdateSourceTrigger=PropertyChanged}"
+                     VerticalContentAlignment="Center" Padding="4,3"/>
+            <Button Grid.Column="2" Content="&#x1F4C2;" ToolTip="Browse for acclient.exe"
+                    Command="{Binding BrowseGameClientCommand}" Padding="8,4" Margin="6,0,0,0"
+                    FontSize="14" Style="{DynamicResource IconButton}"/>
+        </Grid>
+
+        <!-- Refresh Button -->
+        <Button Grid.Row="1" Grid.ColumnSpan="2" Command="{Binding RefreshCommand}"
+                Padding="4,2" Margin="0,0,0,6" HorizontalAlignment="Left"
+                ToolTip="Refresh accounts and servers"
+                Style="{DynamicResource IconButton}">
+            <TextBlock Text="&#x1F504;" FontSize="14"/>
+        </Button>
+
+        <!-- Accounts Panel -->
+        <GroupBox Grid.Row="2" Grid.Column="0" Header="Accounts" Margin="0,0,5,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <DockPanel Grid.Row="0" Margin="0,0,0,4">
+                    <Button DockPanel.Dock="Left" Content="Account Management" FontSize="11"
+                            Command="{Binding OpenAccountsFileCommand}" Padding="8,2"
+                            ToolTip="Open accounts.txt in Notepad"/>
+                    <Button DockPanel.Dock="Right" Content="+" HorizontalAlignment="Right"
+                            Command="{Binding AddAccountCommand}" Padding="6,2" FontSize="14"
+                            ToolTip="Add Account"/>
+                </DockPanel>
+                <ListBox Grid.Row="1" x:Name="AccountsListBox"
+                         ItemsSource="{Binding Accounts}"
+                         SelectionMode="Extended"
+                         SelectionChanged="AccountsListBox_SelectionChanged"
+                         PreviewMouseLeftButtonDown="ToggleSelect_PreviewMouseLeftButtonDown"
+                         HorizontalContentAlignment="Stretch">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="&#x2715;" FontSize="10"
+                                        Padding="4,0" Margin="4,0,0,0" VerticalAlignment="Center"
+                                        Click="RemoveAccount_Click" Tag="{Binding}"
+                                        ToolTip="Remove account" Style="{DynamicResource IconButton}"/>
+                                <Button DockPanel.Dock="Right" Content="&#x1F4DD;" FontSize="10"
+                                        Padding="4,0" Margin="2,0,0,0" VerticalAlignment="Center"
+                                        Click="EditNote_Click" Tag="{Binding}"
+                                        ToolTip="Edit note" Style="{DynamicResource IconButton}"/>
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Foreground="#DDD"/>
+                                <TextBlock Text="{Binding Notes}" VerticalAlignment="Center"
+                                           Margin="8,0,0,0" Foreground="#666" FontStyle="Italic"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </GroupBox>
+
+        <!-- Servers Panel -->
+        <GroupBox Grid.Row="2" Grid.Column="1" Header="Servers" Margin="5,0,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <DockPanel Grid.Row="0" Margin="0,0,0,4">
+                    <Button DockPanel.Dock="Left" Content="Browse" FontSize="11"
+                            Command="{Binding BrowseServersCommand}" Padding="8,2"
+                            ToolTip="Browse community servers"/>
+                    <Button DockPanel.Dock="Right" Content="+" HorizontalAlignment="Right"
+                            Command="{Binding AddServerCommand}" Padding="6,2" FontSize="14"
+                            ToolTip="Add Server"/>
+                </DockPanel>
+                <ListBox Grid.Row="1" x:Name="ServersListBox"
+                         ItemsSource="{Binding Servers}"
+                         SelectionMode="Extended"
+                         SelectionChanged="ServersListBox_SelectionChanged"
+                         PreviewMouseLeftButtonDown="ToggleSelect_PreviewMouseLeftButtonDown"
+                         HorizontalContentAlignment="Stretch">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.ContextMenu>
+                                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                        <MenuItem Header="Open Discord"
+                                                  Icon="{x:Null}"
+                                                  Click="OpenDiscord_Click"
+                                                  Visibility="{Binding DiscordUrl, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"/>
+                                        <MenuItem Header="Open Website"
+                                                  Icon="{x:Null}"
+                                                  Click="OpenWebsite_Click">
+                                            <MenuItem.Visibility>
+                                                <MultiBinding Converter="{StaticResource WebsiteMenuVisibilityConverter}">
+                                                    <Binding Path="WebsiteUrl"/>
+                                                    <Binding Path="DiscordUrl"/>
+                                                </MultiBinding>
+                                            </MenuItem.Visibility>
+                                        </MenuItem>
+                                    </ContextMenu>
+                                </Grid.ContextMenu>
+                                <!-- Status arrow -->
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding IsOnline, Converter={StaticResource OnlineStatusConverter}}"
+                                           Foreground="{Binding IsOnline, Converter={StaticResource OnlineStatusColorConverter}}"
+                                           Margin="0,0,6,0" VerticalAlignment="Center" FontSize="10"/>
+                                <!-- Server name -->
+                                <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                           VerticalAlignment="Center" Foreground="#DDD"/>
+                                <!-- Description preview -->
+                                <TextBlock Grid.Column="2" Text="{Binding Description}" Foreground="#666" FontStyle="Italic"
+                                           TextTrimming="CharacterEllipsis" MaxWidth="240"
+                                           VerticalAlignment="Center" Margin="8,0,4,0"/>
+                                <!-- Expand description button -->
+                                <Button Grid.Column="3" Content="&#x2026;" FontSize="10" Padding="3,0" Margin="0,0,2,0"
+                                        Style="{DynamicResource IconButton}" VerticalAlignment="Center"
+                                        Tag="{Binding}"
+                                        Click="ServerDetails_Click"
+                                        Visibility="{Binding Description, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"
+                                        ToolTip="View server details"/>
+                                <!-- Remove button -->
+                                <Button Grid.Column="4" Content="&#x2715;" FontSize="10"
+                                        Padding="4,0" Margin="4,0,0,0" VerticalAlignment="Center"
+                                        Click="RemoveServer_Click" Tag="{Binding}"
+                                        ToolTip="Remove server" Style="{DynamicResource IconButton}"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </GroupBox>
+
+        <!-- Active Sessions -->
+        <GroupBox Grid.Row="3" Grid.ColumnSpan="2" Header="Active Sessions" Margin="0,10,0,0">
+            <DataGrid ItemsSource="{Binding ActiveSessions}" AutoGenerateColumns="False"
+                      IsReadOnly="True" Height="120"
+                      SelectedItem="{Binding SelectedSession}">
+                <DataGrid.InputBindings>
+                    <MouseBinding Gesture="LeftDoubleClick"
+                                  Command="{Binding FocusSessionCommand}"/>
+                </DataGrid.InputBindings>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Account" Binding="{Binding AccountName}" Width="*"/>
+                    <DataGridTextColumn Header="Server" Binding="{Binding ServerName}" Width="*"/>
+                    <DataGridTextColumn Header="Character" Binding="{Binding CharacterName}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status, Converter={StaticResource SessionStatusConverter}}" Width="100"/>
+                    <DataGridTextColumn Header="PID" Binding="{Binding ProcessId}" Width="60"/>
+                    <DataGridTextColumn Header="Active Time" Binding="{Binding UptimeSeconds, Converter={StaticResource UptimeConverter}}" Width="90"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </GroupBox>
+
+        <!-- Action Bar -->
+        <DockPanel Grid.Row="4" Grid.ColumnSpan="2" Margin="0,12,0,0">
+            <CheckBox DockPanel.Dock="Left" Content="Kill on Missing Heartbeat"
+                      IsChecked="{Binding KillOnMissingHeartbeat}"
+                      VerticalAlignment="Center" Margin="0,0,4,0"
+                      ToolTip="Kill the game client if no heartbeat is received within the specified timeout"/>
+            <TextBox DockPanel.Dock="Left" Text="{Binding KillHeartbeatTimeoutSeconds, UpdateSourceTrigger=LostFocus}"
+                     Width="35" VerticalContentAlignment="Center" Padding="3,2"
+                     Margin="0,0,4,0" ToolTip="Seconds without heartbeat before killing client"
+                     KeyDown="TimeoutTextBox_KeyDown"/>
+            <TextBlock DockPanel.Dock="Left" Text="sec" VerticalAlignment="Center" Margin="0,0,16,0"
+                       Foreground="#666"/>
+            <CheckBox DockPanel.Dock="Left" Content="Auto Relaunch"
+                      IsChecked="{Binding AutoRelaunch}"
+                      VerticalAlignment="Center" Margin="0,0,4,0"
+                      ToolTip="Automatically relaunch sessions when the game process exits"/>
+            <TextBox DockPanel.Dock="Left" Text="{Binding AutoRelaunchDelaySeconds, UpdateSourceTrigger=LostFocus}"
+                     Width="35" VerticalContentAlignment="Center" Padding="3,2"
+                     Margin="0,0,4,0" ToolTip="Seconds to wait before relaunching"
+                     KeyDown="TimeoutTextBox_KeyDown"/>
+            <TextBlock DockPanel.Dock="Left" Text="sec" VerticalAlignment="Center" Margin="0,0,16,0"
+                       Foreground="#666"/>
+            <TextBlock DockPanel.Dock="Left" Text="{Binding StatusText}"
+                       VerticalAlignment="Center" Foreground="#666"/>
+            <Button DockPanel.Dock="Right" Content="&#x1F300; Launch Game" Command="{Binding LaunchCommand}"
+                    Padding="20,8" FontWeight="Bold" FontSize="14" HorizontalAlignment="Right"/>
+        </DockPanel>
+        </Grid>
+        </Grid>
+    </Border>
+</Window>

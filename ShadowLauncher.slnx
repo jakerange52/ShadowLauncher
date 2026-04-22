@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="ShadowLauncher/ShadowLauncher.csproj" />
+  <Project Path="ShadowLauncher.Installer/ShadowLauncher.Installer.wixproj" />
+  <Project Path="ShadowLauncher.Installer.CustomActions/ShadowLauncher.Installer.CustomActions.csproj" />
+  <Project Path="ShadowLauncher.Installer.Bundle/ShadowLauncher.Installer.Bundle.wixproj" />
+</Solution>
+
+
+
