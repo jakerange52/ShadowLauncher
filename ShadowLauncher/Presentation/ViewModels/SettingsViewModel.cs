@@ -18,6 +18,7 @@ public class SettingsViewModel : ViewModelBase
     private int _downloadProgress;
     private bool _isDownloading;
     private string _currentThemeName;
+    private bool _datDeveloperMode;
     private CancellationTokenSource? _downloadCts;
 
     public SettingsViewModel(IConfigurationProvider config, UpdateChecker updateChecker, ThemeService themeService)
@@ -27,6 +28,7 @@ public class SettingsViewModel : ViewModelBase
         _themeService = themeService;
         _decalPath = _config.DecalPath;
         _currentThemeName = _themeService.CurrentThemeName;
+        _datDeveloperMode = _config.DatDeveloperMode;
 
         SaveCommand = new RelayCommand(Save);
         BrowseDecalCommand = new RelayCommand(() => BrowseRequested?.Invoke(this, nameof(DecalPath)));
@@ -46,6 +48,12 @@ public class SettingsViewModel : ViewModelBase
     {
         get => _decalPath;
         set => SetProperty(ref _decalPath, value);
+    }
+
+    public bool DatDeveloperMode
+    {
+        get => _datDeveloperMode;
+        set => SetProperty(ref _datDeveloperMode, value);
     }
 
     public string StatusText
@@ -101,6 +109,7 @@ public class SettingsViewModel : ViewModelBase
     {
         _config.DecalPath = DecalPath;
         _config.Theme = _currentThemeName;
+        _config.DatDeveloperMode = DatDeveloperMode;
         _config.Save();
 
         StatusText = "Settings saved.";

@@ -1,4 +1,5 @@
 using System.Windows;
+using Microsoft.Win32;
 using ShadowLauncher.Presentation.ViewModels;
 
 namespace ShadowLauncher.Presentation.Views;
@@ -21,4 +22,18 @@ public partial class AddServerWindow : Window
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void BrowseCustomDatRegistry_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Select Custom Dat Registry Folder"
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            var vm = (AddServerViewModel)DataContext;
+            vm.CustomDatRegistryPath = dialog.FolderName;
+        }
+    }
 }

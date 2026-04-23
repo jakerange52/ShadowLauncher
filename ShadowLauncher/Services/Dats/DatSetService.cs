@@ -69,6 +69,15 @@ public class DatSetService : IDatSetService
         => Path.Combine(_config.DatSetsDirectory, datSetId);
 
     /// <inheritdoc/>
+    public string GetLocalDatSetPathForServer(Server server)
+    {
+        if (!string.IsNullOrWhiteSpace(server.CustomDatRegistryPath))
+            return server.CustomDatRegistryPath;
+
+        return GetLocalDatSetPath(server.DatSetId ?? string.Empty);
+    }
+
+    /// <inheritdoc/>
     public async Task<bool> IsDatSetReadyAsync(string datSetId)
     {
         if (IsRetailSet(datSetId))

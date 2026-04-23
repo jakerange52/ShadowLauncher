@@ -600,7 +600,7 @@ public class MainWindowViewModel : ViewModelBase
 
     private async Task AddServerAsync()
     {
-        var vm = new AddServerViewModel();
+        var vm = new AddServerViewModel(_config);
         var window = new Presentation.Views.AddServerWindow(vm)
         {
             Owner = System.Windows.Application.Current.MainWindow

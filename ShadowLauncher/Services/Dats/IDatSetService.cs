@@ -26,6 +26,14 @@ public interface IDatSetService
     string GetLocalDatSetPath(string datSetId);
 
     /// <summary>
+    /// Returns the effective local DAT directory for a server. If the server has a
+    /// <see cref="Server.CustomDatRegistryPath"/> set, that path is returned directly
+    /// (bypassing the community registry). Otherwise falls back to
+    /// <see cref="GetLocalDatSetPath"/> using the server's <see cref="Server.DatSetId"/>.
+    /// </summary>
+    string GetLocalDatSetPathForServer(Server server);
+
+    /// <summary>
     /// Returns true if all files for the given DAT set are present locally.
     /// </summary>
     Task<bool> IsDatSetReadyAsync(string datSetId);

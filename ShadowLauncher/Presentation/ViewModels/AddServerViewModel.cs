@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
 
 namespace ShadowLauncher.Presentation.ViewModels;
@@ -15,11 +16,15 @@ public class AddServerViewModel : ViewModelBase
     private bool _defaultRodat;
     private bool _secureLogon;
     private string _errorText = string.Empty;
+    private string _customDatRegistryPath = string.Empty;
 
-    public AddServerViewModel()
+    public AddServerViewModel(IConfigurationProvider config)
     {
+        IsDatDeveloperMode = config.DatDeveloperMode;
         SaveCommand = new RelayCommand(Save, () => CanSave);
     }
+
+    public bool IsDatDeveloperMode { get; }
 
     public event EventHandler? SaveCompleted;
 
@@ -79,6 +84,12 @@ public class AddServerViewModel : ViewModelBase
         set => SetProperty(ref _secureLogon, value);
     }
 
+    public string CustomDatRegistryPath
+    {
+        get => _customDatRegistryPath;
+        set => SetProperty(ref _customDatRegistryPath, value);
+    }
+
     public string ErrorText
     {
         get => _errorText;
@@ -102,7 +113,8 @@ public class AddServerViewModel : ViewModelBase
         DiscordUrl = DiscordUrl.Trim(),
         WebsiteUrl = WebsiteUrl.Trim(),
         DefaultRodat = DefaultRodat,
-        SecureLogon = SecureLogon
+        SecureLogon = SecureLogon,
+        CustomDatRegistryPath = string.IsNullOrWhiteSpace(CustomDatRegistryPath) ? null : CustomDatRegistryPath.Trim()
     };
 
     private void Save()

@@ -95,6 +95,12 @@ public class AppConfiguration : IConfigurationProvider
         set => SetSetting(nameof(KillHeartbeatTimeoutSeconds), Math.Max(5, value).ToString());
     }
 
+    public bool DatDeveloperMode
+    {
+        get => bool.TryParse(GetSetting(nameof(DatDeveloperMode), "false"), out var v) && v;
+        set => SetSetting(nameof(DatDeveloperMode), value.ToString());
+    }
+
     public void Load()
     {
         if (File.Exists(_settingsFilePath))

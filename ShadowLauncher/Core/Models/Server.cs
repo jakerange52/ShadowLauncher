@@ -21,6 +21,13 @@ public class Server : IEquatable<Server>
     /// </summary>
     public string? DatSetId { get; set; }
 
+    /// <summary>
+    /// Optional local folder path to a custom DAT registry for this server.
+    /// When set (Dat Developer Mode), the registry service is bypassed and
+    /// DATs are loaded from this path directly.
+    /// </summary>
+    public string? CustomDatRegistryPath { get; set; }
+
     public bool IsOnline { get; set; }
     public DateTime LastStatusCheck { get; set; }
 
