@@ -7,6 +7,10 @@ $ErrorActionPreference = "Stop"
 $root         = $PSScriptRoot
 $appProject   = "$root\ShadowLauncher\ShadowLauncher.csproj"
 $caProject    = "$root\ShadowLauncher.Installer.CustomActions\ShadowLauncher.Installer.CustomActions.csproj"
+$thwargRepo   = "$root\..\ThwargLauncher\ThwargLauncher\ThwargLauncher\ThwargFilter\ThwargFilter.csproj"
+$thwargOut    = "$root\..\ThwargLauncher\ThwargLauncher\ThwargLauncher\ThwargFilter\bin\Debug"
+$thwargDest   = "$root\ShadowLauncher.Installer\ThirdParty\ThwargFilter"
+$msbuild      = "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe"
 $msiPkg       = "$root\ShadowLauncher.Installer\Package.wxs"
 $msiPriv      = "$root\ShadowLauncher.Installer\Privileges.wxs"
 $bundleWxs    = "$root\ShadowLauncher.Installer.Bundle\Bundle.wxs"
@@ -41,23 +45,36 @@ if (-not (Get-Command "wix" -ErrorAction SilentlyContinue)) { throw "WiX CLI not
 if (-not (Test-Path $balDll)) { throw "WiX Bal extension not found at: $balDll" }
 Write-Host "  All prerequisites found." -ForegroundColor Green
 
-# Step 1: Build main app
-Step "1/4  Building ShadowLauncher (Release x86)"
+# Step 1: Build ThwargFilter
+Step "1/5  Building ThwargFilter (Debug x86)"
+if (-not (Test-Path $thwargRepo)) { throw "ThwargLauncher repo not found at: $thwargRepo`nClone it alongside ShadowLauncher: git clone https://github.com/Thwargle/ThwargLauncher" }
+if (-not (Test-Path $msbuild)) { throw "MSBuild not found at: $msbuild" }
+& $msbuild $thwargRepo /p:Configuration=Debug /p:Platform=AnyCPU /p:PostBuildEvent="" /nologo /verbosity:minimal
+if ($LASTEXITCODE -ne 0) { throw "ThwargFilter build failed" }
+New-Item -ItemType Directory -Force -Path $thwargDest | Out-Null
+Copy-Item "$thwargOut\ThwargFilter.dll"      $thwargDest -Force
+Copy-Item "$thwargOut\Newtonsoft.Json.dll"   $thwargDest -Force
+Copy-Item "$thwargOut\VCS5.dll"              $thwargDest -Force
+Copy-Item "$thwargOut\VirindiViewService.dll" $thwargDest -Force
+Write-Host "  ThwargFilter DLLs copied to $thwargDest" -ForegroundColor Green
+
+# Step 2: Build main app
+Step "2/5  Building ShadowLauncher (Release x86)"
 & dotnet build $appProject -c Release --nologo
 if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 
-# Step 2: Build custom actions
-Step "2/4  Building Custom Actions DLL"
+# Step 3: Build custom actions
+Step "3/5  Building Custom Actions DLL"
 & dotnet build $caProject -c Release --nologo
 if ($LASTEXITCODE -ne 0) { throw "dotnet build (custom actions) failed" }
 
-# Step 3: Build MSI
-Step "3/4  Building ShadowLauncher-Setup.msi"
+# Step 4: Build MSI
+Step "4/5  Building ShadowLauncher-Setup.msi"
 New-Item -ItemType Directory -Path (Split-Path $msiOut) -Force | Out-Null
-& wix build $msiPkg $msiPriv -d "AppPublishDir=$publishDir\" -d "CustomActionsDir=$caDir\" -d "LicenseFile=$licenseFile" -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -ext WixToolset.Netfx.wixext -arch x86 -out $msiOut
+& wix build $msiPkg $msiPriv -d "AppPublishDir=$publishDir\" -d "CustomActionsDir=$caDir\" -d "ThirdPartyDir=$thwargDest\..\\" -d "LicenseFile=$licenseFile" -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -ext WixToolset.Netfx.wixext -arch x86 -out $msiOut
 if ($LASTEXITCODE -ne 0) { throw "wix build (msi) failed" }
 
-# Step 4: Ensure .NET runtime is cached
+# Step 5: Ensure .NET runtime is cached
 New-Item -ItemType Directory -Path $bundleBinDir -Force | Out-Null
 if (-not (Test-Path $runtimeExe)) {
     Write-Host "  Downloading .NET 10 Desktop Runtime (x86)..." -ForegroundColor Yellow
@@ -68,7 +85,7 @@ if (-not (Test-Path $runtimeExe)) {
 }
 
 # Step 5: Build bundle
-Step "4/4  Building ShadowLauncher-Setup.exe (bundle)"
+Step "5/5  Building ShadowLauncher-Setup.exe (bundle)"
 & wix build $bundleWxs -d "MsiPath=$msiOut" -d "LogoFile=$logoFile" -d "LicenseFile=$licenseFile" -b $bundleBinDir -ext $balDll -ext WixToolset.Netfx.wixext -arch x86 -out $bundleOut
 if ($LASTEXITCODE -ne 0) { throw "wix build (bundle) failed" }
 

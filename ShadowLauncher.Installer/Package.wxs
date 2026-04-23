@@ -18,13 +18,49 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of ShadowLauncher is already installed."
                   Schedule="afterInstallInitialize" />
 
-    <!-- Standard WiX install UI (Welcome → Directory → Progress → Finish) -->
-    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <!-- Feature-tree UI so users can choose Launcher Only or Full install -->
+    <ui:WixUI Id="WixUI_FeatureTree" />
     <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseFile)" />
+
+    <!--
+      Detect Decal 3.0 by its MSI uninstall registry key (written by the Decal installer).
+      Populates DECALINSTALLED with the DisplayName string if found, empty if not.
+    -->
+    <util:RegistrySearch Id="DetectDecal"
+                         Root="HKLM"
+                         Key="SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{341F2D27-9E68-478E-828D-7A4EAD48289F}"
+                         Value="DisplayName"
+                         Variable="DECALINSTALLED"
+                         Result="value"
+                         Bitness="always32" />
+
+    <!--
+      Block the full install if Decal is not present.
+      Runs at start of InstallExecuteSequence, before any files are placed.
+      Condition="&amp;MultiboxingFeature=3" = only when user has selected the Full feature.
+    -->
+    <CustomAction Id="BlockIfNoDecal"
+                  Error="The Full install requires Decal 3.0 to be installed first. Please install Decal from https://www.decaldev.com and re-run setup."
+                  Condition="&amp;MultiboxingFeature=3 AND NOT DECALINSTALLED" />
+
+    <InstallExecuteSequence>
+      <Custom Action="BlockIfNoDecal" Before="InstallFiles" />
+    </InstallExecuteSequence>
+
+    <!--
+      When the Full install feature is selected, flag that a logoff is needed
+      so Windows tells the user to log off and back in for the symlink privilege
+      to take effect. This prompts a "recommended restart" on the finish screen
+      without forcing one.
+    -->
+    <util:RestartResource ProcessName="explorer"
+                          Condition="&amp;MultiboxingFeature=3" />
 
     <!-- Directory structure -->
     <StandardDirectory Id="ProgramFilesFolder">
-      <Directory Id="INSTALLFOLDER" Name="ShadowLauncher" />
+      <Directory Id="INSTALLFOLDER" Name="ShadowLauncher">
+        <Directory Id="ThwargFilterFolder" Name="ThwargFilter" />
+      </Directory>
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
@@ -113,10 +149,76 @@
       </Component>
     </ComponentGroup>
 
-    <!-- Feature tree -->
-    <Feature Id="MainFeature" Title="ShadowLauncher" Level="1">
+    <!--
+      Multiboxing optional components — ThwargFilter DLL + dependencies.
+      Decal must already be installed (it provides Decal.Adapter.dll at runtime).
+      ThwargFilter.dll is registered with COM via regasm so Decal discovers it.
+
+      Files land in: INSTALLFOLDER\ThwargFilter\
+    -->
+    <ComponentGroup Id="MultiboxingComponents" Directory="ThwargFilterFolder">
+
+      <Component Id="ThwargFilterDll" Guid="F1E2D3C4-B5A6-7890-1234-ABCDEF012345">
+        <File Id="ThwargFilterDllFile"
+              Source="$(var.ThirdPartyDir)ThwargFilter\ThwargFilter.dll"
+              KeyPath="yes" />
+        <!-- COM-register the filter DLL so Decal discovers it -->
+        <util:RegisterAssembly Id="RegisterThwargFilter"
+                               File="[ThwargFilterFolder]ThwargFilter.dll"
+                               Register="net"
+                               Permanent="no" />
+      </Component>
+
+      <Component Id="NewtonsoftJsonDll" Guid="E2D3C4B5-A697-8901-2345-BCDEF0123456">
+        <File Source="$(var.ThirdPartyDir)ThwargFilter\Newtonsoft.Json.dll" KeyPath="yes" />
+      </Component>
+
+      <Component Id="VCS5Dll" Guid="D3C4B5A6-F7E8-9012-3456-CDEF01234567">
+        <File Source="$(var.ThirdPartyDir)ThwargFilter\VCS5.dll" KeyPath="yes" />
+      </Component>
+
+      <Component Id="VirindiViewServiceDll" Guid="C4B5A6F7-E8D9-0123-4567-DEF012345678">
+        <File Source="$(var.ThirdPartyDir)ThwargFilter\VirindiViewService.dll" KeyPath="yes" />
+      </Component>
+
+      <!-- Registry flag so we know full install was chosen on repair/uninstall -->
+      <Component Id="MultiboxingFlag" Guid="D3C4B5A6-F7E8-9012-3456-CDEF01234568">
+        <RegistryValue Root="HKCU"
+                       Key="Software\ShadowLauncher"
+                       Name="FullInstall"
+                       Type="integer" Value="1"
+                       KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+
+    <!-- ── Feature tree ──────────────────────────────────────────────────── -->
+
+    <!--
+      Core: always installed. Contains the launcher exe, all DLLs, shortcut.
+    -->
+    <Feature Id="MainFeature"
+             Title="ShadowLauncher (required)"
+             Description="The ShadowLauncher application."
+             Level="1"
+             Absent="disallow"
+             Display="expand">
       <ComponentGroupRef Id="AppComponents" />
       <ComponentGroupRef Id="ShortcutComponents" />
+
+      <!--
+        Full install: Decal + ThwargFilter for multi-boxing support.
+        Level="1"  = selected by default.
+        Users can deselect for a launcher-only install.
+      -->
+      <Feature Id="MultiboxingFeature"
+               Title="Full install (includes ThwargFilter for multi-boxing — requires Decal 3.0)"
+               Description="Installs the ThwargFilter plugin for Decal. Enables in-game heartbeat monitoring, character tracking, and login commands. Requires Decal 3.0 to already be installed — setup will abort if Decal is not found. Can be skipped if you do not use Decal or manage plugins separately. Note: a log off and back on is required after install to activate multi-boxing support (grants SeCreateSymbolicLinkPrivilege to your user account)."
+               Level="2"
+               Display="expand">
+        <ComponentGroupRef Id="MultiboxingComponents" />
+      </Feature>
+
     </Feature>
 
   </Package>

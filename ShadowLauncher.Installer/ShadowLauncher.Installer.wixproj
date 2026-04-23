@@ -10,6 +10,7 @@
   <PropertyGroup>
     <AppPublishDir Condition="''$(AppPublishDir)'' == ''">$(MSBuildThisFileDirectory)..\ShadowLauncher\bin\Release\net10.0-windows\</AppPublishDir>
     <CustomActionsDir Condition="''$(CustomActionsDir)'' == ''">$(MSBuildThisFileDirectory)..\ShadowLauncher.Installer.CustomActions\bin\Release\net10.0-windows\</CustomActionsDir>
+    <ThirdPartyDir Condition="''$(ThirdPartyDir)'' == ''">$(MSBuildThisFileDirectory)ThirdParty\</ThirdPartyDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,6 +27,7 @@
   <ItemGroup>
     <WixDefine Include="AppPublishDir=$(AppPublishDir)" />
     <WixDefine Include="CustomActionsDir=$(CustomActionsDir)" />
+    <WixDefine Include="ThirdPartyDir=$(ThirdPartyDir)" />
   </ItemGroup>
 
 </Project>
