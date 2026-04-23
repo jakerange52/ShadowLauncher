@@ -86,7 +86,7 @@ if (-not (Test-Path $runtimeExe)) {
 
 # Step 5: Build bundle
 Step "5/5  Building ShadowLauncher-Setup.exe (bundle)"
-& wix build $bundleWxs -d "MsiPath=$msiOut" -d "LogoFile=$logoFile" -d "LicenseFile=$licenseFile" -b $bundleBinDir -ext $balDll -ext WixToolset.Netfx.wixext -arch x86 -out $bundleOut
+& wix build $bundleWxs -d "MsiPath=$msiOut" -d "LogoFile=$logoFile" -d "LicenseFile=$licenseFile" -d "Version=$Version" -b $bundleBinDir -ext $balDll -ext WixToolset.Netfx.wixext -arch x86 -out $bundleOut
 if ($LASTEXITCODE -ne 0) { throw "wix build (bundle) failed" }
 
 $sizeMb = [math]::Round((Get-Item $bundleOut).Length / 1MB, 1)

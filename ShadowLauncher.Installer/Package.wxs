@@ -4,8 +4,8 @@
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
   <Package Name="ShadowLauncher"
-           Manufacturer="ShadowLauncher"
-           Version="0.1.1"
+           Manufacturer="Jake Range"
+           Version="$(var.Version)"
            UpgradeCode="A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
            Language="1033"
            Codepage="1252"
@@ -25,6 +25,11 @@
     <!--
       Detect Decal 3.0 by its MSI uninstall registry key (written by the Decal installer).
       Populates DECALINSTALLED with the DisplayName string if found, empty if not.
+
+      NOTE: This product GUID is specific to the known Decal 3.0 release. If Decal ships
+      a new version with a different product code this search will miss it. It is unclear
+      how much longer Decal will be actively maintained or distributed — if it is abandoned
+      or superseded this entire detection block may need revisiting.
     -->
     <util:RegistrySearch Id="DetectDecal"
                          Root="HKLM"
@@ -35,6 +40,37 @@
                          Bitness="always32" />
 
     <!--
+      Fallback: detect Decal by the presence of Decal.Adapter.dll in its default install
+      directory. Catches cases where a future Decal version ships a different MSI product
+      code and the registry search above comes up empty.
+    -->
+    <util:FileSearch Id="DetectDecalByFile"
+                     Path="[ProgramFilesX86Folder]Decal\Decal.Adapter.dll"
+                     Variable="DECALINSTALLED"
+                     Result="exists"
+                     Condition="NOT DECALINSTALLED" />
+
+    <!--
+      Detect ThwargFilter already registered to Decal via two signals:
+        1. The FullInstall registry flag written by a previous ShadowLauncher full install.
+        2. ThwargFilter.dll in ThwargLauncher's default install directory.
+      Either signal sets THWARGFILTERALREADYINSTALLED so the warning fires.
+    -->
+    <util:RegistrySearch Id="DetectThwargFilterFlag"
+                         Root="HKLM"
+                         Key="Software\ShadowLauncher"
+                         Value="FullInstall"
+                         Variable="THWARGFILTERALREADYINSTALLED"
+                         Result="exists"
+                         Condition="NOT THWARGFILTERALREADYINSTALLED" />
+
+    <util:FileSearch Id="DetectThwargFilterExe"
+                     Path="[ProgramFilesX86Folder]ThwargLauncher\ThwargFilter.dll"
+                     Variable="THWARGFILTERALREADYINSTALLED"
+                     Result="exists"
+                     Condition="NOT THWARGFILTERALREADYINSTALLED" />
+
+    <!--
       Block the full install if Decal is not present.
       Runs at start of InstallExecuteSequence, before any files are placed.
       Condition="&amp;MultiboxingFeature=3" = only when user has selected the Full feature.
@@ -43,7 +79,27 @@
                   Error="The Full install requires Decal 3.0 to be installed first. Please install Decal from https://www.decaldev.com and re-run setup."
                   Condition="&amp;MultiboxingFeature=3 AND NOT DECALINSTALLED" />
 
+    <!--
+      Warn when ThwargFilter is already registered to Decal and the user picks Full install.
+      This means ThwargLauncher (or a previous ShadowLauncher full install) already manages
+      the plugin — installing it again risks conflicts. The user should choose Normal install.
+    -->
+    <CustomAction Id="WarnThwargFilterAlreadyInstalled"
+                  Error="ThwargFilter is already registered with Decal on this machine (installed by ThwargLauncher or a previous ShadowLauncher setup). You should use the Normal install instead — the Full install is only needed when ThwargFilter is not already present. Cancel this installer, re-run it, and uncheck the Full install option."
+                  Condition="&amp;MultiboxingFeature=3 AND THWARGFILTERALREADYINSTALLED AND NOT Installed" />
+
+    <!--
+      Error-type CustomActions must be in both sequences:
+        InstallUISequence  = shows the error dialog to the user before anything executes.
+        InstallExecuteSequence = safety net for silent/elevated installs.
+    -->
+    <InstallUISequence>
+      <Custom Action="WarnThwargFilterAlreadyInstalled" Before="BlockIfNoDecal" />
+      <Custom Action="BlockIfNoDecal" Before="ExecuteAction" />
+    </InstallUISequence>
+
     <InstallExecuteSequence>
+      <Custom Action="WarnThwargFilterAlreadyInstalled" Before="BlockIfNoDecal" />
       <Custom Action="BlockIfNoDecal" Before="InstallFiles" />
     </InstallExecuteSequence>
 
@@ -173,7 +229,7 @@
         <File Source="$(var.ThirdPartyDir)ThwargFilter\Newtonsoft.Json.dll" KeyPath="yes" />
       </Component>
 
-      <Component Id="VCS5Dll" Guid="D3C4B5A6-F7E8-9012-3456-CDEF01234567">
+      <Component Id="VCS5Dll" Guid="7A3F1C6E-2B94-4D80-A517-3E8C0F2D9B45">
         <File Source="$(var.ThirdPartyDir)ThwargFilter\VCS5.dll" KeyPath="yes" />
       </Component>
 
@@ -182,8 +238,8 @@
       </Component>
 
       <!-- Registry flag so we know full install was chosen on repair/uninstall -->
-      <Component Id="MultiboxingFlag" Guid="D3C4B5A6-F7E8-9012-3456-CDEF01234568">
-        <RegistryValue Root="HKCU"
+      <Component Id="MultiboxingFlag" Guid="B6E04D27-91A3-4F5C-8E72-1D3A7C504F89">
+        <RegistryValue Root="HKLM"
                        Key="Software\ShadowLauncher"
                        Name="FullInstall"
                        Type="integer" Value="1"
@@ -208,8 +264,8 @@
 
       <!--
         Full install: Decal + ThwargFilter for multi-boxing support.
-        Level="1"  = selected by default.
-        Users can deselect for a launcher-only install.
+        Level="2" = NOT selected by default (opt-in).
+        Users must explicitly check this to get the full install.
       -->
       <Feature Id="MultiboxingFeature"
                Title="Full install (includes ThwargFilter for multi-boxing — requires Decal 3.0)"

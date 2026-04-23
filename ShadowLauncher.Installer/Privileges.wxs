@@ -29,7 +29,7 @@
     <InstallExecuteSequence>
       <Custom Action="GrantSymlinkPrivilege"
                After="InstallFiles"
-               Condition="NOT Installed" />
+               Condition="NOT Installed AND &amp;MultiboxingFeature=3" />
       <Custom Action="CleanupAppData"
                After="RemoveFiles"
                Condition="REMOVE~=&quot;ALL&quot;" />
