@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:ShadowLauncher.Presentation.Views"
         Title="ShadowLauncher" Height="196" Width="480"
         WindowStartupLocation="CenterOwner"
-        Background="#F2121216" WindowStyle="None" AllowsTransparency="True"
+        Background="{DynamicResource BgBrush}" WindowStyle="None" AllowsTransparency="True"
         ResizeMode="NoResize" ShowInTaskbar="False">
     <WindowChrome.WindowChrome>
         <WindowChrome CornerRadius="12" GlassFrameThickness="0" CaptionHeight="28" ResizeBorderThickness="0"/>
@@ -15,7 +15,7 @@
         <local:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
     </Window.Resources>
 
-    <Border Background="#F2121216" CornerRadius="12" BorderBrush="#3A3A40" BorderThickness="1">
+    <Border Background="{DynamicResource BgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
         <Border.Effect>
             <DropShadowEffect Color="Black" BlurRadius="28" ShadowDepth="6" Opacity="0.7"/>
         </Border.Effect>
@@ -40,7 +40,7 @@
             </DockPanel>
 
             <!-- Separator -->
-            <Rectangle Grid.Row="1" Height="1" Fill="#3A3A40" Margin="0,0,0,12"/>
+            <Rectangle Grid.Row="1" Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,0,0,12"/>
 
             <!-- Status text -->
             <TextBlock Grid.Row="2" Margin="0,0,0,4"
@@ -58,11 +58,11 @@
             <!-- Overall progress bar -->
             <ProgressBar Grid.Row="4" Height="10" Margin="0,0,0,6"
                          Value="{Binding OverallProgress}" Maximum="100"
-                         Background="#252528" BorderBrush="#3A3A40" BorderThickness="1">
+                         Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
                 <ProgressBar.Foreground>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                        <GradientStop Color="#661111" Offset="0"/>
-                        <GradientStop Color="#8C2222" Offset="1"/>
+                        <GradientStop Color="{DynamicResource ShadowRed}" Offset="0"/>
+                        <GradientStop Color="{DynamicResource ShadowRedHover}" Offset="1"/>
                     </LinearGradientBrush>
                 </ProgressBar.Foreground>
                 <ProgressBar.Template>
@@ -85,10 +85,10 @@
             <!-- Per-file byte progress (hidden during zip extraction) -->
             <ProgressBar Grid.Row="5" Height="5"
                          Value="{Binding FileProgress}" Maximum="100"
-                         Background="#1A1A1E" BorderBrush="#3A3A40" BorderThickness="1"
+                         Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                          Visibility="{Binding IsExtracting, Converter={StaticResource InvBoolToVis}}">
                 <ProgressBar.Foreground>
-                    <SolidColorBrush Color="#3A3A40"/>
+                    <SolidColorBrush Color="{DynamicResource ShadowRed}"/>
                 </ProgressBar.Foreground>
                 <ProgressBar.Template>
                     <ControlTemplate TargetType="ProgressBar">
@@ -109,8 +109,8 @@
 
             <!-- Indeterminate bar while extracting zip -->
             <ProgressBar Grid.Row="6" Height="5" IsIndeterminate="True" Margin="0,1,0,0"
-                         Background="#1A1A1E" BorderBrush="#3A3A40" BorderThickness="1"
-                         Foreground="#3A3A40"
+                         Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                         Foreground="{DynamicResource RedBrush}"
                          Visibility="{Binding IsExtracting, Converter={StaticResource BoolToVis}}"/>
         </Grid>
     </Border>

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Application;
+using ShadowLauncher.Infrastructure;
 using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Infrastructure.Persistence;
 using ShadowLauncher.Infrastructure.Updates;
@@ -26,6 +27,7 @@ public class MainWindowViewModel : ViewModelBase
     private readonly IGameSessionService _sessionService;
     private readonly IConfigurationProvider _config;
     private readonly UpdateChecker _updateChecker;
+    private readonly ThemeService _themeService;
     private readonly IDatSetService _datSetService;
     private readonly AccountFileRepository _accountFileRepo;
     private readonly ServerFileRepository _serverFileRepo;
@@ -36,6 +38,7 @@ public class MainWindowViewModel : ViewModelBase
     private string _statusText = "Ready";
     private bool _isLoading;
     private string _gameClientPath = string.Empty;
+    private string _currentThemeName;
 
     /// <summary>Tracks PID → (Account, Server) for auto-relaunch.</summary>
     private readonly Dictionary<int, (Account Account, Server Server)> _launchedSessions = [];
@@ -57,6 +60,7 @@ public class MainWindowViewModel : ViewModelBase
         AppCoordinator appCoordinator,
         IGameMonitor gameMonitor,
         UpdateChecker updateChecker,
+        ThemeService themeService,
         IDatSetService datSetService,
         ILogger<MainWindowViewModel> logger)
     {
@@ -66,12 +70,17 @@ public class MainWindowViewModel : ViewModelBase
         _sessionService = sessionService;
         _config = config;
         _updateChecker = updateChecker;
+        _themeService = themeService;
         _datSetService = datSetService;
         _accountFileRepo = accountFileRepo;
         _serverFileRepo = serverFileRepo;
         _serverListDownloader = serverListDownloader;
         _gameMonitor = gameMonitor;
         _logger = logger;
+
+        _currentThemeName = _themeService.CurrentThemeName;
+        _themeService.ThemeChanged += name =>
+            System.Windows.Application.Current.Dispatcher.Invoke(() => CurrentThemeName = name);
 
         _logger.LogInformation("MainWindowViewModel initializing");
 
@@ -101,6 +110,8 @@ public class MainWindowViewModel : ViewModelBase
         BrowseGameClientCommand = new RelayCommand(() => BrowseGameClientRequested?.Invoke(this, EventArgs.Empty));
         FocusSessionCommand = new RelayCommand(FocusSelectedSession, () => SelectedSession is not null);
         OpenAccountsFileCommand = new RelayCommand(OpenAccountsFile);
+        PreviousThemeCommand = new RelayCommand(PreviousTheme);
+        NextThemeCommand = new RelayCommand(NextTheme);
     }
 
     public ObservableCollection<Account> Accounts { get; } = [];
@@ -223,6 +234,28 @@ public class MainWindowViewModel : ViewModelBase
     public ICommand BrowseGameClientCommand { get; }
     public ICommand FocusSessionCommand { get; }
     public ICommand OpenAccountsFileCommand { get; }
+    public ICommand PreviousThemeCommand { get; }
+    public ICommand NextThemeCommand { get; }
+
+    public string CurrentThemeName
+    {
+        get => _currentThemeName;
+        private set => SetProperty(ref _currentThemeName, value);
+    }
+
+    private void PreviousTheme()
+    {
+        _themeService.Previous();
+        _config.Theme = _themeService.CurrentThemeName;
+        _config.Save();
+    }
+
+    private void NextTheme()
+    {
+        _themeService.Next();
+        _config.Theme = _themeService.CurrentThemeName;
+        _config.Save();
+    }
 
     private void OpenAccountsFile()
     {
@@ -356,9 +389,10 @@ public class MainWindowViewModel : ViewModelBase
         var session = ActiveSessions.FirstOrDefault(s => s.Id == e.SessionId);
         if (session is not null)
         {
+            var wasSelected = SelectedSession?.Id == session.Id;
             var idx = ActiveSessions.IndexOf(session);
             // Create a new object so ObservableCollection detects the change
-            ActiveSessions[idx] = new Core.Models.GameSession
+            var updated = new Core.Models.GameSession
             {
                 Id = session.Id,
                 AccountId = session.AccountId,
@@ -373,6 +407,9 @@ public class MainWindowViewModel : ViewModelBase
                 LastHeartbeatTime = e.Data.Timestamp,
                 UptimeSeconds = e.Data.UptimeSeconds
             };
+            ActiveSessions[idx] = updated;
+            if (wasSelected)
+                SelectedSession = updated;
         }
     }
 
@@ -552,7 +589,7 @@ public class MainWindowViewModel : ViewModelBase
 
     private void OpenSettings()
     {
-        var vm = new SettingsViewModel(_config, _updateChecker);
+        var vm = new SettingsViewModel(_config, _updateChecker, _themeService);
         var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService);
         window.Owner = System.Windows.Application.Current.MainWindow;
         if (window.ShowDialog() == true)

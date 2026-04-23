@@ -2,6 +2,7 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using ShadowLauncher.Application;
+using ShadowLauncher.Infrastructure;
 
 namespace ShadowLauncher;
 
@@ -27,6 +28,10 @@ public partial class App : System.Windows.Application
 
         _coordinator = _serviceProvider.GetRequiredService<AppCoordinator>();
         await _coordinator.InitializeAsync();
+
+        // Apply saved theme (replaces the default ShadowTheme loaded from App.xaml).
+        var themeService = _serviceProvider.GetRequiredService<ThemeService>();
+        themeService.ApplySaved();
 
         var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.Show();

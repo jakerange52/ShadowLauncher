@@ -10,6 +10,7 @@ public interface IConfigurationProvider
 
     string GameClientPath { get; set; }
     string DecalPath { get; set; }
+    string Theme { get; set; }
     TimeSpan HeartbeatInterval { get; set; }
     TimeSpan HeartbeatTimeout { get; set; }
     TimeSpan ServerCheckInterval { get; set; }

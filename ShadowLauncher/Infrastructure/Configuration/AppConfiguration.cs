@@ -41,6 +41,12 @@ public class AppConfiguration : IConfigurationProvider
         set => SetSetting(nameof(DecalPath), value);
     }
 
+    public string Theme
+    {
+        get => GetSetting(nameof(Theme), "Shadow");
+        set => SetSetting(nameof(Theme), value);
+    }
+
     public TimeSpan HeartbeatInterval
     {
         get => TimeSpan.FromSeconds(int.TryParse(GetSetting(nameof(HeartbeatInterval), "5"), out var v) ? v : 5);
