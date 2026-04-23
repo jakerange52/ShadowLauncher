@@ -20,7 +20,8 @@
         <converters:SessionStatusConverter x:Key="SessionStatusConverter"/>
         <converters:StringNotEmptyToVisibilityConverter x:Key="StringNotEmptyToVisibilityConverter"/>
         <converters:WebsiteMenuVisibilityConverter x:Key="WebsiteMenuVisibilityConverter"/>
-
+        <converters:ServerDetailsButtonVisibilityConverter x:Key="ServerDetailsButtonVisibilityConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
     </Window.Resources>
 
     <Border CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
@@ -193,6 +194,10 @@
                                                 </MultiBinding>
                                             </MenuItem.Visibility>
                                         </MenuItem>
+                                        <MenuItem Header="Edit Server"
+                                                  Icon="{x:Null}"
+                                                  Click="EditServer_Click"
+                                                  Visibility="{Binding IsManuallyAdded, Converter={StaticResource BoolToVisibility}}"/>
                                     </ContextMenu>
                                 </Grid.ContextMenu>
                                 <!-- Status arrow -->
@@ -212,8 +217,14 @@
                                         Style="{DynamicResource IconButton}" VerticalAlignment="Center"
                                         Tag="{Binding}"
                                         Click="ServerDetails_Click"
-                                        Visibility="{Binding Description, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"
-                                        ToolTip="View server details"/>
+                                        ToolTip="View server details">
+                                    <Button.Visibility>
+                                        <MultiBinding Converter="{StaticResource ServerDetailsButtonVisibilityConverter}">
+                                            <Binding Path="Description"/>
+                                            <Binding Path="IsManuallyAdded"/>
+                                        </MultiBinding>
+                                    </Button.Visibility>
+                                </Button>
                                 <!-- Remove button -->
                                 <Button Grid.Column="4" Content="&#x2715;" FontSize="10"
                                         Padding="4,0" Margin="4,0,0,0" VerticalAlignment="Center"

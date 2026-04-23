@@ -51,7 +51,7 @@ public static class PrivilegeActions
             byte[] sidBytes = new byte[usersSid.BinaryLength];
             usersSid.GetBinaryForm(sidBytes, 0);
 
-            var objectAttributes = new LsaObjectAttributes();
+            var objectAttributes = new LsaObjectAttributes { Length = (uint)Marshal.SizeOf<LsaObjectAttributes>() };
             uint status = LsaOpenPolicy(
                 IntPtr.Zero,
                 ref objectAttributes,

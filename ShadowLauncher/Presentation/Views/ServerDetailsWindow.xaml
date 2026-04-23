@@ -112,6 +112,16 @@
                             Click="Website_Click" Visibility="Collapsed"/>
                 </StackPanel>
 
+                <!-- Divider before edit button (Dat Developer Mode + manually added only) -->
+                <Rectangle x:Name="EditDivider" Height="1" Fill="{DynamicResource BorderBrush}"
+                           Margin="0,10,0,10" Visibility="Collapsed"/>
+
+                <!-- Edit Server button (right-aligned, Dat Developer Mode + manually added only) -->
+                <DockPanel x:Name="EditPanel" Visibility="Collapsed">
+                    <Button DockPanel.Dock="Right" Content="Edit Server Info" Padding="16,6"
+                            HorizontalAlignment="Right" Click="EditServer_Click"/>
+                </DockPanel>
+
             </StackPanel>
         </Grid>
     </Border>

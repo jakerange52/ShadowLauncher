@@ -137,14 +137,17 @@
     </DrawingBrush>
 
     <!-- Title text uses RedBrush — override to gold in Classic -->
-    <SolidColorBrush x:Key="RedBrush"        Color="#C8900A"/>
-    <SolidColorBrush x:Key="SurfaceAltBrush" Color="{StaticResource ShadowSurfaceAlt}"/>
-    <SolidColorBrush x:Key="BorderBrush"     Color="{StaticResource ShadowBorder}"/>
-    <SolidColorBrush x:Key="RedHoverBrush"   Color="{StaticResource ShadowRedHover}"/>
-    <SolidColorBrush x:Key="RedPressBrush"   Color="{StaticResource ShadowRedPress}"/>
-    <SolidColorBrush x:Key="TextBrush"       Color="{StaticResource ShadowText}"/>
-    <SolidColorBrush x:Key="TextMutedBrush"  Color="{StaticResource ShadowTextMuted}"/>
-    <SolidColorBrush x:Key="GoldBrush"       Color="#C8900A"/>
+    <SolidColorBrush x:Key="RedBrush"          Color="#C8900A"/>
+    <SolidColorBrush x:Key="SurfaceAltBrush"   Color="{StaticResource ShadowSurfaceAlt}"/>
+    <SolidColorBrush x:Key="BorderBrush"       Color="{StaticResource ShadowBorder}"/>
+    <SolidColorBrush x:Key="RedHoverBrush"     Color="{StaticResource ShadowRedHover}"/>
+    <SolidColorBrush x:Key="RedPressBrush"     Color="{StaticResource ShadowRedPress}"/>
+    <SolidColorBrush x:Key="TextBrush"         Color="{StaticResource ShadowText}"/>
+    <SolidColorBrush x:Key="TextMutedBrush"    Color="{StaticResource ShadowTextMuted}"/>
+    <SolidColorBrush x:Key="GoldBrush"         Color="#C8900A"/>
+    <!-- Used for highlighted/selected foreground in menus and dropdowns instead of gold,
+         which becomes unreadable against light selection backgrounds. -->
+    <SolidColorBrush x:Key="HighlightFgBrush"  Color="#1A3A5C"/>
 
     <!-- ═══════ Window ═══════ -->
     <Style TargetType="Window">
@@ -499,11 +502,11 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource RedBrush}"/>
-                            <Setter Property="Foreground" Value="{StaticResource GoldBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource HighlightFgBrush}"/>
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource RedBrush}"/>
-                            <Setter Property="Foreground" Value="{StaticResource GoldBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource HighlightFgBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -539,7 +542,7 @@
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
                 <Setter Property="Background" Value="#55C8900A"/>
-                <Setter Property="Foreground" Value="{StaticResource GoldBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource HighlightFgBrush}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -645,7 +648,7 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="menuItemBorder" Property="Background" Value="{StaticResource RedBrush}"/>
-                            <Setter Property="Foreground" Value="{StaticResource GoldBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource HighlightFgBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

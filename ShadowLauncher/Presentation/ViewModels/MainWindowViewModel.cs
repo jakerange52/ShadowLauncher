@@ -430,7 +430,15 @@ public class MainWindowViewModel : ViewModelBase
                 serversNeedingDats.Add((server, server.DatSetId));
         }
 
-        if (serversNeedingDats.Count > 0)
+        // Collect custom-source servers (local path or zip URL) that still need their
+        // DATs fetched. Local paths are validated; zip URLs are downloaded if not cached.
+        var serversNeedingCustomDats = servers
+            .DistinctBy(s => s.Id)
+            .Where(s => !string.IsNullOrWhiteSpace(s.CustomDatRegistryPath)
+                     || !string.IsNullOrWhiteSpace(s.CustomDatZipUrl))
+            .ToList();
+
+        if (serversNeedingCustomDats.Count > 0 || serversNeedingDats.Count > 0)
         {
             var fetchWindow = new Presentation.Views.DatFetchWindow(
                 System.Windows.Application.Current.MainWindow);
@@ -438,6 +446,7 @@ public class MainWindowViewModel : ViewModelBase
 
             try
             {
+                // Registry-sourced DAT sets
                 foreach (var (fetchServer, datSetId) in serversNeedingDats)
                 {
                     _logger.LogInformation("Fetching DAT set '{Id}' for server '{Server}'",
@@ -447,6 +456,17 @@ public class MainWindowViewModel : ViewModelBase
                         p => fetchWindow.ViewModel.Apply(p));
 
                     await _datSetService.DownloadMissingFilesAsync(datSetId, progress);
+                }
+
+                // Custom-source DAT servers (local path or hosted zip URL)
+                foreach (var fetchServer in serversNeedingCustomDats)
+                {
+                    _logger.LogInformation("Ensuring custom DAT source for server '{Server}'", fetchServer.Name);
+
+                    var progress = new Progress<Services.Dats.DatDownloadProgress>(
+                        p => fetchWindow.ViewModel.Apply(p));
+
+                    await _datSetService.EnsureCustomDatSourceReadyAsync(fetchServer, progress);
                 }
 
                 fetchWindow.ViewModel.SetComplete();
@@ -662,6 +682,13 @@ public class MainWindowViewModel : ViewModelBase
         Servers.Remove(server);
         SelectedServers.Remove(server);
         StatusText = $"Removed server '{server.Name}'";
+    }
+
+    public async Task UpdateServerAsync(Server server)
+    {
+        await _serverService.UpdateServerAsync(server);
+        await ReloadServersAsync();
+        StatusText = $"Server '{server.Name}' updated";
     }
 
     public async Task RemoveAccountAsync(Account account)

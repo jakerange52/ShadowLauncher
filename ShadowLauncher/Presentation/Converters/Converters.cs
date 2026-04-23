@@ -4,6 +4,26 @@ using System.Windows.Data;
 namespace ShadowLauncher.Presentation.Converters;
 
 /// <summary>
+/// Multi-value converter for the server list ellipsis button.
+/// Visible when the server has a description (string, non-empty) OR is manually added (bool, true).
+/// Bindings: [0] Description, [1] IsManuallyAdded
+/// </summary>
+public class ServerDetailsButtonVisibilityConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        var hasDescription = values.Length > 0 && values[0] is string s && !string.IsNullOrWhiteSpace(s);
+        var isManuallyAdded = values.Length > 1 && values[1] is bool b && b;
+        return hasDescription || isManuallyAdded
+            ? System.Windows.Visibility.Visible
+            : System.Windows.Visibility.Collapsed;
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
 /// Converts an integer (seconds) to a human-friendly duration like "1d 2h 35m" or "45m".
 /// </summary>
 public class UptimeConverter : IValueConverter

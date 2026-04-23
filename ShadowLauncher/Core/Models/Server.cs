@@ -28,6 +28,22 @@ public class Server : IEquatable<Server>
     /// </summary>
     public string? CustomDatRegistryPath { get; set; }
 
+    /// <summary>
+    /// Optional URL to a zip archive containing the DAT files for this server.
+    /// Used in Dat Developer Mode as an alternative to <see cref="CustomDatRegistryPath"/>
+    /// so remote developers can all pull the same DATs from a shared hosted location
+    /// (e.g. a private file host, S3 bucket, or direct download link).
+    /// If both are set, <see cref="CustomDatRegistryPath"/> takes priority (local wins).
+    /// </summary>
+    public string? CustomDatZipUrl { get; set; }
+
+    /// <summary>
+    /// True when this server was added manually via the Add Server dialog,
+    /// as opposed to imported from the community server list. Only manually
+    /// added servers can be edited after creation.
+    /// </summary>
+    public bool IsManuallyAdded { get; set; }
+
     public bool IsOnline { get; set; }
     public DateTime LastStatusCheck { get; set; }
 

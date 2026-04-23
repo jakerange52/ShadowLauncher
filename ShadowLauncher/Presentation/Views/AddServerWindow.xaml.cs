@@ -6,9 +6,10 @@ namespace ShadowLauncher.Presentation.Views;
 
 public partial class AddServerWindow : Window
 {
-    public AddServerWindow(AddServerViewModel viewModel)
+    public AddServerWindow(AddServerViewModel viewModel, string title = "Add Server")
     {
-        InitializeComponent();
+        InitializeComponent();  
+        Title = title;
         DataContext = viewModel;
         viewModel.SaveCompleted += (_, _) => DialogResult = true;
 

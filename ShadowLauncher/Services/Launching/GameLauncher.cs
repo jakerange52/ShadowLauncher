@@ -90,13 +90,42 @@ public class GameLauncher : IGameLauncher
             int processId;
 
             // ── Path selection ─────────────────────────────────────────────────────
-            // If the server declares a DatSetId registered in DatRegistry.xml, prepare
-            // a per-instance symlink directory first, then launch from there.
-            // Otherwise launch directly from the configured client path.
+            // Priority:
+            //   1. Custom DAT source (local path or zip URL) — Dat Developer Mode.
+            //      EnsureCustomDatSourceReadyAsync downloads the zip if needed, then
+            //      SymlinkLauncher uses whatever local directory it resolved to.
+            //   2. DatSetId registered in DatRegistry.xml — community server with custom DATs.
+            //   3. Neither — launch directly from the configured client path.
             var datSetId = server.DatSetId;
             bool useSymlink = false;
 
-            if (!string.IsNullOrWhiteSpace(datSetId))
+            bool hasCustomSource = !string.IsNullOrWhiteSpace(server.CustomDatRegistryPath)
+                                || !string.IsNullOrWhiteSpace(server.CustomDatZipUrl);
+
+            if (hasCustomSource)
+            {
+                if (!SymlinkLauncher.CanCreateSymlinks())
+                {
+                    result.ErrorMessage = "This server requires DAT file switching via symbolic links, but symlink creation failed. " +
+                        "Enable Developer Mode in Windows Settings → For developers, then restart the launcher.";
+                    _logger.LogError("CanCreateSymlinks() returned false — Developer Mode may be off");
+                    return result;
+                }
+
+                try
+                {
+                    await _datSetService.EnsureCustomDatSourceReadyAsync(server);
+                }
+                catch (Exception ex)
+                {
+                    result.ErrorMessage = $"Failed to prepare custom DAT source for '{server.Name}': {ex.Message}";
+                    _logger.LogError(ex, "EnsureCustomDatSourceReadyAsync failed for '{Server}'", server.Name);
+                    return result;
+                }
+
+                useSymlink = true;
+            }
+            else if (!string.IsNullOrWhiteSpace(datSetId))
             {
                 var datSet = await _datSetService.GetDatSetAsync(datSetId);
                 if (datSet is null)

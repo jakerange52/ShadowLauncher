@@ -17,6 +17,8 @@ public class AddServerViewModel : ViewModelBase
     private bool _secureLogon;
     private string _errorText = string.Empty;
     private string _customDatRegistryPath = string.Empty;
+    private string _customDatZipUrl = string.Empty;
+    private string _saveButtonLabel = "Add Server";
 
     public AddServerViewModel(IConfigurationProvider config)
     {
@@ -25,6 +27,12 @@ public class AddServerViewModel : ViewModelBase
     }
 
     public bool IsDatDeveloperMode { get; }
+
+    public string SaveButtonLabel
+    {
+        get => _saveButtonLabel;
+        private set => SetProperty(ref _saveButtonLabel, value);
+    }
 
     public event EventHandler? SaveCompleted;
 
@@ -90,6 +98,12 @@ public class AddServerViewModel : ViewModelBase
         set => SetProperty(ref _customDatRegistryPath, value);
     }
 
+    public string CustomDatZipUrl
+    {
+        get => _customDatZipUrl;
+        set => SetProperty(ref _customDatZipUrl, value);
+    }
+
     public string ErrorText
     {
         get => _errorText;
@@ -114,8 +128,43 @@ public class AddServerViewModel : ViewModelBase
         WebsiteUrl = WebsiteUrl.Trim(),
         DefaultRodat = DefaultRodat,
         SecureLogon = SecureLogon,
-        CustomDatRegistryPath = string.IsNullOrWhiteSpace(CustomDatRegistryPath) ? null : CustomDatRegistryPath.Trim()
+        IsManuallyAdded = true,
+        CustomDatRegistryPath = string.IsNullOrWhiteSpace(CustomDatRegistryPath) ? null : CustomDatRegistryPath.Trim(),
+        CustomDatZipUrl = string.IsNullOrWhiteSpace(CustomDatZipUrl) ? null : CustomDatZipUrl.Trim()
     };
+
+    /// <summary>
+    /// Populates the view model fields from an existing server for editing.
+    /// </summary>
+    public void LoadFromServer(Server server)
+    {
+        Emulator = server.Emulator;
+        ServerName = server.Name;
+        Description = server.Description;
+        Hostname = server.Hostname;
+        Port = server.Port.ToString();
+        DiscordUrl = server.DiscordUrl;
+        WebsiteUrl = server.WebsiteUrl;
+        DefaultRodat = server.DefaultRodat;
+        SecureLogon = server.SecureLogon;
+        CustomDatRegistryPath = server.CustomDatRegistryPath ?? string.Empty;
+        CustomDatZipUrl = server.CustomDatZipUrl ?? string.Empty;
+        SaveButtonLabel = "Save Changes";
+    }
+
+    /// <summary>
+    /// Returns a copy of the server with fields updated from the current VM state,
+    /// preserving the original Id and IsManuallyAdded flag.
+    /// </summary>
+    public Server ApplyToServer(Server original)
+    {
+        var updated = ToServer();
+        updated.Id = original.Id;
+        updated.IsManuallyAdded = original.IsManuallyAdded;
+        updated.IsOnline = original.IsOnline;
+        updated.LastStatusCheck = original.LastStatusCheck;
+        return updated;
+    }
 
     private void Save()
     {

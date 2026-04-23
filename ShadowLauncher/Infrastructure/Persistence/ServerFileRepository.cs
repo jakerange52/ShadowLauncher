@@ -123,6 +123,10 @@ public sealed class ServerFileRepository : IRepository<Server>, IDisposable
                         DefaultRodat = rodatStr.Equals("On", StringComparison.OrdinalIgnoreCase),
                         SecureLogon = secureStr.Equals("On", StringComparison.OrdinalIgnoreCase),
                         DatSetId = resolvedDatSetId,
+                        IsManuallyAdded = item.Element("manually_added")?.Value
+                            .Equals("true", StringComparison.OrdinalIgnoreCase) ?? false,
+                        CustomDatRegistryPath = item.Element("custom_dat_path")?.Value is { Length: > 0 } p ? p : null,
+                        CustomDatZipUrl = item.Element("custom_dat_zip_url")?.Value is { Length: > 0 } z ? z : null,
                     });
                 }
             }
@@ -162,6 +166,9 @@ public sealed class ServerFileRepository : IRepository<Server>, IDisposable
                         new XElement("default_rodat", s.DefaultRodat ? "On" : "Off"),
                         new XElement("default_secure", s.SecureLogon ? "On" : "Off"),
                         new XElement("dat_set_id", s.DatSetId ?? string.Empty),
+                        new XElement("manually_added", s.IsManuallyAdded ? "true" : "false"),
+                        new XElement("custom_dat_path", s.CustomDatRegistryPath ?? string.Empty),
+                        new XElement("custom_dat_zip_url", s.CustomDatZipUrl ?? string.Empty),
                         new XElement("visibility", "Visible")
                     ))
                 )

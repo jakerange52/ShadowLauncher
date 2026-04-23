@@ -45,7 +45,7 @@
       code and the registry search above comes up empty.
     -->
     <util:FileSearch Id="DetectDecalByFile"
-                     Path="[ProgramFilesX86Folder]Decal\Decal.Adapter.dll"
+                     Path="[CommonFilesX86Folder]Decal\Decal.Adapter.dll"
                      Variable="DECALINSTALLED"
                      Result="exists"
                      Condition="NOT DECALINSTALLED" />
@@ -77,7 +77,7 @@
     -->
     <CustomAction Id="BlockIfNoDecal"
                   Error="The Full install requires Decal 3.0 to be installed first. Please install Decal from https://www.decaldev.com and re-run setup."
-                  Condition="&amp;MultiboxingFeature=3 AND NOT DECALINSTALLED" />
+                  Condition="&amp;MultiboxingFeature=3 AND NOT DECALINSTALLED AND NOT Installed" />
 
     <!--
       Warn when ThwargFilter is already registered to Decal and the user picks Full install.
@@ -197,6 +197,7 @@
                   WorkingDirectory="INSTALLFOLDER"
                   AppUserModelId="ShadowLauncher.App" />
         <RemoveFolder Id="CleanupStartMenu" Directory="ApplicationProgramsFolder" On="uninstall" />
+        <RemoveFolder Id="RemoveInstallFolderNormal" Directory="INSTALLFOLDER" On="uninstall" />
         <RegistryValue Root="HKCU"
                        Key="Software\ShadowLauncher"
                        Name="StartMenuShortcutInstalled"
@@ -244,6 +245,9 @@
                        Name="FullInstall"
                        Type="integer" Value="1"
                        KeyPath="yes" />
+        <!-- Tell MSI to remove the ThwargFilter subdirectory on uninstall -->
+        <RemoveFolder Id="RemoveThwargFilterFolder" Directory="ThwargFilterFolder" On="uninstall" />
+        <RemoveFolder Id="RemoveInstallFolder"      Directory="INSTALLFOLDER"      On="uninstall" />
       </Component>
 
     </ComponentGroup>
