@@ -12,7 +12,7 @@ namespace ShadowLauncher.Infrastructure.Updates;
 public class UpdateChecker
 {
     // Update these to match your actual GitHub repo.
-    private const string GitHubOwner = "Elrek";
+    private const string GitHubOwner = "jakerange52";
     private const string GitHubRepo  = "ShadowLauncher";
     private const string ApiUrl      = $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}/releases/latest";
 

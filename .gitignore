@@ -2,6 +2,7 @@
 [Bb]in/
 [Oo]bj/
 out/
+artifacts/
 
 # Visual Studio
 .vs/
@@ -11,20 +12,20 @@ out/
 *.sln.docstates
 *.rsuser
 
-# .NET
-*.dll
-*.exe
-!injector.dll
+# .NET build artifacts (scoped — bin/ covers most, these catch edge cases)
 *.pdb
 *.nupkg
 *.snupkg
 project.lock.json
-artifacts/
 
 # Installer artifacts
 *.msi
 *.wixpdb
 ShadowLauncher.Installer.Bundle/bin/windowsdesktop-runtime-*.exe
+
+# Extracted bundle inspection folders (local debugging only)
+ux_extract/
+uninstall.log
 
 # User and machine-specific
 *.log

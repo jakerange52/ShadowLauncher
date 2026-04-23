@@ -5,7 +5,7 @@
 
   <Package Name="ShadowLauncher"
            Manufacturer="ShadowLauncher"
-           Version="0.1.0"
+           Version="0.1.1"
            UpgradeCode="A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
            Language="1033"
            Codepage="1252"
@@ -20,22 +20,15 @@
 
     <!-- Standard WiX install UI (Welcome → Directory → Progress → Finish) -->
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseFile)" />
 
-    <!-- ── Directory structure ─────────────────────────────────────────── -->
+    <!-- Directory structure -->
     <StandardDirectory Id="ProgramFilesFolder">
       <Directory Id="INSTALLFOLDER" Name="ShadowLauncher" />
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="ApplicationProgramsFolder" Name="ShadowLauncher" />
-    </StandardDirectory>
-
-    <!--
-      LocalAppData directory reference — needed so RemoveFolderEx can target
-      %LOCALAPPDATA%\ShadowLauncher on uninstall.
-    -->
-    <StandardDirectory Id="LocalAppDataFolder">
-      <Directory Id="ShadowLauncherAppDataDir" Name="ShadowLauncher" />
     </StandardDirectory>
 
     <!-- Main application components -->
@@ -62,12 +55,7 @@
         <File Source="$(var.AppPublishDir)ShadowLauncher.runtimeconfig.json" KeyPath="yes" />
       </Component>
 
-      <!-- injector.dll (native, must ship alongside) -->
-      <Component Id="InjectorDll" Guid="F6A7B8C9-D0E1-2345-F012-456789012345">
-        <File Source="$(var.AppPublishDir)injector.dll" KeyPath="yes" />
-      </Component>
 
-      <!-- Microsoft.Extensions.* managed dependencies -->
       <Component Id="ExtDI" Guid="A7B8C9D0-E1F2-3456-0123-567890123456">
         <File Source="$(var.AppPublishDir)Microsoft.Extensions.DependencyInjection.dll" KeyPath="yes" />
       </Component>
@@ -107,25 +95,7 @@
 
     </ComponentGroup>
 
-    <!--
-      Cleanup component — on uninstall, recursively removes
-      %LOCALAPPDATA%\ShadowLauncher (DAT cache, settings, logs).
-      On="uninstall" means it runs during both clean uninstall and major upgrade.
-    -->
-    <ComponentGroup Id="CleanupComponents" Directory="ShadowLauncherAppDataDir">
-      <Component Id="AppDataCleanup" Guid="A1C2E3F4-B5D6-7890-EF12-345678901234">
-        <util:RemoveFolderEx Id="RemoveAppDataFolder"
-                             On="uninstall"
-                             Property="LOCALAPPDATAPATH" />
-        <RegistryValue Root="HKCU"
-                       Key="Software\ShadowLauncher"
-                       Name="AppDataCleanupInstalled"
-                       Type="integer" Value="1"
-                       KeyPath="yes" />
-      </Component>
-    </ComponentGroup>
-
-    <!-- ── Start Menu shortcut ─────────────────────────────────────────── -->
+    <!-- Start Menu shortcut -->
     <ComponentGroup Id="ShortcutComponents" Directory="ApplicationProgramsFolder">
       <Component Id="StartMenuShortcut" Guid="A9B0C1D2-E3F4-5678-CDEF-789012345678">
         <Shortcut Id="StartMenuShortcut"
@@ -142,21 +112,10 @@
       </Component>
     </ComponentGroup>
 
-    <!-- ── Feature tree ────────────────────────────────────────────────── -->
-    <!--
-      Resolve %LOCALAPPDATA% at install time into LOCALAPPDATAPATH so
-      RemoveFolderEx knows where to clean up on uninstall.
-    -->
-    <Property Id="LOCALAPPDATAPATH">
-      <RegistrySearch Id="LocalAppDataSearch" Root="HKCU"
-                      Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders"
-                      Name="Local AppData" Type="raw" />
-    </Property>
-
+    <!-- Feature tree -->
     <Feature Id="MainFeature" Title="ShadowLauncher" Level="1">
       <ComponentGroupRef Id="AppComponents" />
       <ComponentGroupRef Id="ShortcutComponents" />
-      <ComponentGroupRef Id="CleanupComponents" />
     </Feature>
 
   </Package>

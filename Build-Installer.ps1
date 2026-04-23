@@ -18,6 +18,7 @@ $bundleOut    = "$bundleBinDir\ShadowLauncher-Setup.exe"
 $logoFile     = "$root\ShadowLauncher\SLicon.ico"
 $runtimeExe   = "$bundleBinDir\windowsdesktop-runtime-10.0.6-win-x86.exe"
 $runtimeUrl   = "https://dotnetcli.azureedge.net/dotnet/WindowsDesktop/10.0.6/windowsdesktop-runtime-10.0.6-win-x86.exe"
+$licenseFile  = "$root\ShadowLauncher.Installer.Bundle\license.rtf"
 $balDll       = "$env:USERPROFILE\.wix\extensions\WixToolset.Bal.wixext\5.0.2\wixext5\WixToolset.BootstrapperApplications.wixext.dll"
 
 function Step([string]$msg) {
@@ -53,7 +54,7 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet build (custom actions) failed" }
 # Step 3: Build MSI
 Step "3/4  Building ShadowLauncher-Setup.msi"
 New-Item -ItemType Directory -Path (Split-Path $msiOut) -Force | Out-Null
-& wix build $msiPkg $msiPriv -d "AppPublishDir=$publishDir\" -d "CustomActionsDir=$caDir\" -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -ext WixToolset.Netfx.wixext -arch x86 -out $msiOut
+& wix build $msiPkg $msiPriv -d "AppPublishDir=$publishDir\" -d "CustomActionsDir=$caDir\" -d "LicenseFile=$licenseFile" -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -ext WixToolset.Netfx.wixext -arch x86 -out $msiOut
 if ($LASTEXITCODE -ne 0) { throw "wix build (msi) failed" }
 
 # Step 4: Ensure .NET runtime is cached
@@ -68,7 +69,7 @@ if (-not (Test-Path $runtimeExe)) {
 
 # Step 5: Build bundle
 Step "4/4  Building ShadowLauncher-Setup.exe (bundle)"
-& wix build $bundleWxs -d "MsiPath=$msiOut" -d "LogoFile=$logoFile" -b $bundleBinDir -ext $balDll -ext WixToolset.Netfx.wixext -arch x86 -out $bundleOut
+& wix build $bundleWxs -d "MsiPath=$msiOut" -d "LogoFile=$logoFile" -d "LicenseFile=$licenseFile" -b $bundleBinDir -ext $balDll -ext WixToolset.Netfx.wixext -arch x86 -out $bundleOut
 if ($LASTEXITCODE -ne 0) { throw "wix build (bundle) failed" }
 
 $sizeMb = [math]::Round((Get-Item $bundleOut).Length / 1MB, 1)

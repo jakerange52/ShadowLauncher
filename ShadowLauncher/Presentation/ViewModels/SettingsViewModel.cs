@@ -146,13 +146,14 @@ public class SettingsViewModel : ViewModelBase
 
         StatusText = "Download complete — launching installer...";
 
-        // Launch the installer with /passive so it shows a minimal progress UI
-        // but doesn't require user clicks. The installer handles the app shutdown
-        // and restart automatically via WiX's built-in CloseApplications action.
+        // Launch the new bundle installer. /install /quiet installs silently;
+        // /norestart suppresses any reboot prompt from the .NET runtime package.
+        // The bundle's built-in close logic will shut down any running ShadowLauncher
+        // processes before overwriting files.
         Process.Start(new ProcessStartInfo
         {
             FileName        = installerPath,
-            Arguments       = "/passive",
+            Arguments       = "/install /quiet /norestart",
             UseShellExecute = true,
         });
 
