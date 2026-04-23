@@ -146,18 +146,21 @@ public class SettingsViewModel : ViewModelBase
 
         StatusText = "Download complete — launching installer...";
 
-        // Launch the new bundle installer. /install /quiet installs silently;
-        // /norestart suppresses any reboot prompt from the .NET runtime package.
-        // The bundle's built-in close logic will shut down any running ShadowLauncher
-        // processes before overwriting files.
+        // Shut this instance down, run the installer silently, then relaunch.
+        // We spin up a detached helper process (cmd) to wait for the installer
+        // to finish before starting the new exe — we can't wait ourselves because
+        // we're about to exit.
+        var exePath = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+        var relaunchCmd = $"/c start \"\" /wait \"{installerPath}\" /install /quiet /norestart & start \"\" \"{exePath}\"";
+
         Process.Start(new ProcessStartInfo
         {
-            FileName        = installerPath,
-            Arguments       = "/install /quiet /norestart",
+            FileName        = "cmd.exe",
+            Arguments       = relaunchCmd,
             UseShellExecute = true,
+            WindowStyle     = ProcessWindowStyle.Hidden,
         });
 
-        // Shut this instance down so the installer can overwrite the files.
         System.Windows.Application.Current.Shutdown();
     }
 
