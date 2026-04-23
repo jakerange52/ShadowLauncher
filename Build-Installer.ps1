@@ -8,7 +8,7 @@ $root         = $PSScriptRoot
 $appProject   = "$root\ShadowLauncher\ShadowLauncher.csproj"
 $caProject    = "$root\ShadowLauncher.Installer.CustomActions\ShadowLauncher.Installer.CustomActions.csproj"
 $thwargRepo   = "$root\..\ThwargLauncher\ThwargLauncher\ThwargLauncher\ThwargFilter\ThwargFilter.csproj"
-$thwargOut    = "$root\..\ThwargLauncher\ThwargLauncher\ThwargLauncher\ThwargFilter\bin\x86\Release"
+$thwargOut    = "$root\..\ThwargLauncher\ThwargLauncher\ThwargLauncher\ThwargFilter\bin\Release"
 $thwargDest   = "$root\ShadowLauncher.Installer\ThirdParty\ThwargFilter"
 $msbuild      = $null  # resolved in prerequisites check below
 $msiPkg       = "$root\ShadowLauncher.Installer\Package.wxs"
@@ -53,7 +53,7 @@ Write-Host "  All prerequisites found." -ForegroundColor Green
 # Step 1: Build ThwargFilter
 Step "1/5  Building ThwargFilter (Release x86)"
 if (-not (Test-Path $thwargRepo)) { throw "ThwargLauncher repo not found at: $thwargRepo`nClone it alongside ShadowLauncher: git clone https://github.com/Thwargle/ThwargLauncher" }
-& $msbuild $thwargRepo /p:Configuration=Release /p:Platform=x86 /p:PostBuildEvent="" /nologo /verbosity:minimal
+& $msbuild $thwargRepo /p:Configuration=Release /p:Platform=AnyCPU /p:PostBuildEvent="" /p:ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch=None /nowarn:0219,0649 /nologo /verbosity:minimal
 if ($LASTEXITCODE -ne 0) { throw "ThwargFilter build failed" }
 New-Item -ItemType Directory -Force -Path $thwargDest | Out-Null
 Copy-Item "$thwargOut\ThwargFilter.dll"      $thwargDest -Force
