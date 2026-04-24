@@ -224,6 +224,9 @@ public class MainWindowViewModel : ViewModelBase
     public bool CanLaunch => SelectedAccounts.Count > 0 && SelectedServers.Count > 0
         && !IsLoading && File.Exists(GameClientPath);
 
+    public string CurrentVersion { get; } =
+        $"v{UpdateChecker.CurrentVersion.Major}.{UpdateChecker.CurrentVersion.Minor}.{UpdateChecker.CurrentVersion.Build}";
+
     public ICommand LaunchCommand { get; }
     public ICommand RefreshCommand { get; }
     public ICommand AddAccountCommand { get; }

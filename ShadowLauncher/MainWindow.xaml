@@ -28,10 +28,10 @@
             Background="{DynamicResource BgBrush}">
         <Grid Margin="14">
             <!-- Title bar: icon + stacked title + Settings + Minimize + Close -->
-            <DockPanel VerticalAlignment="Top" Margin="0,-6,0,0" Height="52"
-                       WindowChrome.IsHitTestVisibleInChrome="True">
+            <DockPanel VerticalAlignment="Top" Margin="0,-6,0,0" Height="52">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
-                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0">
+                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0"
+                            WindowChrome.IsHitTestVisibleInChrome="True">
                     <!-- Theme scroller -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
                         <Button Content="&#x276E;" Width="22" Height="22" Padding="0" FontSize="11"
@@ -55,17 +55,20 @@
                             FontFamily="{DynamicResource EmojiFont}"
                             ToolTip="Close"/>
                 </StackPanel>
-                <!-- Title text -->
-                <TextBlock FontSize="28" FontWeight="Bold"
-                           Foreground="{DynamicResource RedBrush}"
-                           FontFamily="{DynamicResource TitleFont}"
-                           LineHeight="22" LineStackingStrategy="BlockLineHeight"
-                           VerticalAlignment="Center">
-                    <TextBlock.Effect>
-                        <DropShadowEffect Color="Black" BlurRadius="10" ShadowDepth="2" Opacity="0.6"/>
-                    </TextBlock.Effect>
-                    <Run Text="Shadow"/><LineBreak/><Run Text="Launcher"/>
-                </TextBlock>
+                <!-- Title text + version -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" IsHitTestVisible="False">
+                    <TextBlock FontSize="28" FontWeight="Bold"
+                               Foreground="{DynamicResource RedBrush}"
+                               FontFamily="{DynamicResource TitleFont}"
+                               LineHeight="22" LineStackingStrategy="BlockLineHeight">
+                        <TextBlock.Effect>
+                            <DropShadowEffect Color="Black" BlurRadius="10" ShadowDepth="2" Opacity="0.6"/>
+                        </TextBlock.Effect>
+                        <Run Text="Shadow"/><LineBreak/><Run Text="Launcher"/>
+                    </TextBlock>
+                    <TextBlock Text="{Binding CurrentVersion}" FontSize="10" Foreground="#666"
+                               VerticalAlignment="Bottom" Margin="6,0,0,2"/>
+                </StackPanel>
             </DockPanel>
         <Grid Margin="0,56,0,0">
         <Grid.RowDefinitions>

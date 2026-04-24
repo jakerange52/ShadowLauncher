@@ -72,8 +72,6 @@
             <StackPanel DockPanel.Dock="Left" Orientation="Vertical" Margin="0,0,8,0">
                 <Button Content="&#x2753; Help" Padding="12,5"
                         Click="OpenHelp_Click" ToolTip="Setup instructions for multi-clienting"/>
-                <TextBlock Text="{Binding CurrentVersion}" Foreground="#444"
-                           HorizontalAlignment="Center" Margin="0,3,0,0" FontSize="11"/>
             </StackPanel>
             <StackPanel DockPanel.Dock="Left" Orientation="Vertical" Margin="8,0,0,0">
                 <TextBlock Text="{Binding StatusText}" Foreground="Gray"

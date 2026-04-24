@@ -110,16 +110,20 @@ public sealed class ServerFileRepository : IRepository<Server>, IDisposable
                     var resolvedDatSetId = rawDatSetId
                         ?? (_datSetOverrides.TryGetValue(key, out var ov) ? ov : null);
 
+                    var discordUrl = item.Element("discord_url")?.Value ?? string.Empty;
+                    var websiteUrl = item.Element("website_url")?.Value ?? string.Empty;
+                    var description = item.Element("description")?.Value ?? string.Empty;
+
                     servers.Add(new Server
                     {
                         Id = key,
                         Name = name,
-                        Description = item.Element("description")?.Value ?? string.Empty,
+                        Description = description,
                         Emulator = emulator,
                         Hostname = hostname,
                         Port = port,
-                        DiscordUrl = item.Element("discord_url")?.Value ?? string.Empty,
-                        WebsiteUrl = item.Element("website_url")?.Value ?? string.Empty,
+                        DiscordUrl = discordUrl,
+                        WebsiteUrl = websiteUrl,
                         DefaultRodat = rodatStr.Equals("On", StringComparison.OrdinalIgnoreCase),
                         SecureLogon = secureStr.Equals("On", StringComparison.OrdinalIgnoreCase),
                         DatSetId = resolvedDatSetId,
