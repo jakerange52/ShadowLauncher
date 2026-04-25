@@ -256,6 +256,44 @@
                     <DataGridTextColumn Header="Status" Binding="{Binding Status, Converter={StaticResource SessionStatusConverter}}" Width="100"/>
                     <DataGridTextColumn Header="PID" Binding="{Binding ProcessId}" Width="60"/>
                     <DataGridTextColumn Header="Active Time" Binding="{Binding UptimeSeconds, Converter={StaticResource UptimeConverter}}" Width="90"/>
+                    <DataGridTemplateColumn Width="80">
+                        <DataGridTemplateColumn.HeaderTemplate>
+                            <DataTemplate>
+                                <Button Content="Min All" Padding="4,2"
+                                        Style="{StaticResource GridActionButton}"
+                                        Command="{Binding DataContext.MinimizeAllSessionsCommand,
+                                                  RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.HeaderTemplate>
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="Minimize" Padding="4,2"
+                                        Style="{StaticResource GridActionButton}"
+                                        Command="{Binding DataContext.MinimizeSessionCommand,
+                                                  RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        CommandParameter="{Binding}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Width="80">
+                        <DataGridTemplateColumn.HeaderTemplate>
+                            <DataTemplate>
+                                <Button Content="Rst All" Padding="4,2"
+                                        Style="{StaticResource GridActionButton}"
+                                        Command="{Binding DataContext.RestoreAllSessionsCommand,
+                                                  RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.HeaderTemplate>
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="Restore" Padding="4,2"
+                                        Style="{StaticResource GridActionButton}"
+                                        Command="{Binding DataContext.RestoreSessionCommand,
+                                                  RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        CommandParameter="{Binding}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </GroupBox>
