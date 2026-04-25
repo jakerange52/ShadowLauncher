@@ -125,16 +125,6 @@ public class GameMonitor : IGameMonitor
                     }
                     else
                     {
-                        // No filter heartbeat file — synthesize from process uptime
-                        var synthetic = new HeartbeatData
-                        {
-                            CharacterName = session.CharacterName,
-                            Status = GameSessionStatus.InGame,
-                            UptimeSeconds = (int)status.Uptime.TotalSeconds,
-                            Timestamp = DateTime.UtcNow
-                        };
-                        HeartbeatReceived?.Invoke(this, new HeartbeatReceivedEventArgs(session.Id, synthetic));
-
                         // Kill on missing heartbeat if enabled and session has been alive long enough
                         if (_config.KillOnMissingHeartbeat)
                         {
@@ -153,8 +143,25 @@ public class GameMonitor : IGameMonitor
                                 catch { }
                                 await _sessionService.CloseSessionAsync(session.Id);
                                 GameExited?.Invoke(this, new GameExitedEventArgs(session.ProcessId));
+                                continue;
+                            }
+                            else if (elapsed > 5)
+                            {
+                                session.Status = GameSessionStatus.Hanging;
                             }
                         }
+
+                        // No filter heartbeat file — synthesize from process uptime
+                        var synthetic = new HeartbeatData
+                        {
+                            CharacterName = session.CharacterName,
+                            Status = session.Status == GameSessionStatus.Hanging
+                                ? GameSessionStatus.Hanging
+                                : GameSessionStatus.InGame,
+                            UptimeSeconds = (int)status.Uptime.TotalSeconds,
+                            Timestamp = DateTime.UtcNow
+                        };
+                        HeartbeatReceived?.Invoke(this, new HeartbeatReceivedEventArgs(session.Id, synthetic));
                     }
                 }
 

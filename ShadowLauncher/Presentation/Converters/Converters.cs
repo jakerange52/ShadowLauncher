@@ -112,6 +112,7 @@ public class SessionStatusConverter : IValueConverter
             ShadowLauncher.Core.Models.GameSessionStatus.LoginScreen => "Login Screen",
             ShadowLauncher.Core.Models.GameSessionStatus.CharacterSelection => "Character Select",
             ShadowLauncher.Core.Models.GameSessionStatus.InGame => "Alive",
+            ShadowLauncher.Core.Models.GameSessionStatus.Hanging => "Hanging",
             ShadowLauncher.Core.Models.GameSessionStatus.Exiting => "Dead",
             ShadowLauncher.Core.Models.GameSessionStatus.Offline => "Dead",
             _ => "Unknown"

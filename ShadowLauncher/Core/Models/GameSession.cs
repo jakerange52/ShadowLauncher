@@ -22,6 +22,7 @@ public enum GameSessionStatus
     LoginScreen,
     CharacterSelection,
     InGame,
+    Hanging,
     Exiting,
     Offline
 }

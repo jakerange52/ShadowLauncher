@@ -342,56 +342,63 @@ public class MainWindowViewModel : ViewModelBase
             StatusText = $"Session ended: {session.AccountName} on {session.ServerName}";
         }
 
-        // Auto-relaunch if enabled and we know which account/server this was
-        if (AutoRelaunch && _launchedSessions.TryGetValue(processId, out var info))
+        // Auto-relaunch if enabled and we know which account/server this was.
+        // Remove is atomic — if the monitor fires twice for the same PID (race),
+        // only the first call finds the entry and proceeds.
+        if (!_launchedSessions.Remove(processId, out var info))
+            return;
+
+        if (!AutoRelaunch)
+            return;
+
+        var hasAliveSessionForCombo = ActiveSessions.Any(s =>
+            string.Equals(s.AccountId, info.Account.Id, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(s.ServerId, info.Server.Id, StringComparison.OrdinalIgnoreCase));
+
+        if (hasAliveSessionForCombo)
         {
-            _launchedSessions.Remove(processId);
+            _logger.LogInformation("Skipping auto-relaunch for {Account} on {Server} because an active session already exists.",
+                info.Account.Name, info.Server.Name);
+            StatusText = $"Skipping relaunch for {info.Account.Name} on {info.Server.Name} (already active).";
+            return;
+        }
 
-            var hasAliveSessionForCombo = ActiveSessions.Any(s =>
-                string.Equals(s.AccountId, info.Account.Id, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(s.ServerId, info.Server.Id, StringComparison.OrdinalIgnoreCase));
+        _logger.LogInformation("Auto-relaunching {Account} on {Server}", info.Account.Name, info.Server.Name);
+        StatusText = $"Auto-relaunching {info.Account.Name} on {info.Server.Name}...";
 
-            if (hasAliveSessionForCombo)
+        try
+        {
+            var character = info.Account.Characters.FirstOrDefault()
+                ?? new Core.Models.Character { Id = Guid.NewGuid().ToString(), Name = "Default", AccountId = info.Account.Id, Level = 1 };
+
+            // Delay before relaunch — re-check toggle after the wait in case it was turned off
+            await Task.Delay(AutoRelaunchDelaySeconds * 1000);
+
+            if (!AutoRelaunch)
             {
-                _logger.LogInformation("Skipping auto-relaunch for {Account} on {Server} because an active session already exists.",
-                    info.Account.Name, info.Server.Name);
-                StatusText = $"Skipping relaunch for {info.Account.Name} on {info.Server.Name} (already active).";
+                _logger.LogInformation("Auto-relaunch cancelled (disabled during delay) for {Account}", info.Account.Name);
+                StatusText = $"Auto-relaunch cancelled for {info.Account.Name}.";
                 return;
             }
 
-            _logger.LogInformation("Auto-relaunching {Account} on {Server}", info.Account.Name, info.Server.Name);
-            StatusText = $"Auto-relaunching {info.Account.Name} on {info.Server.Name}...";
-
-            try
+            var result = await _gameLauncher.LaunchGameAsync(info.Account, character, info.Server);
+            if (result.Success)
             {
-                var character = info.Account.Characters.FirstOrDefault()
-                    ?? new Core.Models.Character { Id = Guid.NewGuid().ToString(), Name = "Default", AccountId = info.Account.Id, Level = 1 };
-
-                // Delay before relaunch
-                await Task.Delay(AutoRelaunchDelaySeconds * 1000);
-
-                var result = await _gameLauncher.LaunchGameAsync(info.Account, character, info.Server);
-                if (result.Success)
-                {
-                    var newSession = await _sessionService.CreateSessionAsync(info.Account, info.Server, result.ProcessId);
-                    ActiveSessions.Add(newSession);
+                var newSession = await _sessionService.CreateSessionAsync(info.Account, info.Server, result.ProcessId);
+                ActiveSessions.Add(newSession);
+                if (AutoRelaunch)
                     _launchedSessions[result.ProcessId] = info;
-                    StatusText = $"Auto-relaunched {info.Account.Name} (PID {result.ProcessId})";
-                }
-                else
-                {
-                    StatusText = $"Auto-relaunch failed for {info.Account.Name}";
-                }
+                StatusText = $"Auto-relaunched {info.Account.Name} (PID {result.ProcessId})";
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogError(ex, "Auto-relaunch failed for {Account}", info.Account.Name);
-                StatusText = $"Auto-relaunch error: {ex.Message}";
+                StatusText = $"Auto-relaunch failed for {info.Account.Name}";
             }
         }
-        else
+        catch (Exception ex)
         {
-            _launchedSessions.Remove(processId);
+            _logger.LogError(ex, "Auto-relaunch failed for {Account}", info.Account.Name);
+            StatusText = $"Auto-relaunch error: {ex.Message}";
         }
     }
 
