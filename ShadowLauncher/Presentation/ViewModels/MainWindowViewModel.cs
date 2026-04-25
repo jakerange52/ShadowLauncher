@@ -41,7 +41,7 @@ public class MainWindowViewModel : ViewModelBase
     private string _currentThemeName;
 
     /// <summary>Tracks PID → (Account, Server) for auto-relaunch.</summary>
-    private readonly Dictionary<int, (Account Account, Server Server)> _launchedSessions = [];
+    private readonly Dictionary<int, (Account Account, Server Server, bool WasMinimized)> _launchedSessions = [];
 
     /// <summary>
     /// Raised when the VM needs the view to show a file-browse dialog.
@@ -91,7 +91,7 @@ public class MainWindowViewModel : ViewModelBase
         appCoordinator.ServerStatusRefreshed += (_, _) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(ReloadServersAsync);
         _gameMonitor.GameExited += (_, e) =>
-            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnGameExited(e.ProcessId));
+            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnGameExited(e.ProcessId, e.WasMinimized));
         _gameMonitor.HeartbeatReceived += (_, e) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnHeartbeatReceived(e));
 
@@ -332,7 +332,7 @@ public class MainWindowViewModel : ViewModelBase
             ServerSelectionRestoreRequested?.Invoke(selectedIds);
     }
 
-    private async void OnGameExited(int processId)
+    private async void OnGameExited(int processId, bool wasMinimized)
     {
         _logger.LogInformation("Game process exited: PID {Pid}", processId);
         var session = ActiveSessions.FirstOrDefault(s => s.ProcessId == processId);
@@ -387,7 +387,13 @@ public class MainWindowViewModel : ViewModelBase
                 var newSession = await _sessionService.CreateSessionAsync(info.Account, info.Server, result.ProcessId);
                 ActiveSessions.Add(newSession);
                 if (AutoRelaunch)
-                    _launchedSessions[result.ProcessId] = info;
+                    _launchedSessions[result.ProcessId] = (info.Account, info.Server, wasMinimized);
+                if (wasMinimized)
+                {
+                    // Give the new client a moment to create its window then minimize
+                    await Task.Delay(3000);
+                    WindowFocusHelper.MinimizeProcess(result.ProcessId);
+                }
                 StatusText = $"Auto-relaunched {info.Account.Name} (PID {result.ProcessId})";
             }
             else
@@ -541,7 +547,7 @@ public class MainWindowViewModel : ViewModelBase
                     {
                         var session = await _sessionService.CreateSessionAsync(account, server, result.ProcessId);
                         ActiveSessions.Add(session);
-                        _launchedSessions[result.ProcessId] = (account, server);
+                        _launchedSessions[result.ProcessId] = (account, server, false);
                         account.LaunchCount++;
                         account.LastUsedDate = DateTime.UtcNow;
                         await _accountService.UpdateAccountAsync(account);

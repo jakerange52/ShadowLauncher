@@ -20,8 +20,7 @@ internal static partial class WindowFocusHelper
     private const int SW_RESTORE  = 9;
     private const int SW_MINIMIZE = 6;
 
-    /// <summary>
-    /// Brings the main window of the given process to the foreground.
+    /// <summary>Brings the main window of the given process to the foreground.
     /// Returns true if a window was found and focused.
     /// </summary>
     public static bool FocusProcess(int processId)
@@ -70,6 +69,18 @@ internal static partial class WindowFocusHelper
             if (hWnd == IntPtr.Zero) return false;
             ShowWindow(hWnd, SW_RESTORE);
             return true;
+        }
+        catch (ArgumentException) { return false; }
+    }
+
+    /// <summary>Returns true if the main window of the given process is minimized.</summary>
+    public static bool IsMinimized(int processId)
+    {
+        try
+        {
+            var process = Process.GetProcessById(processId);
+            var hWnd = process.MainWindowHandle;
+            return hWnd != IntPtr.Zero && IsIconic(hWnd);
         }
         catch (ArgumentException) { return false; }
     }

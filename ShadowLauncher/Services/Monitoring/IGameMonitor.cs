@@ -35,7 +35,8 @@ public class HeartbeatReceivedEventArgs(string sessionId, HeartbeatData data) : 
     public HeartbeatData Data { get; } = data;
 }
 
-public class GameExitedEventArgs(int processId) : EventArgs
+public class GameExitedEventArgs(int processId, bool wasMinimized) : EventArgs
 {
     public int ProcessId { get; } = processId;
+    public bool WasMinimized { get; } = wasMinimized;
 }

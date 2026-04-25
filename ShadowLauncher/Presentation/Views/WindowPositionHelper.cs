@@ -25,7 +25,12 @@ internal static class WindowPositionHelper
         }
         else
         {
-            AddAccountWindow.ClampedOffset(child, owner);
+            // Use the focused window as the reference so the child appears on top of
+            // whatever the user was interacting with, falling back to the declared owner.
+            var focused = System.Windows.Application.Current.Windows.OfType<Window>()
+                .FirstOrDefault(w => w.IsActive && w != child)
+                ?? owner;
+            AddAccountWindow.ClampedOffset(child, focused);
         }
     }
 
