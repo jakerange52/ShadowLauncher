@@ -47,7 +47,7 @@ public class MainWindowViewModel : ViewModelBase
     private bool _applyingProfile;
 
     /// <summary>Tracks PID → (Account, Server) for auto-relaunch.</summary>
-    private readonly Dictionary<int, (Account Account, Server Server, bool WasMinimized)> _launchedSessions = [];
+    private readonly Dictionary<int, (Account Account, Server Server)> _launchedSessions = [];
 
     /// <summary>
     /// Raised when the VM needs the view to show a file-browse dialog.
