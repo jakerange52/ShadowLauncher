@@ -89,6 +89,10 @@ public class EditProfilesViewModel : ViewModelBase
 
         ErrorText = string.Empty;
 
+        // Drop empty entries before persisting
+        foreach (var empty in Profiles.Where(p => string.IsNullOrWhiteSpace(p.Name)).ToList())
+            Profiles.Remove(empty);
+
         foreach (var ep in Profiles)
         {
             if (string.IsNullOrWhiteSpace(ep.Name)) continue;

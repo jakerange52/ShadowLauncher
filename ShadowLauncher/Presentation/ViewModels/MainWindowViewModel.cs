@@ -46,8 +46,12 @@ public class MainWindowViewModel : ViewModelBase
     private LaunchProfile? _currentProfile;
     private bool _applyingProfile;
 
+    // Debounce state for profile saves
+    private CancellationTokenSource? _saveCts;
+    private const int SaveDebounceMs = 400;
+
     /// <summary>Tracks PID → (Account, Server) for auto-relaunch.</summary>
-    private readonly Dictionary<int, (Account Account, Server Server)> _launchedSessions = [];
+    private readonly Dictionary<int, (Account Account, Server Server, bool WasMinimized)> _launchedSessions = [];
 
     /// <summary>
     /// Raised when the VM needs the view to show a file-browse dialog.
@@ -115,7 +119,6 @@ public class MainWindowViewModel : ViewModelBase
         AddAccountCommand = new AsyncRelayCommand(AddAccountAsync);
         AddServerCommand = new AsyncRelayCommand(AddServerAsync);
         BrowseServersCommand = new RelayCommand(BrowseServers);
-        RemoveServersCommand = new AsyncRelayCommand(RemoveSelectedServersAsync, () => SelectedServers.Count > 0);
         SettingsCommand = new RelayCommand(OpenSettings);
         BrowseGameClientCommand = new RelayCommand(() => BrowseGameClientRequested?.Invoke(this, EventArgs.Empty));
         FocusSessionCommand = new RelayCommand(FocusSelectedSession, () => SelectedSession is not null);
@@ -170,17 +173,6 @@ public class MainWindowViewModel : ViewModelBase
                 _config.Save();
                 OnPropertyChanged(nameof(CanLaunch));
             }
-        }
-    }
-
-    public bool NeverKillOnMissingHeartbeat
-    {
-        get => !_config.KillOnMissingHeartbeat;
-        set
-        {
-            _config.KillOnMissingHeartbeat = !value;
-            _config.Save();
-            OnPropertyChanged();
         }
     }
 
@@ -255,7 +247,6 @@ public class MainWindowViewModel : ViewModelBase
     public ICommand AddAccountCommand { get; }
     public ICommand AddServerCommand { get; }
     public ICommand BrowseServersCommand { get; }
-    public ICommand RemoveServersCommand { get; }
     public ICommand SettingsCommand { get; }
     public ICommand BrowseGameClientCommand { get; }
     public ICommand FocusSessionCommand { get; }
@@ -700,7 +691,7 @@ public class MainWindowViewModel : ViewModelBase
         var vm = new SettingsViewModel(_config, _updateChecker, _themeService);
         var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService, _loginCommandsService, _profileService);
         window.Owner = System.Windows.Application.Current.MainWindow;
-        window.LoginCommandsSaved += (_, _) => SaveCurrentProfile();
+        window.LoginCommandsSaved += (_, _) => SnapshotLoginCommandsAndSave();
         window.ProfilesEdited += (_, _) => SyncProfilesCollection();
         if (window.ShowDialog() == true)
         {
@@ -713,10 +704,23 @@ public class MainWindowViewModel : ViewModelBase
         Profiles.Clear();
         foreach (var p in _profileService.Profiles)
             Profiles.Add(p);
-        // Keep CurrentProfile in sync — find by id in case it was renamed
-        var active = Profiles.FirstOrDefault(p => p.Id == _currentProfile?.Id)
-                     ?? Profiles.FirstOrDefault();
-        CurrentProfile = active;
+
+        // Try to keep the same profile selected (survive renames).
+        var stillPresent = Profiles.FirstOrDefault(p => p.Id == _currentProfile?.Id);
+        if (stillPresent is not null)
+        {
+            // Profile still exists — update backing field only (no need to re-apply).
+            _currentProfile = stillPresent;
+            OnPropertyChanged(nameof(CurrentProfile));
+        }
+        else
+        {
+            // Current profile was deleted; ProfileService already switched ActiveProfileId.
+            // Go through the property setter so ApplyProfile() is called and config +
+            // ThwargFilter files are updated to reflect the new active profile.
+            CurrentProfile = Profiles.FirstOrDefault(p => p.Id == _profileService.ActiveProfile?.Id)
+                             ?? Profiles.FirstOrDefault();
+        }
     }
 
     private async Task AddServerAsync()
@@ -903,17 +907,77 @@ public class MainWindowViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Schedules a lightweight profile save (selections + options) debounced by
+    /// <see cref="SaveDebounceMs"/> ms. Multiple rapid calls coalesce into one write.
+    /// Login-command file scanning is NOT included here; call
+    /// <see cref="SnapshotLoginCommandsAndSave"/> explicitly when commands change.
+    /// </summary>
     private void SaveCurrentProfile()
     {
         if (_currentProfile is null || _applyingProfile) return;
-        _currentProfile.SelectedAccountIds = SelectedAccounts.Select(a => a.Id).ToList();
-        _currentProfile.SelectedServerIds = SelectedServers.Select(s => s.Id).ToList();
-        _currentProfile.KillOnMissingHeartbeat = _config.KillOnMissingHeartbeat;
-        _currentProfile.KillHeartbeatTimeoutSeconds = _config.KillHeartbeatTimeoutSeconds;
-        _currentProfile.AutoRelaunch = _config.AutoRelaunch;
-        _currentProfile.AutoRelaunchDelaySeconds = _config.AutoRelaunchDelaySeconds;
-        _loginCommandsService.SnapshotIntoProfile(_currentProfile);
-        _profileService.SaveProfile(_currentProfile);
+
+        // Cancel any pending save and schedule a fresh one.
+        _saveCts?.Cancel();
+        _saveCts = new CancellationTokenSource();
+        var token = _saveCts.Token;
+        var profile = _currentProfile;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(SaveDebounceMs, token);
+
+                // Capture selections on the UI thread, then write off it.
+                var accountIds = await System.Windows.Application.Current.Dispatcher
+                    .InvokeAsync(() => SelectedAccounts.Select(a => a.Id).ToList());
+                var serverIds = await System.Windows.Application.Current.Dispatcher
+                    .InvokeAsync(() => SelectedServers.Select(s => s.Id).ToList());
+
+                profile.SelectedAccountIds = accountIds;
+                profile.SelectedServerIds = serverIds;
+                profile.KillOnMissingHeartbeat = _config.KillOnMissingHeartbeat;
+                profile.KillHeartbeatTimeoutSeconds = _config.KillHeartbeatTimeoutSeconds;
+                profile.AutoRelaunch = _config.AutoRelaunch;
+                profile.AutoRelaunchDelaySeconds = _config.AutoRelaunchDelaySeconds;
+
+                _profileService.SaveProfile(profile);
+            }
+            catch (OperationCanceledException) { /* superseded by a newer save */ }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Background profile save failed");
+            }
+        }, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Performs a full profile save that includes snapshotting the login-command files.
+    /// Called only when the user explicitly saves login commands in Settings.
+    /// Runs off the UI thread.
+    /// </summary>
+    public void SnapshotLoginCommandsAndSave()
+    {
+        if (_currentProfile is null) return;
+        var profile = _currentProfile;
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                profile.KillOnMissingHeartbeat = _config.KillOnMissingHeartbeat;
+                profile.KillHeartbeatTimeoutSeconds = _config.KillHeartbeatTimeoutSeconds;
+                profile.AutoRelaunch = _config.AutoRelaunch;
+                profile.AutoRelaunchDelaySeconds = _config.AutoRelaunchDelaySeconds;
+                _loginCommandsService.SnapshotIntoProfile(profile);
+                _profileService.SaveProfile(profile);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Login-commands snapshot save failed");
+            }
+        });
     }
 }
 

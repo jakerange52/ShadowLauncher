@@ -25,6 +25,7 @@ public class ProfileService
         else if (!_profiles.Any(p => p.Id == _activeProfileId))
         {
             _activeProfileId = _profiles[0].Id;
+            SaveMeta();
         }
     }
 
