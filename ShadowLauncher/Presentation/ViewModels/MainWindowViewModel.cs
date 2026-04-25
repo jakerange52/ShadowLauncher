@@ -16,6 +16,8 @@ using ShadowLauncher.Services.Launching;
 using ShadowLauncher.Services.Monitoring;
 using ShadowLauncher.Services.Dats;
 using ShadowLauncher.Services.Servers;
+using ShadowLauncher.Services.Profiles;
+using ShadowLauncher.Services.LoginCommands;
 
 namespace ShadowLauncher.Presentation.ViewModels;
 
@@ -34,11 +36,15 @@ public class MainWindowViewModel : ViewModelBase
     private readonly ServerListDownloader _serverListDownloader;
     private readonly IGameMonitor _gameMonitor;
     private readonly ILogger<MainWindowViewModel> _logger;
+    private readonly ProfileService _profileService;
+    private readonly LoginCommandsService _loginCommandsService;
 
     private string _statusText = "Ready";
     private bool _isLoading;
     private string _gameClientPath = string.Empty;
     private string _currentThemeName;
+    private LaunchProfile? _currentProfile;
+    private bool _applyingProfile;
 
     /// <summary>Tracks PID → (Account, Server) for auto-relaunch.</summary>
     private readonly Dictionary<int, (Account Account, Server Server, bool WasMinimized)> _launchedSessions = [];
@@ -62,6 +68,8 @@ public class MainWindowViewModel : ViewModelBase
         UpdateChecker updateChecker,
         ThemeService themeService,
         IDatSetService datSetService,
+        ProfileService profileService,
+        LoginCommandsService loginCommandsService,
         ILogger<MainWindowViewModel> logger)
     {
         _accountService = accountService;
@@ -76,6 +84,8 @@ public class MainWindowViewModel : ViewModelBase
         _serverFileRepo = serverFileRepo;
         _serverListDownloader = serverListDownloader;
         _gameMonitor = gameMonitor;
+        _profileService = profileService;
+        _loginCommandsService = loginCommandsService;
         _logger = logger;
 
         _currentThemeName = _themeService.CurrentThemeName;
@@ -97,8 +107,8 @@ public class MainWindowViewModel : ViewModelBase
 
         _gameClientPath = _config.GameClientPath;
 
-        SelectedAccounts.CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanLaunch));
-        SelectedServers.CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanLaunch));
+        SelectedAccounts.CollectionChanged += (_, _) => { OnPropertyChanged(nameof(CanLaunch)); SaveCurrentProfile(); };
+        SelectedServers.CollectionChanged += (_, _) => { OnPropertyChanged(nameof(CanLaunch)); SaveCurrentProfile(); };
 
         LaunchCommand = new AsyncRelayCommand(LaunchGameAsync, () => CanLaunch);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
@@ -116,6 +126,11 @@ public class MainWindowViewModel : ViewModelBase
         RestoreAllSessionsCommand  = new RelayCommand(RestoreAllSessions);
         PreviousThemeCommand = new RelayCommand(PreviousTheme);
         NextThemeCommand = new RelayCommand(NextTheme);
+        AddProfileCommand = new RelayCommand(AddProfile);
+
+        foreach (var p in _profileService.Profiles)
+            Profiles.Add(p);
+        _currentProfile = _profileService.ActiveProfile;
     }
 
     public ObservableCollection<Account> Accounts { get; } = [];
@@ -179,6 +194,7 @@ public class MainWindowViewModel : ViewModelBase
                 _config.KillOnMissingHeartbeat = value;
                 _config.Save();
                 OnPropertyChanged();
+                SaveCurrentProfile();
             }
         }
     }
@@ -193,6 +209,7 @@ public class MainWindowViewModel : ViewModelBase
                 _config.KillHeartbeatTimeoutSeconds = value;
                 _config.Save();
                 OnPropertyChanged();
+                SaveCurrentProfile();
             }
         }
     }
@@ -207,6 +224,7 @@ public class MainWindowViewModel : ViewModelBase
                 _config.AutoRelaunch = value;
                 _config.Save();
                 OnPropertyChanged();
+                SaveCurrentProfile();
             }
         }
     }
@@ -221,6 +239,7 @@ public class MainWindowViewModel : ViewModelBase
                 _config.AutoRelaunchDelaySeconds = value;
                 _config.Save();
                 OnPropertyChanged();
+                SaveCurrentProfile();
             }
         }
     }
@@ -247,6 +266,22 @@ public class MainWindowViewModel : ViewModelBase
     public ICommand RestoreAllSessionsCommand { get; }
     public ICommand PreviousThemeCommand { get; }
     public ICommand NextThemeCommand { get; }
+    public ICommand AddProfileCommand { get; }
+
+    public ObservableCollection<LaunchProfile> Profiles { get; } = [];
+
+    public LaunchProfile? CurrentProfile
+    {
+        get => _currentProfile;
+        set
+        {
+            if (_currentProfile?.Id == value?.Id) return;
+            _currentProfile = value;
+            OnPropertyChanged();
+            if (value is not null)
+                ApplyProfile(value);
+        }
+    }
 
     public string CurrentThemeName
     {
@@ -298,6 +333,11 @@ public class MainWindowViewModel : ViewModelBase
                 ActiveSessions.Add(session);
 
             StatusText = $"Loaded {Accounts.Count} accounts, {Servers.Count} servers";
+
+            // Restore active profile selections now that accounts/servers are loaded
+            if (_currentProfile is not null)
+                ProfileSelectionRestoreRequested?.Invoke(
+                    _currentProfile.SelectedAccountIds, _currentProfile.SelectedServerIds);
         }
         catch (Exception ex)
         {
@@ -658,8 +698,9 @@ public class MainWindowViewModel : ViewModelBase
     private void OpenSettings()
     {
         var vm = new SettingsViewModel(_config, _updateChecker, _themeService);
-        var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService);
+        var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService, _loginCommandsService);
         window.Owner = System.Windows.Application.Current.MainWindow;
+        window.LoginCommandsSaved += (_, _) => SaveCurrentProfile();
         if (window.ShowDialog() == true)
         {
             StatusText = "Settings saved.";
@@ -799,4 +840,66 @@ public class MainWindowViewModel : ViewModelBase
         };
         window.ShowDialog();
     }
+
+    private void AddProfile()
+    {
+        var vm = new AddProfileViewModel();
+        var window = new Presentation.Views.AddProfileWindow(vm)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        if (window.ShowDialog() == true)
+        {
+            var profile = _profileService.CreateProfile(vm.ProfileName);
+            Profiles.Add(profile);
+            CurrentProfile = profile;
+        }
+    }
+
+    /// <summary>Raised when the view needs to restore ListBox selections from a profile.</summary>
+    public event Action<IReadOnlyList<string>, IReadOnlyList<string>>? ProfileSelectionRestoreRequested;
+
+    private void ApplyProfile(LaunchProfile profile)
+    {
+        _applyingProfile = true;
+        try
+        {
+            _profileService.SetActiveProfile(profile.Id);
+
+            // Apply options
+            _config.KillOnMissingHeartbeat = profile.KillOnMissingHeartbeat;
+            _config.KillHeartbeatTimeoutSeconds = profile.KillHeartbeatTimeoutSeconds;
+            _config.AutoRelaunch = profile.AutoRelaunch;
+            _config.AutoRelaunchDelaySeconds = profile.AutoRelaunchDelaySeconds;
+            _config.Save();
+            OnPropertyChanged(nameof(KillOnMissingHeartbeat));
+            OnPropertyChanged(nameof(KillHeartbeatTimeoutSeconds));
+            OnPropertyChanged(nameof(AutoRelaunch));
+            OnPropertyChanged(nameof(AutoRelaunchDelaySeconds));
+
+            // Ask the view to restore list selections
+            ProfileSelectionRestoreRequested?.Invoke(profile.SelectedAccountIds, profile.SelectedServerIds);
+
+            // Apply stored login commands to ThwargFilter files
+            _loginCommandsService.ApplyFromProfile(profile);
+        }
+        finally
+        {
+            _applyingProfile = false;
+        }
+    }
+
+    private void SaveCurrentProfile()
+    {
+        if (_currentProfile is null || _applyingProfile) return;
+        _currentProfile.SelectedAccountIds = SelectedAccounts.Select(a => a.Id).ToList();
+        _currentProfile.SelectedServerIds = SelectedServers.Select(s => s.Id).ToList();
+        _currentProfile.KillOnMissingHeartbeat = _config.KillOnMissingHeartbeat;
+        _currentProfile.KillHeartbeatTimeoutSeconds = _config.KillHeartbeatTimeoutSeconds;
+        _currentProfile.AutoRelaunch = _config.AutoRelaunch;
+        _currentProfile.AutoRelaunchDelaySeconds = _config.AutoRelaunchDelaySeconds;
+        _loginCommandsService.SnapshotIntoProfile(_currentProfile);
+        _profileService.SaveProfile(_currentProfile);
+    }
 }
+

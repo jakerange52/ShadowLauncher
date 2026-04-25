@@ -70,16 +70,16 @@
         <!-- Footer -->
         <DockPanel Grid.Row="5">
             <StackPanel DockPanel.Dock="Left" Orientation="Vertical" Margin="0,0,8,0">
-                <Button Content="&#x2753; Help" Padding="12,5"
-                        Click="OpenHelp_Click" ToolTip="Setup instructions for multi-clienting"/>
-            </StackPanel>
-            <StackPanel DockPanel.Dock="Left" Orientation="Vertical" Margin="8,0,0,0">
                 <TextBlock Text="{Binding StatusText}" Foreground="Gray"
                            VerticalAlignment="Center" FontSize="11" Margin="0,0,0,4"/>
-                <Button Content="Check for Updates" Padding="12,6"
-                        Command="{Binding CheckForUpdatesCommand}"
-                        Visibility="{Binding IsDownloading, Converter={StaticResource InverseBoolToVisibility}}"
-                        ToolTip="Check GitHub for a newer version of ShadowLauncher"/>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="&#x2753; Help" Padding="12,6" Margin="0,0,8,0"
+                            Click="OpenHelp_Click" ToolTip="Setup instructions for multi-clienting"/>
+                    <Button Content="Check for Updates" Padding="12,6"
+                            Command="{Binding CheckForUpdatesCommand}"
+                            Visibility="{Binding IsDownloading, Converter={StaticResource InverseBoolToVisibility}}"
+                            ToolTip="Check GitHub for a newer version of ShadowLauncher"/>
+                </StackPanel>
                 <!-- Download progress (visible only while downloading) -->
                 <ProgressBar Minimum="0" Maximum="100"
                              Value="{Binding DownloadProgress}"

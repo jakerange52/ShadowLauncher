@@ -11,13 +11,15 @@ public partial class SettingsWindow : Window
 {
     private readonly IAccountService? _accountService;
     private readonly IServerService? _serverService;
+    private readonly LoginCommandsService? _loginCommandsService;
 
-    public SettingsWindow(SettingsViewModel viewModel, IAccountService? accountService = null, IServerService? serverService = null)
+    public SettingsWindow(SettingsViewModel viewModel, IAccountService? accountService = null, IServerService? serverService = null, LoginCommandsService? loginCommandsService = null)
     {
         InitializeComponent();
         DataContext = viewModel;
         _accountService = accountService;
         _serverService = serverService;
+        _loginCommandsService = loginCommandsService;
 
         viewModel.BrowseRequested += OnBrowseRequested;
         viewModel.SaveCompleted += (_, _) => DialogResult = true;
@@ -25,6 +27,9 @@ public partial class SettingsWindow : Window
         Loaded += (_, _) => OffsetFromOwner();
         Closed += (_, _) => WindowPositionHelper.Save(this);
     }
+
+    /// <summary>Raised after global or per-character login commands are saved.</summary>
+    public event EventHandler? LoginCommandsSaved;
 
     private void OffsetFromOwner()
     {
@@ -51,20 +56,24 @@ public partial class SettingsWindow : Window
 
     private void OpenLoginCommands_Click(object sender, RoutedEventArgs e)
     {
-        var window = new LoginCommandsWindow(new LoginCommandsService())
+        var service = _loginCommandsService ?? new LoginCommandsService();
+        var window = new LoginCommandsWindow(service)
         {
             Owner = Owner ?? this
         };
-        window.ShowDialog();
+        if (window.ShowDialog() == true)
+            LoginCommandsSaved?.Invoke(this, EventArgs.Empty);
     }
 
     private void OpenPerCharacterLoginCommands_Click(object sender, RoutedEventArgs e)
     {
         if (_accountService is null || _serverService is null) return;
-        var window = new PerCharacterLoginCommandsWindow(new LoginCommandsService(), _accountService, _serverService)
+        var service = _loginCommandsService ?? new LoginCommandsService();
+        var window = new PerCharacterLoginCommandsWindow(service, _accountService, _serverService)
         {
             Owner = Owner ?? this
         };
+        window.Closed += (_, _) => LoginCommandsSaved?.Invoke(this, EventArgs.Empty);
         window.ShowDialog();
     }
 

@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private readonly IConfigurationProvider _config;
 
     private bool _suppressServerSelection;
+    private bool _suppressAccountSelection;
 
     public MainWindow(MainWindowViewModel viewModel, IConfigurationProvider config)
     {
@@ -24,7 +25,33 @@ public partial class MainWindow : Window
         DataContext = _viewModel;
         _viewModel.BrowseGameClientRequested += OnBrowseGameClient;
         _viewModel.ServerSelectionRestoreRequested += RestoreServerSelection;
+        _viewModel.ProfileSelectionRestoreRequested += RestoreProfileSelection;
         Loaded += async (_, _) => await _viewModel.LoadAsync();
+    }
+
+    private void RestoreProfileSelection(IReadOnlyList<string> accountIds, IReadOnlyList<string> serverIds)
+    {
+        // Restore accounts
+        _suppressAccountSelection = true;
+        AccountsListBox.SelectedItems.Clear();
+        foreach (Account account in AccountsListBox.Items)
+            if (accountIds.Contains(account.Id))
+                AccountsListBox.SelectedItems.Add(account);
+        _suppressAccountSelection = false;
+        _viewModel.SelectedAccounts.Clear();
+        foreach (Account item in AccountsListBox.SelectedItems)
+            _viewModel.SelectedAccounts.Add(item);
+
+        // Restore servers
+        _suppressServerSelection = true;
+        ServersListBox.SelectedItems.Clear();
+        foreach (Server server in ServersListBox.Items)
+            if (serverIds.Contains(server.Id))
+                ServersListBox.SelectedItems.Add(server);
+        _suppressServerSelection = false;
+        _viewModel.SelectedServers.Clear();
+        foreach (Server item in ServersListBox.SelectedItems)
+            _viewModel.SelectedServers.Add(item);
     }
 
     private void RestoreServerSelection(IReadOnlyList<string> ids)
@@ -53,6 +80,7 @@ public partial class MainWindow : Window
 
     private void AccountsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_suppressAccountSelection) return;
         _viewModel.SelectedAccounts.Clear();
         foreach (Account item in ((ListBox)sender).SelectedItems)
             _viewModel.SelectedAccounts.Add(item);

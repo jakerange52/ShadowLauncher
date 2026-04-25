@@ -99,13 +99,28 @@
                     FontSize="14" Style="{DynamicResource IconButton}"/>
         </Grid>
 
-        <!-- Refresh Button -->
-        <Button Grid.Row="1" Grid.ColumnSpan="2" Command="{Binding RefreshCommand}"
-                Padding="4,2" Margin="0,0,0,6" HorizontalAlignment="Left"
-                ToolTip="Refresh accounts and servers"
-                Style="{DynamicResource IconButton}">
-            <TextBlock Text="&#x1F504;" FontSize="14"/>
-        </Button>
+        <!-- Refresh + Profile row -->
+        <DockPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,0,0,6">
+            <Button DockPanel.Dock="Left" Command="{Binding RefreshCommand}"
+                    Padding="4,2" HorizontalAlignment="Left"
+                    ToolTip="Refresh accounts and servers"
+                    Style="{DynamicResource IconButton}">
+                <TextBlock Text="&#x1F504;" FontSize="14"/>
+            </Button>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Center">
+                <TextBlock Text="Profile:" VerticalAlignment="Center" Foreground="#888"
+                           FontSize="11" Margin="0,0,6,0"/>
+                <ComboBox ItemsSource="{Binding Profiles}"
+                          SelectedItem="{Binding CurrentProfile, Mode=TwoWay}"
+                          DisplayMemberPath="Name"
+                          MinWidth="130" VerticalContentAlignment="Center"
+                          ToolTip="Switch profile"/>
+                <Button Content="+" Width="24" Height="24" Padding="0" FontSize="14" FontWeight="Bold"
+                        Command="{Binding AddProfileCommand}" Margin="4,0,0,0"
+                        ToolTip="New profile"/>
+            </StackPanel>
+        </DockPanel>
 
         <!-- Accounts Panel -->
         <GroupBox Grid.Row="2" Grid.Column="0" Header="Accounts" Margin="0,0,5,0">
