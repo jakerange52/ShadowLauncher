@@ -716,8 +716,7 @@ public class MainWindowViewModel : ViewModelBase
         // Keep CurrentProfile in sync — find by id in case it was renamed
         var active = Profiles.FirstOrDefault(p => p.Id == _currentProfile?.Id)
                      ?? Profiles.FirstOrDefault();
-        _currentProfile = active;
-        OnPropertyChanged(nameof(CurrentProfile));
+        CurrentProfile = active;
     }
 
     private async Task AddServerAsync()
