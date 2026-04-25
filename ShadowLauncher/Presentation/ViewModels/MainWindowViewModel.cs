@@ -698,13 +698,26 @@ public class MainWindowViewModel : ViewModelBase
     private void OpenSettings()
     {
         var vm = new SettingsViewModel(_config, _updateChecker, _themeService);
-        var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService, _loginCommandsService);
+        var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService, _loginCommandsService, _profileService);
         window.Owner = System.Windows.Application.Current.MainWindow;
         window.LoginCommandsSaved += (_, _) => SaveCurrentProfile();
+        window.ProfilesEdited += (_, _) => SyncProfilesCollection();
         if (window.ShowDialog() == true)
         {
             StatusText = "Settings saved.";
         }
+    }
+
+    private void SyncProfilesCollection()
+    {
+        Profiles.Clear();
+        foreach (var p in _profileService.Profiles)
+            Profiles.Add(p);
+        // Keep CurrentProfile in sync — find by id in case it was renamed
+        var active = Profiles.FirstOrDefault(p => p.Id == _currentProfile?.Id)
+                     ?? Profiles.FirstOrDefault();
+        _currentProfile = active;
+        OnPropertyChanged(nameof(CurrentProfile));
     }
 
     private async Task AddServerAsync()
@@ -843,7 +856,8 @@ public class MainWindowViewModel : ViewModelBase
 
     private void AddProfile()
     {
-        var vm = new AddProfileViewModel();
+        var existingNames = _profileService.Profiles.Select(p => p.Name).ToList();
+        var vm = new AddProfileViewModel(existingNames);
         var window = new Presentation.Views.AddProfileWindow(vm)
         {
             Owner = System.Windows.Application.Current.MainWindow

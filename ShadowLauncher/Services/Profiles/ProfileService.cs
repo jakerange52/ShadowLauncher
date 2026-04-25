@@ -56,6 +56,24 @@ public class ProfileService
         Save();
     }
 
+    public void RenameProfile(string id, string newName)
+    {
+        var profile = _profiles.FirstOrDefault(p => p.Id == id);
+        if (profile is null) return;
+        profile.Name = newName;
+        Save();
+    }
+
+    public bool DeleteProfile(string id)
+    {
+        if (_profiles.Count <= 1) return false; // always keep at least one
+        var removed = _profiles.RemoveAll(p => p.Id == id) > 0;
+        if (removed && _activeProfileId == id)
+            _activeProfileId = _profiles[0].Id;
+        if (removed) Save();
+        return removed;
+    }
+
     private void Load()
     {
         if (!File.Exists(_filePath)) return;
