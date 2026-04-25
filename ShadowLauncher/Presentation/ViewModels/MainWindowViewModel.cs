@@ -864,7 +864,8 @@ public class MainWindowViewModel : ViewModelBase
         };
         if (window.ShowDialog() == true)
         {
-            var profile = _profileService.CreateProfile(vm.ProfileName);
+            var trimmedProfileName = vm.ProfileName.Trim();
+            var profile = _profileService.CreateProfile(trimmedProfileName);
             Profiles.Add(profile);
             CurrentProfile = profile;
         }
