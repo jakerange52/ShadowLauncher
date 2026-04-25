@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Win32;
+using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Presentation.ViewModels;
 using ShadowLauncher.Presentation.Views;
@@ -11,13 +12,15 @@ namespace ShadowLauncher;
 public partial class MainWindow : Window
 {
     private readonly MainWindowViewModel _viewModel;
+    private readonly IConfigurationProvider _config;
 
     private bool _suppressServerSelection;
 
-    public MainWindow(MainWindowViewModel viewModel)
+    public MainWindow(MainWindowViewModel viewModel, IConfigurationProvider config)
     {
         InitializeComponent();
         _viewModel = viewModel;
+        _config = config;
         DataContext = _viewModel;
         _viewModel.BrowseGameClientRequested += OnBrowseGameClient;
         _viewModel.ServerSelectionRestoreRequested += RestoreServerSelection;
@@ -138,7 +141,12 @@ public partial class MainWindow : Window
     private void ServerDetails_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: Server server })
-            new Presentation.Views.ServerDetailsWindow(server, this).ShowDialog();
+        {
+            var detailsWindow = new Presentation.Views.ServerDetailsWindow(server, this, _config);
+            detailsWindow.ServerEdited += async (_, updated) =>
+                await _viewModel.UpdateServerAsync(updated);
+            detailsWindow.ShowDialog();
+        }
     }
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;

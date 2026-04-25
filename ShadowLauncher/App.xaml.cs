@@ -1,6 +1,8 @@
-﻿using System.Windows;
+﻿using System.Runtime.InteropServices;
+using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using ShadowLauncher.Application;
+using ShadowLauncher.Infrastructure;
 
 namespace ShadowLauncher;
 
@@ -9,9 +11,16 @@ public partial class App : System.Windows.Application
     private IServiceProvider? _serviceProvider;
     private AppCoordinator? _coordinator;
 
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern void SetCurrentProcessExplicitAppUserModelID(string appId);
+
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Must match the AppUserModelId set on the Start Menu shortcut so that
+        // taskbar pins survive upgrades (Windows tracks the pin by this stable ID).
+        SetCurrentProcessExplicitAppUserModelID("ShadowLauncher.App");
 
         var services = new ServiceCollection();
         services.RegisterServices();
@@ -19,6 +28,10 @@ public partial class App : System.Windows.Application
 
         _coordinator = _serviceProvider.GetRequiredService<AppCoordinator>();
         await _coordinator.InitializeAsync();
+
+        // Apply saved theme (replaces the default ShadowTheme loaded from App.xaml).
+        var themeService = _serviceProvider.GetRequiredService<ThemeService>();
+        themeService.ApplySaved();
 
         var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.Show();

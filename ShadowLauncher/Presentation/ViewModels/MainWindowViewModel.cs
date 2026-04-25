@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Application;
+using ShadowLauncher.Infrastructure;
 using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Infrastructure.Persistence;
 using ShadowLauncher.Infrastructure.Updates;
@@ -26,6 +27,7 @@ public class MainWindowViewModel : ViewModelBase
     private readonly IGameSessionService _sessionService;
     private readonly IConfigurationProvider _config;
     private readonly UpdateChecker _updateChecker;
+    private readonly ThemeService _themeService;
     private readonly IDatSetService _datSetService;
     private readonly AccountFileRepository _accountFileRepo;
     private readonly ServerFileRepository _serverFileRepo;
@@ -36,6 +38,7 @@ public class MainWindowViewModel : ViewModelBase
     private string _statusText = "Ready";
     private bool _isLoading;
     private string _gameClientPath = string.Empty;
+    private string _currentThemeName;
 
     /// <summary>Tracks PID → (Account, Server) for auto-relaunch.</summary>
     private readonly Dictionary<int, (Account Account, Server Server)> _launchedSessions = [];
@@ -57,6 +60,7 @@ public class MainWindowViewModel : ViewModelBase
         AppCoordinator appCoordinator,
         IGameMonitor gameMonitor,
         UpdateChecker updateChecker,
+        ThemeService themeService,
         IDatSetService datSetService,
         ILogger<MainWindowViewModel> logger)
     {
@@ -66,12 +70,17 @@ public class MainWindowViewModel : ViewModelBase
         _sessionService = sessionService;
         _config = config;
         _updateChecker = updateChecker;
+        _themeService = themeService;
         _datSetService = datSetService;
         _accountFileRepo = accountFileRepo;
         _serverFileRepo = serverFileRepo;
         _serverListDownloader = serverListDownloader;
         _gameMonitor = gameMonitor;
         _logger = logger;
+
+        _currentThemeName = _themeService.CurrentThemeName;
+        _themeService.ThemeChanged += name =>
+            System.Windows.Application.Current.Dispatcher.Invoke(() => CurrentThemeName = name);
 
         _logger.LogInformation("MainWindowViewModel initializing");
 
@@ -105,6 +114,8 @@ public class MainWindowViewModel : ViewModelBase
         RestoreSessionCommand  = new RelayCommand(p => RestoreSession(p as GameSession));
         MinimizeAllSessionsCommand = new RelayCommand(MinimizeAllSessions);
         RestoreAllSessionsCommand  = new RelayCommand(RestoreAllSessions);
+        PreviousThemeCommand = new RelayCommand(PreviousTheme);
+        NextThemeCommand = new RelayCommand(NextTheme);
     }
 
     public ObservableCollection<Account> Accounts { get; } = [];
@@ -217,6 +228,9 @@ public class MainWindowViewModel : ViewModelBase
     public bool CanLaunch => SelectedAccounts.Count > 0 && SelectedServers.Count > 0
         && !IsLoading && File.Exists(GameClientPath);
 
+    public string CurrentVersion { get; } =
+        $"v{UpdateChecker.CurrentVersion.Major}.{UpdateChecker.CurrentVersion.Minor}.{UpdateChecker.CurrentVersion.Build}";
+
     public ICommand LaunchCommand { get; }
     public ICommand RefreshCommand { get; }
     public ICommand AddAccountCommand { get; }
@@ -231,6 +245,28 @@ public class MainWindowViewModel : ViewModelBase
     public ICommand RestoreSessionCommand { get; }
     public ICommand MinimizeAllSessionsCommand { get; }
     public ICommand RestoreAllSessionsCommand { get; }
+    public ICommand PreviousThemeCommand { get; }
+    public ICommand NextThemeCommand { get; }
+
+    public string CurrentThemeName
+    {
+        get => _currentThemeName;
+        private set => SetProperty(ref _currentThemeName, value);
+    }
+
+    private void PreviousTheme()
+    {
+        _themeService.Previous();
+        _config.Theme = _themeService.CurrentThemeName;
+        _config.Save();
+    }
+
+    private void NextTheme()
+    {
+        _themeService.Next();
+        _config.Theme = _themeService.CurrentThemeName;
+        _config.Save();
+    }
 
     private void OpenAccountsFile()
     {
@@ -364,9 +400,10 @@ public class MainWindowViewModel : ViewModelBase
         var session = ActiveSessions.FirstOrDefault(s => s.Id == e.SessionId);
         if (session is not null)
         {
+            var wasSelected = SelectedSession?.Id == session.Id;
             var idx = ActiveSessions.IndexOf(session);
             // Create a new object so ObservableCollection detects the change
-            ActiveSessions[idx] = new Core.Models.GameSession
+            var updated = new Core.Models.GameSession
             {
                 Id = session.Id,
                 AccountId = session.AccountId,
@@ -381,6 +418,9 @@ public class MainWindowViewModel : ViewModelBase
                 LastHeartbeatTime = e.Data.Timestamp,
                 UptimeSeconds = e.Data.UptimeSeconds
             };
+            ActiveSessions[idx] = updated;
+            if (wasSelected)
+                SelectedSession = updated;
         }
     }
 
@@ -401,7 +441,15 @@ public class MainWindowViewModel : ViewModelBase
                 serversNeedingDats.Add((server, server.DatSetId));
         }
 
-        if (serversNeedingDats.Count > 0)
+        // Collect custom-source servers (local path or zip URL) that still need their
+        // DATs fetched. Local paths are validated; zip URLs are downloaded if not cached.
+        var serversNeedingCustomDats = servers
+            .DistinctBy(s => s.Id)
+            .Where(s => !string.IsNullOrWhiteSpace(s.CustomDatRegistryPath)
+                     || !string.IsNullOrWhiteSpace(s.CustomDatZipUrl))
+            .ToList();
+
+        if (serversNeedingCustomDats.Count > 0 || serversNeedingDats.Count > 0)
         {
             var fetchWindow = new Presentation.Views.DatFetchWindow(
                 System.Windows.Application.Current.MainWindow);
@@ -409,6 +457,7 @@ public class MainWindowViewModel : ViewModelBase
 
             try
             {
+                // Registry-sourced DAT sets
                 foreach (var (fetchServer, datSetId) in serversNeedingDats)
                 {
                     _logger.LogInformation("Fetching DAT set '{Id}' for server '{Server}'",
@@ -418,6 +467,17 @@ public class MainWindowViewModel : ViewModelBase
                         p => fetchWindow.ViewModel.Apply(p));
 
                     await _datSetService.DownloadMissingFilesAsync(datSetId, progress);
+                }
+
+                // Custom-source DAT servers (local path or hosted zip URL)
+                foreach (var fetchServer in serversNeedingCustomDats)
+                {
+                    _logger.LogInformation("Ensuring custom DAT source for server '{Server}'", fetchServer.Name);
+
+                    var progress = new Progress<Services.Dats.DatDownloadProgress>(
+                        p => fetchWindow.ViewModel.Apply(p));
+
+                    await _datSetService.EnsureCustomDatSourceReadyAsync(fetchServer, progress);
                 }
 
                 fetchWindow.ViewModel.SetComplete();
@@ -584,7 +644,7 @@ public class MainWindowViewModel : ViewModelBase
 
     private void OpenSettings()
     {
-        var vm = new SettingsViewModel(_config, _updateChecker);
+        var vm = new SettingsViewModel(_config, _updateChecker, _themeService);
         var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService);
         window.Owner = System.Windows.Application.Current.MainWindow;
         if (window.ShowDialog() == true)
@@ -595,7 +655,7 @@ public class MainWindowViewModel : ViewModelBase
 
     private async Task AddServerAsync()
     {
-        var vm = new AddServerViewModel();
+        var vm = new AddServerViewModel(_config);
         var window = new Presentation.Views.AddServerWindow(vm)
         {
             Owner = System.Windows.Application.Current.MainWindow
@@ -657,6 +717,13 @@ public class MainWindowViewModel : ViewModelBase
         Servers.Remove(server);
         SelectedServers.Remove(server);
         StatusText = $"Removed server '{server.Name}'";
+    }
+
+    public async Task UpdateServerAsync(Server server)
+    {
+        await _serverService.UpdateServerAsync(server);
+        await ReloadServersAsync();
+        StatusText = $"Server '{server.Name}' updated";
     }
 
     public async Task RemoveAccountAsync(Account account)

@@ -11,7 +11,7 @@
         Background="Transparent" WindowStyle="None" AllowsTransparency="True">
     <WindowChrome.WindowChrome>
         <WindowChrome CornerRadius="12" GlassFrameThickness="0"
-                      CaptionHeight="64" ResizeBorderThickness="6"/>
+                      CaptionHeight="52" ResizeBorderThickness="6"/>
     </WindowChrome.WindowChrome>
     <Window.Resources>
         <converters:UptimeConverter x:Key="UptimeConverter"/>
@@ -20,23 +20,30 @@
         <converters:SessionStatusConverter x:Key="SessionStatusConverter"/>
         <converters:StringNotEmptyToVisibilityConverter x:Key="StringNotEmptyToVisibilityConverter"/>
         <converters:WebsiteMenuVisibilityConverter x:Key="WebsiteMenuVisibilityConverter"/>
-
+        <converters:ServerDetailsButtonVisibilityConverter x:Key="ServerDetailsButtonVisibilityConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
     </Window.Resources>
 
-    <Border CornerRadius="12" BorderBrush="#2A2A30" BorderThickness="1">
-        <Border.Background>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#FF0C0C10" Offset="0"/>
-                <GradientStop Color="#F214141C" Offset="0.5"/>
-                <GradientStop Color="#E60F0F14" Offset="1"/>
-            </LinearGradientBrush>
-        </Border.Background>
+    <Border CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+            Background="{DynamicResource BgBrush}">
         <Grid Margin="14">
             <!-- Title bar: icon + stacked title + Settings + Minimize + Close -->
-            <DockPanel VerticalAlignment="Top" Margin="0,-6,0,0" Height="64"
-                       WindowChrome.IsHitTestVisibleInChrome="True">
+            <DockPanel VerticalAlignment="Top" Margin="0,-6,0,0" Height="52">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
-                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0">
+                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0"
+                            WindowChrome.IsHitTestVisibleInChrome="True">
+                    <!-- Theme scroller -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                        <Button Content="&#x276E;" Width="22" Height="22" Padding="0" FontSize="11"
+                                Command="{Binding PreviousThemeCommand}"
+                                FontFamily="{DynamicResource EmojiFont}" ToolTip="Previous theme"/>
+                        <TextBlock Text="{Binding CurrentThemeName}"
+                                   VerticalAlignment="Center" MinWidth="48" TextAlignment="Center"
+                                   Foreground="{DynamicResource TextBrush}" FontSize="11" Margin="4,0"/>
+                        <Button Content="&#x276F;" Width="22" Height="22" Padding="0" FontSize="11"
+                                Command="{Binding NextThemeCommand}"
+                                FontFamily="{DynamicResource EmojiFont}" ToolTip="Next theme"/>
+                    </StackPanel>
                     <Button Content="&#x2699;" Width="34" Height="26" Padding="0" FontSize="13"
                             Command="{Binding SettingsCommand}" VerticalAlignment="Top" Margin="0,0,8,0"
                             FontFamily="{DynamicResource EmojiFont}"
@@ -48,24 +55,22 @@
                             FontFamily="{DynamicResource EmojiFont}"
                             ToolTip="Close"/>
                 </StackPanel>
-                <!-- Icon + stacked title text -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Image Source="SLicon.ico" Width="64" Height="64"
-                           RenderOptions.BitmapScalingMode="HighQuality"/>
-                    <!-- Single TextBlock with LineBreak + BlockLineHeight gives pixel-precise line spacing -->
+                <!-- Title text + version -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" IsHitTestVisible="False">
                     <TextBlock FontSize="28" FontWeight="Bold"
-                               Foreground="{StaticResource RedBrush}"
+                               Foreground="{DynamicResource RedBrush}"
                                FontFamily="{DynamicResource TitleFont}"
-                               LineHeight="22" LineStackingStrategy="BlockLineHeight"
-                               VerticalAlignment="Center" Margin="8,0,0,0">
+                               LineHeight="22" LineStackingStrategy="BlockLineHeight">
                         <TextBlock.Effect>
                             <DropShadowEffect Color="Black" BlurRadius="10" ShadowDepth="2" Opacity="0.6"/>
                         </TextBlock.Effect>
                         <Run Text="Shadow"/><LineBreak/><Run Text="Launcher"/>
                     </TextBlock>
+                    <TextBlock Text="{Binding CurrentVersion}" FontSize="10" Foreground="#666"
+                               VerticalAlignment="Bottom" Margin="6,0,0,2"/>
                 </StackPanel>
             </DockPanel>
-        <Grid Margin="0,68,0,0">
+        <Grid Margin="0,56,0,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -192,6 +197,10 @@
                                                 </MultiBinding>
                                             </MenuItem.Visibility>
                                         </MenuItem>
+                                        <MenuItem Header="Edit Server"
+                                                  Icon="{x:Null}"
+                                                  Click="EditServer_Click"
+                                                  Visibility="{Binding IsManuallyAdded, Converter={StaticResource BoolToVisibility}}"/>
                                     </ContextMenu>
                                 </Grid.ContextMenu>
                                 <!-- Status arrow -->
@@ -211,8 +220,14 @@
                                         Style="{DynamicResource IconButton}" VerticalAlignment="Center"
                                         Tag="{Binding}"
                                         Click="ServerDetails_Click"
-                                        Visibility="{Binding Description, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"
-                                        ToolTip="View server details"/>
+                                        ToolTip="View server details">
+                                    <Button.Visibility>
+                                        <MultiBinding Converter="{StaticResource ServerDetailsButtonVisibilityConverter}">
+                                            <Binding Path="Description"/>
+                                            <Binding Path="IsManuallyAdded"/>
+                                        </MultiBinding>
+                                    </Button.Visibility>
+                                </Button>
                                 <!-- Remove button -->
                                 <Button Grid.Column="4" Content="&#x2715;" FontSize="10"
                                         Padding="4,0" Margin="4,0,0,0" VerticalAlignment="Center"
@@ -247,7 +262,7 @@
 
         <!-- Action Bar -->
         <DockPanel Grid.Row="4" Grid.ColumnSpan="2" Margin="0,12,0,0">
-            <CheckBox DockPanel.Dock="Left" Content="Kill on Missing Heartbeat"
+            <CheckBox DockPanel.Dock="Left" Content="Kill disconnected client"
                       IsChecked="{Binding KillOnMissingHeartbeat}"
                       VerticalAlignment="Center" Margin="0,0,4,0"
                       ToolTip="Kill the game client if no heartbeat is received within the specified timeout"/>
@@ -270,7 +285,8 @@
             <TextBlock DockPanel.Dock="Left" Text="{Binding StatusText}"
                        VerticalAlignment="Center" Foreground="#666"/>
             <Button DockPanel.Dock="Right" Content="&#x1F300; Launch Game" Command="{Binding LaunchCommand}"
-                    Padding="20,8" FontWeight="Bold" FontSize="14" HorizontalAlignment="Right"/>
+                    Padding="20,8" FontWeight="Bold" FontSize="14" HorizontalAlignment="Right"
+                    Style="{DynamicResource LaunchButton}"/>
         </DockPanel>
         </Grid>
         </Grid>

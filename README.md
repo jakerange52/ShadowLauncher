@@ -6,11 +6,12 @@ A multi-boxing launcher for Asheron's Call private servers. Launch and manage mu
 
 ## Features
 
-- **Multi-boxing** — launch multiple AC clients at once via symlink junctions, each with its own working directory
+- **Multi-boxing** — launch multiple AC clients at once via symlink junctions, each with its own isolated working directory
 - **Account manager** — store accounts per server, auto-fill credentials on login
 - **Server browser** — fetch and browse community server listings, add servers in one click
-- **DAT manager** — automatically download and cache server-specific DAT files
-- **Decal support** — optional Decal injection for plugin support on servers that require it
+- **DAT management** — servers can require alternate DAT files (e.g. expansion content, custom worlds); ShadowLauncher fetches and caches them automatically from a community DAT registry, then uses symlinks to point each client at the correct set — no manual file swapping required
+- **Decal support** — inject [Decal](http://decaldev.com) into each client for plugin support
+- **Login commands** — send ThwargFilter login commands globally or per-character after login
 - **Auto-update** — checks GitHub Releases and installs updates in-app
 
 ---
@@ -20,6 +21,10 @@ A multi-boxing launcher for Asheron's Call private servers. Launch and manage mu
 - Windows 10 or 11 (x86 or x64)
 - [.NET 10 Desktop Runtime (x86)](https://dotnet.microsoft.com/download/dotnet/10.0) — installed automatically by the setup wizard
 - An Asheron's Call client (`acclient.exe`) and associated DAT files
+- **[Decal](http://decaldev.com)** — required for login automation and plugin support
+- **[ThwargFilter](https://github.com/ThwargLauncher/ThwargLauncher)** — required for login commands and per-character automation
+
+> **Note:** Basic launching and server browsing work without Decal/ThwargFilter. Account auto-login, login commands, and per-character scripting require both to be installed and configured.
 
 ---
 
@@ -78,3 +83,9 @@ ShadowLauncher.Installer.Bundle/        WiX bootstrapper bundle (.exe)
 ShadowLauncher.Installer.CustomActions/ Managed MSI custom actions (symlink privilege)
 Build-Installer.ps1                     One-command release build script
 ```
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).

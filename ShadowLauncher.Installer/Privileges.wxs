@@ -3,19 +3,10 @@
 
   <Fragment>
 
-    <!--
-      Binary payload: the managed custom action DLL that calls LsaAddAccountRights.
-      WiX embeds this into the MSI so it needs no separate install step.
-    -->
     <Binary Id="CustomActionsDll"
             SourceFile="$(var.CustomActionsDir)ShadowLauncher.Installer.CustomActions.dll" />
 
-    <!--
-      CustomAction declaration: calls GrantSymlinkPrivilege inside the managed DLL.
-      Execute="deferred"  — runs with elevated (SYSTEM) privileges during install.
-      Impersonate="no"    — stay as SYSTEM, not the installing user.
-      Return="check"      — fail the install if the action returns failure.
-    -->
+    <!-- Grants SeCreateSymbolicLinkPrivilege to BUILTIN\Users on install -->
     <CustomAction Id="GrantSymlinkPrivilege"
                   BinaryRef="CustomActionsDll"
                   DllEntry="GrantSymlinkPrivilege"
@@ -24,14 +15,24 @@
                   Return="check" />
 
     <!--
-      Schedule the custom action in InstallExecuteSequence:
-      - Only runs on fresh install or upgrade (NOT="Installed"), not on repair/remove.
-      - Placed after InstallFiles so the app is on disk before privileges are set.
+      Deletes %LOCALAPPDATA%\ShadowLauncher on uninstall.
+      Impersonate="yes" so it runs as the installing user and resolves the correct LocalAppData.
+      Return="ignore" so a failure never blocks the uninstall.
     -->
+    <CustomAction Id="CleanupAppData"
+                  BinaryRef="CustomActionsDll"
+                  DllEntry="CleanupAppData"
+                  Execute="deferred"
+                  Impersonate="yes"
+                  Return="ignore" />
+
     <InstallExecuteSequence>
       <Custom Action="GrantSymlinkPrivilege"
                After="InstallFiles"
-               Condition="NOT Installed" />
+               Condition="NOT Installed AND &amp;MultiboxingFeature=3" />
+      <Custom Action="CleanupAppData"
+               After="RemoveFiles"
+               Condition="REMOVE~=&quot;ALL&quot;" />
     </InstallExecuteSequence>
 
   </Fragment>

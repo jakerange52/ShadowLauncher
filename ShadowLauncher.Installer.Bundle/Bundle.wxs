@@ -4,14 +4,14 @@
      xmlns:netfx="http://wixtoolset.org/schemas/v4/wxs/netfx">
 
   <Bundle Name="ShadowLauncher"
-          Version="0.1.0"
-          Manufacturer="ShadowLauncher"
+          Version="$(var.Version)"
+          Manufacturer="Jake Range"
           UpgradeCode="B2C3D4E5-F6A7-8901-BCDE-EF2345678901">
 
     <BootstrapperApplication>
       <bal:WixStandardBootstrapperApplication
-          Theme="hyperlinkLicense"
-          LicenseUrl=""
+          Theme="rtfLicense"
+          LicenseFile="$(var.LicenseFile)"
           LogoFile="$(var.LogoFile)" />
     </BootstrapperApplication>
 

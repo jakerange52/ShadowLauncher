@@ -26,6 +26,14 @@ public interface IDatSetService
     string GetLocalDatSetPath(string datSetId);
 
     /// <summary>
+    /// Returns the effective local DAT directory for a server. If the server has a
+    /// <see cref="Server.CustomDatRegistryPath"/> set, that path is returned directly
+    /// (bypassing the community registry). Otherwise falls back to
+    /// <see cref="GetLocalDatSetPath"/> using the server's <see cref="Server.DatSetId"/>.
+    /// </summary>
+    string GetLocalDatSetPathForServer(Server server);
+
+    /// <summary>
     /// Returns true if all files for the given DAT set are present locally.
     /// </summary>
     Task<bool> IsDatSetReadyAsync(string datSetId);
@@ -47,6 +55,16 @@ public interface IDatSetService
     /// Call on startup so checksums and server mappings are always current.
     /// </summary>
     Task RefreshRegistryAsync();
+
+    /// <summary>
+    /// Ensures the DAT source for a server in Dat Developer Mode is present locally.
+    /// Checks <see cref="Server.CustomDatRegistryPath"/> first (local directory wins).
+    /// If that is empty, falls back to downloading from <see cref="Server.CustomDatZipUrl"/>
+    /// into the standard DAT cache directory for that server.
+    /// Reports download progress through the optional callback.
+    /// Throws <see cref="InvalidOperationException"/> if neither source is configured.
+    /// </summary>
+    Task EnsureCustomDatSourceReadyAsync(Server server, IProgress<DatDownloadProgress>? progress = null);
 }
 
 /// <summary>Progress report emitted during a DAT download.</summary>

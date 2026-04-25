@@ -5,12 +5,40 @@ using WixToolset.Dtf.WindowsInstaller;
 namespace ShadowLauncher.Installer.CustomActions;
 
 /// <summary>
-/// WiX DTF custom action that grants SeCreateSymbolicLinkPrivilege to BUILTIN\Users.
-/// Runs once during install at elevated (SYSTEM) context — no UAC prompt at runtime,
-/// no logoff needed, works for every user on the machine permanently.
+/// WiX DTF custom actions for ShadowLauncher install/uninstall.
 /// </summary>
 public static class PrivilegeActions
 {
+    /// <summary>
+    /// Deletes %LOCALAPPDATA%\ShadowLauncher on uninstall (DAT cache, settings, logs).
+    /// Runs impersonated as the installing user so the correct per-user LocalAppData is targeted.
+    /// </summary>
+    [CustomAction]
+    public static ActionResult CleanupAppData(Session session)
+    {
+        try
+        {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var dir = Path.Combine(localAppData, "ShadowLauncher");
+            if (Directory.Exists(dir))
+            {
+                Directory.Delete(dir, recursive: true);
+                session.Log($"CleanupAppData: deleted {dir}");
+            }
+            else
+            {
+                session.Log($"CleanupAppData: nothing to delete at {dir}");
+            }
+            return ActionResult.Success;
+        }
+        catch (Exception ex)
+        {
+            session.Log($"CleanupAppData: failed — {ex.Message}");
+            return ActionResult.Success; // non-fatal — don't block uninstall
+        }
+    }
+
+
     [CustomAction]
     public static ActionResult GrantSymlinkPrivilege(Session session)
     {
@@ -23,7 +51,7 @@ public static class PrivilegeActions
             byte[] sidBytes = new byte[usersSid.BinaryLength];
             usersSid.GetBinaryForm(sidBytes, 0);
 
-            var objectAttributes = new LsaObjectAttributes();
+            var objectAttributes = new LsaObjectAttributes { Length = (uint)Marshal.SizeOf<LsaObjectAttributes>() };
             uint status = LsaOpenPolicy(
                 IntPtr.Zero,
                 ref objectAttributes,

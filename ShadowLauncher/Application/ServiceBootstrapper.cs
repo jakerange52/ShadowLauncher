@@ -9,6 +9,7 @@ using ShadowLauncher.Infrastructure.Logging;
 using ShadowLauncher.Infrastructure.Persistence;
 using ShadowLauncher.Infrastructure.Updates;
 using ShadowLauncher.Infrastructure.WebServices;
+using ShadowLauncher.Infrastructure;
 using ShadowLauncher.Presentation.ViewModels;
 using ShadowLauncher.Services.Accounts;
 using ShadowLauncher.Services.GameSessions;
@@ -36,6 +37,7 @@ public static class ServiceBootstrapper
         services.AddSingleton<IHeartbeatReader, HeartbeatReader>();
         services.AddSingleton<ServerListDownloader>();
         services.AddSingleton<UpdateChecker>();
+        services.AddSingleton<ThemeService>();
         services.AddSingleton<DatRegistryDownloader>();
         services.AddSingleton<IDatSetService, DatSetService>();
         services.AddSingleton<ShadowLauncher.Infrastructure.Native.SymlinkLauncher>();

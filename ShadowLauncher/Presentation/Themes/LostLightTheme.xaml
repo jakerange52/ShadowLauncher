@@ -6,18 +6,18 @@
     <FontFamily x:Key="TitleFont">Gabriola, Palatino Linotype, Georgia, serif</FontFamily>
     <FontFamily x:Key="EmojiFont">Segoe UI, Segoe UI Emoji, Segoe UI Symbol</FontFamily>
 
-    <Color x:Key="ShadowBg">#0A0A0D</Color>
-    <Color x:Key="ShadowSurface">#222226</Color>
-    <Color x:Key="ShadowSurfaceAlt">#252528</Color>
-    <Color x:Key="ShadowBorder">#3A3A40</Color>
-    <Color x:Key="ShadowRed">#661111</Color>
-    <Color x:Key="ShadowRedHover">#8C2222</Color>
-    <Color x:Key="ShadowRedPress">#3A0000</Color>
-    <Color x:Key="ShadowText">#DDDDDD</Color>
-    <Color x:Key="ShadowTextMuted">#666666</Color>
+    <Color x:Key="ShadowBg">#0A0E1A</Color>
+    <Color x:Key="ShadowSurface">#101828</Color>
+    <Color x:Key="ShadowSurfaceAlt">#141E30</Color>
+    <Color x:Key="ShadowBorder">#1E3A6E</Color>
+    <Color x:Key="ShadowRed">#1A56A8</Color>
+    <Color x:Key="ShadowRedHover">#2468C8</Color>
+    <Color x:Key="ShadowRedPress">#0A2E6A</Color>
+    <Color x:Key="ShadowText">#C8D8F0</Color>
+    <Color x:Key="ShadowTextMuted">#3A5080</Color>
 
-    <SolidColorBrush x:Key="BgBrush" Color="{StaticResource ShadowBg}" Opacity="0.85"/>
-    <!-- Surface: deep crimson with a soft inner glow bloom -->
+    <SolidColorBrush x:Key="BgBrush" Color="{StaticResource ShadowBg}"/>
+    <!-- Surface: deep blue with a soft inner glow bloom -->
     <DrawingBrush x:Key="SurfaceBrush"
                   TileMode="None"
                   Viewport="0,0,1,1" ViewportUnits="RelativeToBoundingBox"
@@ -28,28 +28,29 @@
                 <GeometryDrawing Geometry="M0,0 H600 V400 H0 Z">
                     <GeometryDrawing.Brush>
                         <RadialGradientBrush GradientOrigin="0.5,0.5" Center="0.5,0.5" RadiusX="0.7" RadiusY="0.7">
-                            <GradientStop Color="#301010" Offset="0.0"/>
-                            <GradientStop Color="#220C0C" Offset="0.45"/>
-                            <GradientStop Color="#180808" Offset="0.75"/>
-                            <GradientStop Color="#100404" Offset="1.0"/>
+                            <GradientStop Color="#182840" Offset="0.0"/>
+                            <GradientStop Color="#122030" Offset="0.45"/>
+                            <GradientStop Color="#0D1828" Offset="0.75"/>
+                            <GradientStop Color="#0A1420" Offset="1.0"/>
                         </RadialGradientBrush>
                     </GeometryDrawing.Brush>
                 </GeometryDrawing>
+                <!-- Soft cross-fade layers for fuzziness -->
                 <GeometryDrawing Geometry="M0,0 H600 V400 H0 Z">
                     <GeometryDrawing.Brush>
                         <LinearGradientBrush StartPoint="1,0" EndPoint="0,1" Opacity="0.25">
-                            <GradientStop Color="#3A1010" Offset="0.0"/>
-                            <GradientStop Color="#160808" Offset="0.5"/>
-                            <GradientStop Color="#2A0C0C" Offset="1.0"/>
+                            <GradientStop Color="#1A2E48" Offset="0.0"/>
+                            <GradientStop Color="#0C1828" Offset="0.5"/>
+                            <GradientStop Color="#182840" Offset="1.0"/>
                         </LinearGradientBrush>
                     </GeometryDrawing.Brush>
                 </GeometryDrawing>
                 <GeometryDrawing Geometry="M0,0 H600 V400 H0 Z">
                     <GeometryDrawing.Brush>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1" Opacity="0.15">
-                            <GradientStop Color="#100404" Offset="0.0"/>
-                            <GradientStop Color="#3A1414" Offset="0.5"/>
-                            <GradientStop Color="#180808" Offset="1.0"/>
+                            <GradientStop Color="#0A1420" Offset="0.0"/>
+                            <GradientStop Color="#1E3050" Offset="0.5"/>
+                            <GradientStop Color="#0D1828" Offset="1.0"/>
                         </LinearGradientBrush>
                     </GeometryDrawing.Brush>
                 </GeometryDrawing>
@@ -66,7 +67,7 @@
 
     <!-- ═══════ Window ═══════ -->
     <Style TargetType="Window">
-        <Setter Property="Background" Value="#D9080810"/>
+        <Setter Property="Background" Value="#F20A0E1A"/>
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource FantasyFont}"/>
         <Setter Property="WindowChrome.WindowChrome">
@@ -150,7 +151,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="border" Property="Background" Value="#333"/>
+                            <Setter TargetName="border" Property="Background" Value="#1A2A40"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="border" Property="RenderTransform">
@@ -210,7 +211,7 @@
                 <Setter Property="Foreground" Value="White"/>
             </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -303,11 +304,9 @@
                   Data="M 0 0 L 4 4 L 8 0 Z"/>
         </Grid>
     </ControlTemplate>
-
     <ControlTemplate x:Key="ComboBoxTextBox" TargetType="TextBox">
         <Border x:Name="PART_ContentHost" Focusable="False" Background="{TemplateBinding Background}"/>
     </ControlTemplate>
-
     <Style TargetType="ComboBox">
         <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
@@ -366,8 +365,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBoxItem">
-                    <Border x:Name="Bd" Background="{TemplateBinding Background}" Padding="4,2"
-                            BorderThickness="0">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" Padding="4,2" BorderThickness="0">
                         <ContentPresenter/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -385,9 +383,7 @@
         </Setter>
     </Style>
 
-    <!-- ═══════ TextBlock (only explicit labels — doesn't affect ContentPresenter) ═══════ -->
-
-    <!-- ═══════ TextBlock (emoji font fallback) ═══════ -->
+    <!-- ═══════ TextBlock ═══════ -->
     <Style TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FantasyFont}"/>
     </Style>
@@ -403,7 +399,7 @@
         <Setter Property="HeadersVisibility" Value="Column"/>
     </Style>
     <Style TargetType="DataGridColumnHeader">
-        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource RedBrush}"/>
         <Setter Property="FontWeight" Value="Bold"/>
         <Setter Property="Padding" Value="8,4"/>
@@ -414,7 +410,7 @@
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="#55661111"/>
+                <Setter Property="Background" Value="#551A56A8"/>
                 <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
             </Trigger>
         </Style.Triggers>
@@ -455,7 +451,7 @@
         </Style.Triggers>
     </Style>
     <Style TargetType="Thumb">
-        <Setter Property="Background" Value="#3A3A40"/>
+        <Setter Property="Background" Value="{StaticResource BorderBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
@@ -465,7 +461,7 @@
         </Setter>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="#555"/>
+                <Setter Property="Background" Value="{StaticResource RedHoverBrush}"/>
             </Trigger>
             <Trigger Property="IsDragging" Value="True">
                 <Setter Property="Background" Value="{StaticResource RedBrush}"/>

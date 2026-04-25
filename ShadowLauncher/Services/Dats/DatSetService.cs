@@ -69,6 +69,75 @@ public class DatSetService : IDatSetService
         => Path.Combine(_config.DatSetsDirectory, datSetId);
 
     /// <inheritdoc/>
+    public string GetLocalDatSetPathForServer(Server server)
+    {
+        // Local directory takes priority — it's already on disk, no download needed.
+        if (!string.IsNullOrWhiteSpace(server.CustomDatRegistryPath))
+            return server.CustomDatRegistryPath;
+
+        // Zip URL: DATs land in the standard cache dir keyed by server name.
+        if (!string.IsNullOrWhiteSpace(server.CustomDatZipUrl))
+            return Path.Combine(_config.DatSetsDirectory, SanitiseId(server.Name));
+
+        return GetLocalDatSetPath(server.DatSetId ?? string.Empty);
+    }
+
+    /// <inheritdoc/>
+    public async Task EnsureCustomDatSourceReadyAsync(Server server, IProgress<DatDownloadProgress>? progress = null)
+    {
+        // Local path: just verify it exists — no download required.
+        if (!string.IsNullOrWhiteSpace(server.CustomDatRegistryPath))
+        {
+            if (!Directory.Exists(server.CustomDatRegistryPath))
+                throw new InvalidOperationException(
+                    $"Custom DAT path for '{server.Name}' does not exist: {server.CustomDatRegistryPath}");
+            _logger.LogInformation("Custom DAT source for '{Server}' is local path: {Path}",
+                server.Name, server.CustomDatRegistryPath);
+            return;
+        }
+
+        // Zip URL: download if not already cached.
+        if (!string.IsNullOrWhiteSpace(server.CustomDatZipUrl))
+        {
+            var localDir = Path.Combine(_config.DatSetsDirectory, SanitiseId(server.Name));
+
+            // Consider it ready if any known AC file is already present.
+            if (KnownAcFileNames.Any(f => File.Exists(Path.Combine(localDir, f))))
+            {
+                _logger.LogInformation("Custom DAT zip for '{Server}' already cached at {Dir}",
+                    server.Name, localDir);
+                return;
+            }
+
+            _logger.LogInformation("Downloading custom DAT zip for '{Server}' from {Url}",
+                server.Name, server.CustomDatZipUrl);
+            Directory.CreateDirectory(localDir);
+
+            using var http = new HttpClient { Timeout = TimeSpan.FromHours(2) };
+            var tempZip = Path.Combine(localDir, "__custom_download.zip");
+
+            try
+            {
+                await DownloadRawAsync(http, server.CustomDatZipUrl, tempZip, progress);
+                _logger.LogInformation("Extracting custom DAT zip for '{Server}'", server.Name);
+                ExtractDatZip(tempZip, localDir, new DatSet()); // accept all known AC filenames
+            }
+            finally
+            {
+                if (File.Exists(tempZip))
+                    File.Delete(tempZip);
+            }
+
+            _logger.LogInformation("Custom DAT zip for '{Server}' ready at {Dir}", server.Name, localDir);
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Server '{server.Name}' has no custom DAT source configured. " +
+            "Set either a local directory path or a zip download URL in the server settings.");
+    }
+
+    /// <inheritdoc/>
     public async Task<bool> IsDatSetReadyAsync(string datSetId)
     {
         if (IsRetailSet(datSetId))
@@ -141,6 +210,17 @@ public class DatSetService : IDatSetService
     private static bool IsRetailSet(string? id)
         => string.IsNullOrWhiteSpace(id)
         || string.Equals(id, "retail", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Converts a server name into a safe directory name for use as a local cache key.
+    /// </summary>
+    private static string SanitiseId(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        return new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray())
+            .ToLowerInvariant()
+            .Trim('_', ' ');
+    }
 
     /// <summary>
     /// Downloads a URL to a local file, reporting byte-level progress via <paramref name="progress"/>.

@@ -41,6 +41,12 @@ public class AppConfiguration : IConfigurationProvider
         set => SetSetting(nameof(DecalPath), value);
     }
 
+    public string Theme
+    {
+        get => GetSetting(nameof(Theme), "Shadow");
+        set => SetSetting(nameof(Theme), value);
+    }
+
     public TimeSpan HeartbeatInterval
     {
         get => TimeSpan.FromSeconds(int.TryParse(GetSetting(nameof(HeartbeatInterval), "5"), out var v) ? v : 5);
@@ -87,6 +93,12 @@ public class AppConfiguration : IConfigurationProvider
     {
         get => int.TryParse(GetSetting(nameof(KillHeartbeatTimeoutSeconds), "60"), out var v) && v > 0 ? v : 60;
         set => SetSetting(nameof(KillHeartbeatTimeoutSeconds), Math.Max(5, value).ToString());
+    }
+
+    public bool DatDeveloperMode
+    {
+        get => bool.TryParse(GetSetting(nameof(DatDeveloperMode), "false"), out var v) && v;
+        set => SetSetting(nameof(DatDeveloperMode), value.ToString());
     }
 
     public void Load()

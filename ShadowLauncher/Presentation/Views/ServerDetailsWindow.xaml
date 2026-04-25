@@ -4,7 +4,7 @@
         xmlns:converters="clr-namespace:ShadowLauncher.Presentation.Converters"
         Title="Server Details" SizeToContent="Height" Width="420"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
-        Background="#F2121216" WindowStyle="None" AllowsTransparency="True">
+        Background="{DynamicResource BgBrush}" WindowStyle="None" AllowsTransparency="True">
     <WindowChrome.WindowChrome>
         <WindowChrome CornerRadius="12" GlassFrameThickness="0" CaptionHeight="28" ResizeBorderThickness="0"/>
     </WindowChrome.WindowChrome>
@@ -13,7 +13,7 @@
         <converters:StringNotEmptyToVisibilityConverter x:Key="StringNotEmptyToVisibilityConverter"/>
     </Window.Resources>
 
-    <Border CornerRadius="12" BorderBrush="#2A2A30" BorderThickness="1">
+    <Border CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
         <Border.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                 <GradientStop Color="#FF0C0C10" Offset="0"/>
@@ -36,7 +36,7 @@
                 <!-- Header: status dot + server name + emulator badge -->
                 <DockPanel Margin="0,0,0,8">
                     <Border DockPanel.Dock="Right" CornerRadius="4" Padding="6,2"
-                            Background="#2A2A30" VerticalAlignment="Center">
+                            Background="{DynamicResource SurfaceAltBrush}" VerticalAlignment="Center">
                         <TextBlock x:Name="EmuLabel" FontSize="11" FontWeight="Bold" Foreground="#AAA"/>
                     </Border>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -53,7 +53,7 @@
                 </DockPanel>
 
                 <!-- Divider -->
-                <Rectangle Height="1" Fill="#3A3A40" Margin="0,0,0,10"/>
+                <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,0,0,10"/>
 
                 <!-- Description -->
                 <TextBlock x:Name="DescriptionLabel" TextWrapping="Wrap" Foreground="#CCC"
@@ -101,7 +101,7 @@
                 </Grid>
 
                 <!-- Divider before links -->
-                <Rectangle Height="1" Fill="#3A3A40" Margin="0,0,0,10"
+                <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,0,0,10"
                            x:Name="LinksDivider" Visibility="Collapsed"/>
 
                 <!-- Discord / Website buttons -->
@@ -111,6 +111,16 @@
                     <Button x:Name="WebsiteButton" Content="Website" Padding="16,6"
                             Click="Website_Click" Visibility="Collapsed"/>
                 </StackPanel>
+
+                <!-- Divider before edit button (Dat Developer Mode + manually added only) -->
+                <Rectangle x:Name="EditDivider" Height="1" Fill="{DynamicResource BorderBrush}"
+                           Margin="0,10,0,10" Visibility="Collapsed"/>
+
+                <!-- Edit Server button (right-aligned, Dat Developer Mode + manually added only) -->
+                <DockPanel x:Name="EditPanel" Visibility="Collapsed">
+                    <Button DockPanel.Dock="Right" Content="Edit Server Info" Padding="16,6"
+                            HorizontalAlignment="Right" Click="EditServer_Click"/>
+                </DockPanel>
 
             </StackPanel>
         </Grid>

@@ -3,11 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Setup Help" Height="580" Width="380"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
-        Background="#F2121216" WindowStyle="None" AllowsTransparency="True">
+        Background="{DynamicResource BgBrush}" WindowStyle="None" AllowsTransparency="True">
     <WindowChrome.WindowChrome>
         <WindowChrome CornerRadius="12" GlassFrameThickness="0" CaptionHeight="28" ResizeBorderThickness="0"/>
     </WindowChrome.WindowChrome>
-    <Border Background="#F2121216" CornerRadius="12" BorderBrush="#2A2A30" BorderThickness="1">
+    <Border Background="{DynamicResource BgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
     <Grid Margin="16">
         <DockPanel VerticalAlignment="Top" Margin="0,-8,0,0" Height="28">
             <TextBlock Text="Setup Help" Foreground="#888" VerticalAlignment="Center" FontWeight="SemiBold"/>

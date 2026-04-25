@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
 using ShadowLauncher.Core.Interfaces;
+using ShadowLauncher.Infrastructure;
 using ShadowLauncher.Infrastructure.Updates;
 
 namespace ShadowLauncher.Presentation.ViewModels;
@@ -11,22 +12,30 @@ public class SettingsViewModel : ViewModelBase
 {
     private readonly IConfigurationProvider _config;
     private readonly UpdateChecker _updateChecker;
+    private readonly ThemeService _themeService;
     private string _decalPath;
     private string _statusText = string.Empty;
     private int _downloadProgress;
     private bool _isDownloading;
+    private string _currentThemeName;
+    private bool _datDeveloperMode;
     private CancellationTokenSource? _downloadCts;
 
-    public SettingsViewModel(IConfigurationProvider config, UpdateChecker updateChecker)
+    public SettingsViewModel(IConfigurationProvider config, UpdateChecker updateChecker, ThemeService themeService)
     {
         _config = config;
         _updateChecker = updateChecker;
+        _themeService = themeService;
         _decalPath = _config.DecalPath;
+        _currentThemeName = _themeService.CurrentThemeName;
+        _datDeveloperMode = _config.DatDeveloperMode;
 
         SaveCommand = new RelayCommand(Save);
         BrowseDecalCommand = new RelayCommand(() => BrowseRequested?.Invoke(this, nameof(DecalPath)));
         OpenUserFileCommand = new RelayCommand(OpenUserFile);
         CheckForUpdatesCommand = new AsyncRelayCommand(CheckForUpdatesAsync);
+        PreviousThemeCommand = new RelayCommand(PreviousTheme);
+        NextThemeCommand = new RelayCommand(NextTheme);
     }
 
     public event EventHandler<string>? BrowseRequested;
@@ -39,6 +48,12 @@ public class SettingsViewModel : ViewModelBase
     {
         get => _decalPath;
         set => SetProperty(ref _decalPath, value);
+    }
+
+    public bool DatDeveloperMode
+    {
+        get => _datDeveloperMode;
+        set => SetProperty(ref _datDeveloperMode, value);
     }
 
     public string StatusText
@@ -65,10 +80,36 @@ public class SettingsViewModel : ViewModelBase
     public ICommand BrowseDecalCommand { get; }
     public ICommand OpenUserFileCommand { get; }
     public ICommand CheckForUpdatesCommand { get; }
+    public ICommand PreviousThemeCommand { get; }
+    public ICommand NextThemeCommand { get; }
+
+    public string CurrentThemeName
+    {
+        get => _currentThemeName;
+        private set => SetProperty(ref _currentThemeName, value);
+    }
+
+    private void PreviousTheme()
+    {
+        _themeService.Previous();
+        CurrentThemeName = _themeService.CurrentThemeName;
+        _config.Theme = _currentThemeName;
+        _config.Save();
+    }
+
+    private void NextTheme()
+    {
+        _themeService.Next();
+        CurrentThemeName = _themeService.CurrentThemeName;
+        _config.Theme = _currentThemeName;
+        _config.Save();
+    }
 
     private void Save()
     {
         _config.DecalPath = DecalPath;
+        _config.Theme = _currentThemeName;
+        _config.DatDeveloperMode = DatDeveloperMode;
         _config.Save();
 
         StatusText = "Settings saved.";
@@ -146,17 +187,21 @@ public class SettingsViewModel : ViewModelBase
 
         StatusText = "Download complete — launching installer...";
 
-        // Launch the installer with /passive so it shows a minimal progress UI
-        // but doesn't require user clicks. The installer handles the app shutdown
-        // and restart automatically via WiX's built-in CloseApplications action.
+        // Shut this instance down, run the installer silently, then relaunch.
+        // We spin up a detached helper process (cmd) to wait for the installer
+        // to finish before starting the new exe — we can't wait ourselves because
+        // we're about to exit.
+        var exePath = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+        var relaunchCmd = $"/c start \"\" /wait \"{installerPath}\" /install /quiet /norestart & start \"\" \"{exePath}\"";
+
         Process.Start(new ProcessStartInfo
         {
-            FileName        = installerPath,
-            Arguments       = "/passive",
+            FileName        = "cmd.exe",
+            Arguments       = relaunchCmd,
             UseShellExecute = true,
+            WindowStyle     = ProcessWindowStyle.Hidden,
         });
 
-        // Shut this instance down so the installer can overwrite the files.
         System.Windows.Application.Current.Shutdown();
     }
 

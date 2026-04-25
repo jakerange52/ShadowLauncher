@@ -14,7 +14,7 @@ namespace ShadowLauncher.Infrastructure.Native;
 ///   AC's acclient.exe uses its working directory to locate DAT files, so each instance
 ///   launched from its own junction directory gets an independent working-directory
 ///   context. Critically, because every instance has its own directory path, the OS
-///   treats their mutex names as distinct — no MutexKiller or injector.dll needed.
+///   treats their mutex names as distinct — each instance is fully independent.
 ///
 /// Directory layout created per launch:
 ///   %LocalAppData%\ShadowLauncher\Instances\{guid}\
@@ -33,7 +33,7 @@ namespace ShadowLauncher.Infrastructure.Native;
 ///     (a) Developer Mode enabled (no elevation needed), or
 ///     (b) SeCreateSymbolicLinkPrivilege (Administrator / elevated process).
 ///   The launcher should check <see cref="CanCreateSymlinks"/> before using this path
-///   and fall back to InjectedLauncher + MutexKiller if symlinks are unavailable.
+///   If symlinks are unavailable, ShadowLauncher will report the error and ask the user to enable Developer Mode.
 /// </summary>
 public class SymlinkLauncher
 {
@@ -91,8 +91,8 @@ public class SymlinkLauncher
     /// <summary>
     /// Ensures the required DAT set is fully downloaded and creates the per-instance
     /// directory with symlinks. Returns the instance directory path ready for launch,
-    /// or null on failure. The caller is responsible for actually starting the process
-    /// (so it can apply injection/mutex-kill using the instance dir as working directory).
+    /// or null on failure. The caller launches the process from this directory via
+    /// <see cref="DecalInjector.LaunchSuspendedAndInject"/>.
     /// Call <see cref="WatchAndCleanupAsync"/> after starting the process.
     /// </summary>
     public async Task<string?> PrepareInstanceAsync(

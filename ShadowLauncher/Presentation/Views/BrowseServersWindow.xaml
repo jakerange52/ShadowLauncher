@@ -4,11 +4,11 @@
         xmlns:controls="clr-namespace:ShadowLauncher.Presentation.Controls"
         Title="Browse Community Servers" Height="500" Width="750"
         WindowStartupLocation="CenterOwner"
-        Background="#F2121216" WindowStyle="None" AllowsTransparency="True">
+        Background="{DynamicResource BgBrush}" WindowStyle="None" AllowsTransparency="True">
     <WindowChrome.WindowChrome>
         <WindowChrome CornerRadius="12" GlassFrameThickness="0" CaptionHeight="28" ResizeBorderThickness="6"/>
     </WindowChrome.WindowChrome>
-    <Border Background="#F2121216" CornerRadius="12" BorderBrush="#2A2A30" BorderThickness="1">
+    <Border Background="{DynamicResource BgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
     <Grid Margin="12">
         <DockPanel VerticalAlignment="Top" Margin="0,-4,0,0" Height="28">
             <TextBlock Text="Browse Community Servers" Foreground="#888" VerticalAlignment="Center" FontWeight="SemiBold"/>
@@ -25,38 +25,50 @@
 
         <!-- Search bar -->
         <Grid Grid.Row="0" Margin="0,0,0,6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <Grid Grid.Column="0">
-                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                         VerticalContentAlignment="Center" Padding="6,4" FontSize="13"
-                         x:Name="SearchBox"/>
-                <!-- Placeholder — visible only when SearchText is empty and box is not focused -->
-                <TextBlock Text="Search name, host, description..."
-                           Foreground="#555" FontSize="13"
-                           Margin="9,0,0,0" VerticalAlignment="Center"
-                           IsHitTestVisible="False">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                            <Style.Triggers>
-                                <MultiDataTrigger>
-                                    <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding SearchText}" Value=""/>
-                                        <Condition Binding="{Binding IsKeyboardFocused, ElementName=SearchBox}" Value="False"/>
-                                    </MultiDataTrigger.Conditions>
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </MultiDataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </Grid>
-            <Button Grid.Column="1" Content="&#x2715;" Padding="10,4" Margin="4,0,0,0"
-                    Command="{Binding ClearSearchCommand}"
-                    ToolTip="Clear search" FontSize="11" Foreground="#888"/>
+            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                     VerticalContentAlignment="Center" Padding="6,4,24,4" FontSize="13"
+                     x:Name="SearchBox"/>
+            <!-- Placeholder — visible only when SearchText is empty and box is not focused -->
+            <TextBlock Text="Search name, host, description..."
+                       Foreground="#555" FontSize="13"
+                       Margin="9,0,0,0" VerticalAlignment="Center"
+                       IsHitTestVisible="False">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding SearchText}" Value=""/>
+                                    <Condition Binding="{Binding IsKeyboardFocused, ElementName=SearchBox}" Value="False"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+            <!-- Clear search X inside the text box -->
+            <TextBlock Text="&#x2715;" FontSize="11" Foreground="#888"
+                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                       Margin="0,0,6,0" Cursor="Hand"
+                       MouseDown="ClearSearch_MouseDown"
+                       ToolTip="Clear search"
+                       x:Name="ClearSearchIcon">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SearchText}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding SearchText}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </Grid>
 
         <!-- Server grid -->

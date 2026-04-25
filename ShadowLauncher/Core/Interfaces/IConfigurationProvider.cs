@@ -10,6 +10,7 @@ public interface IConfigurationProvider
 
     string GameClientPath { get; set; }
     string DecalPath { get; set; }
+    string Theme { get; set; }
     TimeSpan HeartbeatInterval { get; set; }
     TimeSpan HeartbeatTimeout { get; set; }
     TimeSpan ServerCheckInterval { get; set; }
@@ -18,6 +19,7 @@ public interface IConfigurationProvider
     int KillHeartbeatTimeoutSeconds { get; set; }
     bool AutoRelaunch { get; set; }
     int AutoRelaunchDelaySeconds { get; set; }
+    bool DatDeveloperMode { get; set; }
     void Load();
     void Save();
     string GetSetting(string key, string defaultValue = "");

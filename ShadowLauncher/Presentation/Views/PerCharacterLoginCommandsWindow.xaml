@@ -3,11 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Login Commands Per Character" Height="450" Width="700"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
-        Background="#F2121216" WindowStyle="None" AllowsTransparency="True">
+        Background="{DynamicResource BgBrush}" WindowStyle="None" AllowsTransparency="True">
     <WindowChrome.WindowChrome>
         <WindowChrome CornerRadius="12" GlassFrameThickness="0" CaptionHeight="28" ResizeBorderThickness="6"/>
     </WindowChrome.WindowChrome>
-    <Border Background="#F2121216" CornerRadius="12" BorderBrush="#2A2A30" BorderThickness="1">
+    <Border Background="{DynamicResource BgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
     <Grid Margin="16">
         <DockPanel VerticalAlignment="Top" Margin="0,-8,0,0" Height="28">
             <TextBlock Text="Login Commands Per Character" Foreground="#888" VerticalAlignment="Center" FontWeight="SemiBold"/>
@@ -63,13 +63,7 @@
                         <DataTemplate>
                             <ComboBox ItemsSource="{Binding AvailableCharacters}"
                                       SelectedItem="{Binding CharacterName, UpdateSourceTrigger=PropertyChanged}"
-                                      IsEditable="True"
-                                      Background="#2A2A30" Foreground="#EEE">
-                                <ComboBox.Resources>
-                                    <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#2A2A30"/>
-                                    <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#EEE"/>
-                                </ComboBox.Resources>
-                            </ComboBox>
+                                      IsEditable="True"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
