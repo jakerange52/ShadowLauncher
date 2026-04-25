@@ -13,7 +13,7 @@ public class ThemeService
     private static readonly IReadOnlyList<ThemeDefinition> Themes =
     [
         new("Shadow",    "Presentation/Themes/ShadowTheme.xaml"),
-        new("LostLight", "Presentation/Themes/LostLightTheme.xaml"),
+        new("Shadowfire", "Presentation/Themes/ShadowfireTheme.xaml"),
         new("Nether",    "Presentation/Themes/NetherTheme.xaml"),
         new("Classic",   "Presentation/Themes/ClassicTheme.xaml"),
     ];

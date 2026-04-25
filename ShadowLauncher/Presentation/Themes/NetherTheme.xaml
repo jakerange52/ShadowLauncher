@@ -16,7 +16,7 @@
     <Color x:Key="ShadowText">#C8C8F0</Color>
     <Color x:Key="ShadowTextMuted">#44446A</Color>
 
-    <SolidColorBrush x:Key="BgBrush" Color="{StaticResource ShadowBg}"/>
+    <SolidColorBrush x:Key="BgBrush" Color="{StaticResource ShadowBg}" Opacity="0.85"/>
     <!-- Surface: deep purple with a soft inner glow bloom -->
     <DrawingBrush x:Key="SurfaceBrush"
                   TileMode="None"
@@ -66,7 +66,7 @@
 
     <!-- ═══════ Window ═══════ -->
     <Style TargetType="Window">
-        <Setter Property="Background" Value="#F20D0D1A"/>
+        <Setter Property="Background" Value="#D9080810"/>
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource FantasyFont}"/>
         <Setter Property="WindowChrome.WindowChrome">
@@ -121,6 +121,35 @@
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="border" Property="Background" Value="#222"/>
                             <Setter Property="Foreground" Value="#555"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══════ Grid Action Button (compact, used in DataGrid cells/headers) ═══════ -->
+    <Style x:Key="GridActionButton" TargetType="Button">
+        <Setter Property="Background" Value="#2A2A30"/>
+        <Setter Property="Foreground" Value="{StaticResource RedBrush}"/>
+        <Setter Property="FontFamily" Value="{StaticResource FantasyFont}"/>
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                            CornerRadius="4" Padding="{TemplateBinding Padding}"
+                            TextElement.Foreground="{TemplateBinding Foreground}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource RedHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource RedPressBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

@@ -131,7 +131,7 @@
     <!-- ═══════ Grid Action Button (compact, used in DataGrid cells/headers) ═══════ -->
     <Style x:Key="GridActionButton" TargetType="Button">
         <Setter Property="Background" Value="#2A2A30"/>
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource RedBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource FantasyFont}"/>
         <Setter Property="FontSize" Value="10"/>
         <Setter Property="BorderThickness" Value="0"/>
