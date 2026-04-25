@@ -23,12 +23,13 @@ public partial class SettingsWindow : Window
         viewModel.SaveCompleted += (_, _) => DialogResult = true;
 
         Loaded += (_, _) => OffsetFromOwner();
+        Closed += (_, _) => WindowPositionHelper.Save(this);
     }
 
     private void OffsetFromOwner()
     {
         if (Owner is null) return;
-        AddAccountWindow.ClampedOffset(this, Owner);
+        WindowPositionHelper.RestoreOrOffset(this, Owner);
     }
 
     private void OnBrowseRequested(object? sender, string propertyName)

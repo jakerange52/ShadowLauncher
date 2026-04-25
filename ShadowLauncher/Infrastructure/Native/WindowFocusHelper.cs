@@ -17,7 +17,8 @@ internal static partial class WindowFocusHelper
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
-    private const int SW_RESTORE = 9;
+    private const int SW_RESTORE  = 9;
+    private const int SW_MINIMIZE = 6;
 
     /// <summary>
     /// Brings the main window of the given process to the foreground.
@@ -43,5 +44,33 @@ internal static partial class WindowFocusHelper
             // Process no longer exists
             return false;
         }
+    }
+
+    /// <summary>Minimizes the main window of the given process.</summary>
+    public static bool MinimizeProcess(int processId)
+    {
+        try
+        {
+            var process = Process.GetProcessById(processId);
+            var hWnd = process.MainWindowHandle;
+            if (hWnd == IntPtr.Zero) return false;
+            ShowWindow(hWnd, SW_MINIMIZE);
+            return true;
+        }
+        catch (ArgumentException) { return false; }
+    }
+
+    /// <summary>Restores the main window of the given process if minimized.</summary>
+    public static bool RestoreProcess(int processId)
+    {
+        try
+        {
+            var process = Process.GetProcessById(processId);
+            var hWnd = process.MainWindowHandle;
+            if (hWnd == IntPtr.Zero) return false;
+            ShowWindow(hWnd, SW_RESTORE);
+            return true;
+        }
+        catch (ArgumentException) { return false; }
     }
 }

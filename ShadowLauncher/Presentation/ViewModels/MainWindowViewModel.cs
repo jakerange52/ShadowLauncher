@@ -101,6 +101,10 @@ public class MainWindowViewModel : ViewModelBase
         BrowseGameClientCommand = new RelayCommand(() => BrowseGameClientRequested?.Invoke(this, EventArgs.Empty));
         FocusSessionCommand = new RelayCommand(FocusSelectedSession, () => SelectedSession is not null);
         OpenAccountsFileCommand = new RelayCommand(OpenAccountsFile);
+        MinimizeSessionCommand = new RelayCommand(p => MinimizeSession(p as GameSession));
+        RestoreSessionCommand  = new RelayCommand(p => RestoreSession(p as GameSession));
+        MinimizeAllSessionsCommand = new RelayCommand(MinimizeAllSessions);
+        RestoreAllSessionsCommand  = new RelayCommand(RestoreAllSessions);
     }
 
     public ObservableCollection<Account> Accounts { get; } = [];
@@ -223,6 +227,10 @@ public class MainWindowViewModel : ViewModelBase
     public ICommand BrowseGameClientCommand { get; }
     public ICommand FocusSessionCommand { get; }
     public ICommand OpenAccountsFileCommand { get; }
+    public ICommand MinimizeSessionCommand { get; }
+    public ICommand RestoreSessionCommand { get; }
+    public ICommand MinimizeAllSessionsCommand { get; }
+    public ICommand RestoreAllSessionsCommand { get; }
 
     private void OpenAccountsFile()
     {
@@ -548,6 +556,30 @@ public class MainWindowViewModel : ViewModelBase
             StatusText = $"Could not focus game window (PID {SelectedSession.ProcessId}). It may have closed.";
         else
             StatusText = $"Focused session PID {SelectedSession.ProcessId}";
+    }
+
+    private void MinimizeSession(GameSession? session)
+    {
+        if (session is null) return;
+        WindowFocusHelper.MinimizeProcess(session.ProcessId);
+    }
+
+    private void RestoreSession(GameSession? session)
+    {
+        if (session is null) return;
+        WindowFocusHelper.RestoreProcess(session.ProcessId);
+    }
+
+    private void MinimizeAllSessions()
+    {
+        foreach (var session in ActiveSessions)
+            WindowFocusHelper.MinimizeProcess(session.ProcessId);
+    }
+
+    private void RestoreAllSessions()
+    {
+        foreach (var session in ActiveSessions)
+            WindowFocusHelper.RestoreProcess(session.ProcessId);
     }
 
     private void OpenSettings()

@@ -16,12 +16,13 @@ public partial class LoginCommandsWindow : Window
         WaitMsTextBox.Text = "3000";
 
         Loaded += (_, _) => OffsetFromOwner();
+        Closed += (_, _) => WindowPositionHelper.Save(this);
     }
 
     private void OffsetFromOwner()
     {
         if (Owner is null) return;
-        AddAccountWindow.ClampedOffset(this, Owner);
+        WindowPositionHelper.RestoreOrOffset(this, Owner);
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)

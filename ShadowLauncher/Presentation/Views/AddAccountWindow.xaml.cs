@@ -16,12 +16,13 @@ public partial class AddAccountWindow : Window
         viewModel.SaveCompleted += (_, _) => DialogResult = true;
 
         Loaded += (_, _) => OffsetFromOwner();
+        Closed += (_, _) => WindowPositionHelper.Save(this);
     }
 
     private void OffsetFromOwner()
     {
         if (Owner is null) return;
-        ClampedOffset(this, Owner);
+        WindowPositionHelper.RestoreOrOffset(this, Owner);
     }
 
     internal static void ClampedOffset(Window child, Window owner)
