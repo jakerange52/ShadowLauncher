@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using ShadowLauncher.Application;
@@ -34,6 +35,18 @@ public partial class App : System.Windows.Application
         themeService.ApplySaved();
 
         var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+
+        if (Process.GetProcessesByName("ThwargLauncher").Length > 0)
+        {
+            MessageBox.Show(
+                "ThwargLauncher is currently running.\n\n" +
+                "ShadowLauncher and ThwargLauncher both use ThwargFilter and can cause a corrupted state in Decal plugins when run simultaneously.\n\n" +
+                "It is recommended to close ThwargLauncher before continuing.",
+                "Compatibility Warning",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+
         mainWindow.Show();
     }
 
