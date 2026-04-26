@@ -34,6 +34,7 @@ public class MainWindowViewModel : ViewModelBase
     private readonly AccountFileRepository _accountFileRepo;
     private readonly ServerFileRepository _serverFileRepo;
     private readonly ServerListDownloader _serverListDownloader;
+    private readonly BetaServerListDownloader _betaServerListDownloader;
     private readonly IGameMonitor _gameMonitor;
     private readonly ILogger<MainWindowViewModel> _logger;
     private readonly ProfileService _profileService;
@@ -67,6 +68,7 @@ public class MainWindowViewModel : ViewModelBase
         AccountFileRepository accountFileRepo,
         ServerFileRepository serverFileRepo,
         ServerListDownloader serverListDownloader,
+        BetaServerListDownloader betaServerListDownloader,
         AppCoordinator appCoordinator,
         IGameMonitor gameMonitor,
         UpdateChecker updateChecker,
@@ -87,6 +89,7 @@ public class MainWindowViewModel : ViewModelBase
         _accountFileRepo = accountFileRepo;
         _serverFileRepo = serverFileRepo;
         _serverListDownloader = serverListDownloader;
+        _betaServerListDownloader = betaServerListDownloader;
         _gameMonitor = gameMonitor;
         _profileService = profileService;
         _loginCommandsService = loginCommandsService;
@@ -812,7 +815,7 @@ public class MainWindowViewModel : ViewModelBase
 
     private void BrowseServers()
     {
-        var vm = new BrowseServersViewModel(_serverListDownloader);
+        var vm = new BrowseServersViewModel(_serverListDownloader, _betaServerListDownloader);
         vm.ServerAdded += async (_, server) =>
         {
             try
@@ -829,8 +832,11 @@ public class MainWindowViewModel : ViewModelBase
                     WebsiteUrl = server.WebsiteUrl,
                     DefaultRodat = server.DefaultRodat,
                     SecureLogon = server.SecureLogon,
-                    DatSetId = server.DatSetId
-                        ?? await _datSetService.ResolveDatSetIdForServerAsync(server.Name)
+                    DatSetId = server.IsBeta
+                        ? null
+                        : server.DatSetId ?? await _datSetService.ResolveDatSetIdForServerAsync(server.Name),
+                    CustomDatZipUrl = server.CustomDatZipUrl,
+                    IsBeta = server.IsBeta
                 };
 
                 var added = await _serverService.CreateServerAsync(copy);

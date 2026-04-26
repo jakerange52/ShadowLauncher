@@ -192,6 +192,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
@@ -218,20 +219,30 @@
                                                   Visibility="{Binding IsManuallyAdded, Converter={StaticResource BoolToVisibility}}"/>
                                     </ContextMenu>
                                 </Grid.ContextMenu>
-                                <!-- Status arrow -->
+                                <!-- Status dot -->
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding IsOnline, Converter={StaticResource OnlineStatusConverter}}"
                                            Foreground="{Binding IsOnline, Converter={StaticResource OnlineStatusColorConverter}}"
-                                           Margin="0,0,6,0" VerticalAlignment="Center" FontSize="10"/>
+                                           Margin="0,0,4,0" VerticalAlignment="Center" FontSize="10"/>
+                                <!-- ? badge for beta servers -->
+                                <TextBlock Grid.Column="1" Text="&#x03B2;"
+                                           FontFamily="Segoe UI"
+                                           Foreground="#E8A838" FontSize="10" FontWeight="Bold"
+                                           VerticalAlignment="Center" Margin="0,0,4,0"
+                                           ToolTip="Beta server - may have custom DATs or be in early development">
+                                    <TextBlock.Visibility>
+                                        <Binding Path="IsBeta" Converter="{StaticResource BoolToVisibility}"/>
+                                    </TextBlock.Visibility>
+                                </TextBlock>
                                 <!-- Server name -->
-                                <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                <TextBlock Grid.Column="2" Text="{Binding Name}"
                                            VerticalAlignment="Center" Foreground="#DDD"/>
                                 <!-- Description preview -->
-                                <TextBlock Grid.Column="2" Text="{Binding Description}" Foreground="#666" FontStyle="Italic"
+                                <TextBlock Grid.Column="3" Text="{Binding Description}" Foreground="#666" FontStyle="Italic"
                                            TextTrimming="CharacterEllipsis" MaxWidth="240"
                                            VerticalAlignment="Center" Margin="8,0,4,0"/>
                                 <!-- Expand description button -->
-                                <Button Grid.Column="3" Content="&#x2026;" FontSize="10" Padding="3,0" Margin="0,0,2,0"
+                                <Button Grid.Column="4" Content="&#x2026;" FontSize="10" Padding="3,0" Margin="0,0,2,0"
                                         Style="{DynamicResource IconButton}" VerticalAlignment="Center"
                                         Tag="{Binding}"
                                         Click="ServerDetails_Click"
@@ -244,7 +255,7 @@
                                     </Button.Visibility>
                                 </Button>
                                 <!-- Remove button -->
-                                <Button Grid.Column="4" Content="&#x2715;" FontSize="10"
+                                <Button Grid.Column="5" Content="&#x2715;" FontSize="10"
                                         Padding="4,0" Margin="4,0,0,0" VerticalAlignment="Center"
                                         Click="RemoveServer_Click" Tag="{Binding}"
                                         ToolTip="Remove server" Style="{DynamicResource IconButton}"/>

@@ -38,6 +38,8 @@ public static class ServiceBootstrapper
         services.AddSingleton<IEventAggregator, EventAggregator>();
         services.AddSingleton<IHeartbeatReader, HeartbeatReader>();
         services.AddSingleton<ServerListDownloader>();
+        services.AddSingleton<BetaServerListDownloader>();
+        services.AddSingleton<GitHubReleaseResolver>();
         services.AddSingleton<UpdateChecker>();
         services.AddSingleton<ThemeService>();
         services.AddSingleton<DatRegistryDownloader>();
@@ -67,6 +69,7 @@ public static class ServiceBootstrapper
         services.AddSingleton<IGameLauncher, GameLauncher>();
         services.AddSingleton<IGameMonitor, GameMonitor>();
         services.AddSingleton<LoginCommandsService>();
+        services.AddSingleton<FirstRunService>();
         services.AddSingleton<ProfileService>(sp =>
         {
             var config = sp.GetRequiredService<IConfigurationProvider>();

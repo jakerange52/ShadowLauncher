@@ -10,16 +10,20 @@ namespace ShadowLauncher.Presentation.ViewModels;
 public class BrowseServersViewModel : ViewModelBase
 {
     private readonly ServerListDownloader _downloader;
+    private readonly BetaServerListDownloader _betaDownloader;
     private string _statusText = "Loading server list...";
     private bool _isLoading;
+    private bool _showingBeta;
     private Server? _selectedServer;
     private string _searchText = string.Empty;
 
-    public BrowseServersViewModel(ServerListDownloader downloader)
+    public BrowseServersViewModel(ServerListDownloader downloader, BetaServerListDownloader betaDownloader)
     {
         _downloader = downloader;
+        _betaDownloader = betaDownloader;
         AddSelectedCommand = new RelayCommand(AddSelected, () => SelectedServer is not null);
         ClearSearchCommand = new RelayCommand(() => SearchText = string.Empty);
+        ToggleListCommand = new RelayCommand(ToggleList);
 
         FilteredServers = CollectionViewSource.GetDefaultView(Servers);
         FilteredServers.Filter = FilterServer;
@@ -28,9 +32,19 @@ public class BrowseServersViewModel : ViewModelBase
     public event EventHandler<Server>? ServerAdded;
 
     public ObservableCollection<Server> Servers { get; } = [];
-
-    /// <summary>The filtered view bound to the DataGrid.</summary>
     public ICollectionView FilteredServers { get; }
+
+    public bool ShowingBeta
+    {
+        get => _showingBeta;
+        private set
+        {
+            if (SetProperty(ref _showingBeta, value))
+                OnPropertyChanged(nameof(ToggleButtonContent));
+        }
+    }
+
+    public string ToggleButtonContent => _showingBeta ? "◀ Regular Servers" : "β Beta Servers";
 
     public string SearchText
     {
@@ -62,18 +76,28 @@ public class BrowseServersViewModel : ViewModelBase
 
     public ICommand AddSelectedCommand { get; }
     public ICommand ClearSearchCommand { get; }
+    public ICommand ToggleListCommand { get; }
 
     public async Task LoadAsync()
     {
+        await LoadCurrentListAsync();
+    }
+
+    private async Task LoadCurrentListAsync()
+    {
         IsLoading = true;
-        StatusText = "Downloading server list...";
+        StatusText = _showingBeta ? "Downloading beta server list..." : "Downloading server list...";
+        SelectedServer = null;
         try
         {
-            var servers = await _downloader.FetchServersAsync();
+            var servers = _showingBeta
+                ? await _betaDownloader.FetchServersAsync()
+                : await _downloader.FetchServersAsync();
             Servers.Clear();
             foreach (var s in servers)
                 Servers.Add(s);
-            StatusText = $"Found {Servers.Count} servers";
+            var label = _showingBeta ? "beta server" : "server";
+            StatusText = $"Found {Servers.Count} {label}{(Servers.Count == 1 ? "" : "s")}";
         }
         catch (Exception ex)
         {
@@ -83,6 +107,13 @@ public class BrowseServersViewModel : ViewModelBase
         {
             IsLoading = false;
         }
+    }
+
+    private async void ToggleList()
+    {
+        ShowingBeta = !_showingBeta;
+        SearchText = string.Empty;
+        await LoadCurrentListAsync();
     }
 
     private void AddSelected()

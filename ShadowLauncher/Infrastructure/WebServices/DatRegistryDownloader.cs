@@ -95,10 +95,7 @@ public class DatRegistryDownloader
 
             var zipEl = setEl.Element("Zip");
             if (zipEl is not null)
-            {
                 set.ZipUrl = zipEl.Attribute("url")?.Value?.Trim() ?? string.Empty;
-                set.ZipSha256 = zipEl.Attribute("sha256")?.Value?.Trim() ?? string.Empty;
-            }
 
             foreach (var fileEl in setEl.Elements("File"))
             {

@@ -31,14 +31,12 @@ public class DatSet
 
     /// <summary>
     /// Optional URL to a zip archive containing all DAT files for this set.
-    /// When present, the launcher downloads and extracts this instead of fetching
-    /// individual files. Any of the five expected DAT files found inside are kept;
-    /// unrecognised entries in the zip are ignored.
+    /// May be a direct download URL or a GitHub releases URL
+    /// (e.g. https://github.com/owner/repo/releases/latest), in which case
+    /// the launcher resolves the latest release asset via the GitHub API and
+    /// uses the release tag to detect when a re-download is needed.
     /// </summary>
     public string ZipUrl { get; set; } = string.Empty;
-
-    /// <summary>Optional SHA-256 hex checksum of the zip archive for integrity verification.</summary>
-    public string ZipSha256 { get; set; } = string.Empty;
 
     /// <summary>
     /// The five (or fewer) DAT files that make up this set.

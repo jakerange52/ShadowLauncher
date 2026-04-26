@@ -13,6 +13,7 @@ public class AppCoordinator
     private readonly IServerService _serverService;
     private readonly IEventAggregator _events;
     private readonly IDatSetService _datSetService;
+    private readonly FirstRunService _firstRunService;
     private readonly ILogger<AppCoordinator> _logger;
     private CancellationTokenSource? _appCts;
     private Task? _serverMonitorTask;
@@ -25,6 +26,7 @@ public class AppCoordinator
         IServerService serverService,
         IEventAggregator events,
         IDatSetService datSetService,
+        FirstRunService firstRunService,
         ILogger<AppCoordinator> logger)
     {
         _config = config;
@@ -32,6 +34,7 @@ public class AppCoordinator
         _serverService = serverService;
         _events = events;
         _datSetService = datSetService;
+        _firstRunService = firstRunService;
         _logger = logger;
     }
 
@@ -43,6 +46,9 @@ public class AppCoordinator
         // Ensure data directories exist
         Directory.CreateDirectory(_config.DataDirectory);
         Directory.CreateDirectory(_config.LogDirectory);
+
+        // Silently detect AC client and import ThwargLauncher data on first launch.
+        await _firstRunService.RunAsync();
 
         // Fetch a fresh DatRegistry.xml in the background so checksums and server
         // mappings are always up to date. Failures are non-fatal — the bundled or
