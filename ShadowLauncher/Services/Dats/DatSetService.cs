@@ -121,14 +121,10 @@ public class DatSetService : IDatSetService
                 return;
             }
 
-            if (allDatsPresent && releaseTag is not null)
-            {
+            var isNewRelease = allDatsPresent && releaseTag is not null;
+            if (isNewRelease)
                 _logger.LogInformation("New GitHub release ({Tag}) detected for '{Server}' - re-downloading DATs",
                     releaseTag, server.Name);
-                // Clear old files so ExtractDatZip writes fresh copies
-                foreach (var f in KnownAcFileNames)
-                    try { File.Delete(Path.Combine(localDir, f)); } catch { }
-            }
 
             _logger.LogInformation("Downloading custom DAT zip for '{Server}' from {Url}",
                 server.Name, resolvedUrl);
@@ -141,7 +137,7 @@ public class DatSetService : IDatSetService
             {
                 await DownloadRawAsync(http, resolvedUrl, tempZip, progress);
                 _logger.LogInformation("Extracting custom DAT zip for '{Server}'", server.Name);
-                ExtractDatZip(tempZip, localDir, new DatSet());
+                ExtractDatZip(tempZip, localDir, new DatSet(), overwrite: isNewRelease);
                 WriteVersionSidecar(localDir, releaseTag);
             }
             finally
@@ -203,11 +199,15 @@ public class DatSetService : IDatSetService
             }
 
             // Skip download if already fully cached AND the release tag hasn't changed.
-            if (set.IsFullyDownloaded(_config.DatSetsDirectory) && !IsNewRelease(localDir, releaseTag))
+            var isNewRelease = IsNewRelease(localDir, releaseTag);
+            if (set.IsFullyDownloaded(_config.DatSetsDirectory) && !isNewRelease)
             {
                 _logger.LogInformation("DAT set '{Id}' is current (tag: {Tag}) - skipping download", datSetId, releaseTag ?? "n/a");
                 return;
             }
+
+            if (isNewRelease)
+                _logger.LogInformation("New release detected for DAT set '{Id}' (tag: {Tag}) - re-downloading", datSetId, releaseTag);
 
             _logger.LogInformation("Downloading DAT zip for '{Id}' from {Url}", set.Id, resolvedUrl);
             Directory.CreateDirectory(localDir);
@@ -219,7 +219,7 @@ public class DatSetService : IDatSetService
             {
                 await DownloadRawAsync(http, resolvedUrl, tempZip, progress);
                 _logger.LogInformation("Extracting DAT zip for '{Id}'", set.Id);
-                ExtractDatZip(tempZip, localDir, set);
+                ExtractDatZip(tempZip, localDir, set, overwrite: isNewRelease);
                 WriteVersionSidecar(localDir, releaseTag);
             }
             finally
@@ -376,10 +376,8 @@ public class DatSetService : IDatSetService
     /// Files in the zip not matching the set's known filenames are ignored.
     /// The zip may contain files in subdirectories — only the filename is matched.
     /// </summary>
-    private void ExtractDatZip(string zipPath, string destDir, DatSet set)
+    private void ExtractDatZip(string zipPath, string destDir, DatSet set, bool overwrite = false)
     {
-        // If the registry entry has explicit File entries, match only those.
-        // Otherwise (zip-only entry with no File children) accept any known AC filename.
         var knownNames = set.Files.Count > 0
             ? set.Files.Select(f => f.FileName).ToHashSet(StringComparer.OrdinalIgnoreCase)
             : KnownAcFileNames;
@@ -387,20 +385,20 @@ public class DatSetService : IDatSetService
         using var archive = ZipFile.OpenRead(zipPath);
         foreach (var entry in archive.Entries)
         {
-            // Match by filename only, ignoring any directory structure inside the zip.
             var entryName = Path.GetFileName(entry.FullName);
             if (string.IsNullOrEmpty(entryName)) continue;
             if (!knownNames.Contains(entryName)) continue;
 
             var destPath = Path.Combine(destDir, entryName);
-            if (File.Exists(destPath))
+            if (File.Exists(destPath) && !overwrite)
             {
-                _logger.LogDebug("Skipping '{File}' — already present in cache", entryName);
+                _logger.LogDebug("Skipping '{File}' - already present in cache", entryName);
                 continue;
             }
 
-            _logger.LogInformation("Extracting {File} from zip", entryName);
-            entry.ExtractToFile(destPath, overwrite: false);
+            _logger.LogInformation("{Action} {File} from zip",
+                overwrite ? "Overwriting" : "Extracting", entryName);
+            entry.ExtractToFile(destPath, overwrite: true);
         }
     }
 }

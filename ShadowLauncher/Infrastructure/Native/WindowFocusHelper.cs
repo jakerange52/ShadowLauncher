@@ -27,7 +27,7 @@ internal static partial class WindowFocusHelper
     {
         try
         {
-            var process = Process.GetProcessById(processId);
+            using var process = Process.GetProcessById(processId);
             var hWnd = process.MainWindowHandle;
 
             if (hWnd == IntPtr.Zero)
@@ -40,7 +40,6 @@ internal static partial class WindowFocusHelper
         }
         catch (ArgumentException)
         {
-            // Process no longer exists
             return false;
         }
     }
@@ -50,7 +49,7 @@ internal static partial class WindowFocusHelper
     {
         try
         {
-            var process = Process.GetProcessById(processId);
+            using var process = Process.GetProcessById(processId);
             var hWnd = process.MainWindowHandle;
             if (hWnd == IntPtr.Zero) return false;
             ShowWindow(hWnd, SW_MINIMIZE);
@@ -64,7 +63,7 @@ internal static partial class WindowFocusHelper
     {
         try
         {
-            var process = Process.GetProcessById(processId);
+            using var process = Process.GetProcessById(processId);
             var hWnd = process.MainWindowHandle;
             if (hWnd == IntPtr.Zero) return false;
             ShowWindow(hWnd, SW_RESTORE);
