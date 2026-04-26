@@ -26,7 +26,7 @@ namespace ShadowLauncher.Infrastructure.Native;
 ///
 /// Cleanup:
 ///   The instance directory is deleted after the game process exits (or on next
-///   launcher startup via <see cref="CleanupStaleInstancesAsync"/>).
+///   launcher startup via <see cref="CleanupStaleInstances"/>).
 ///
 /// Prerequisites:
 ///   Creating file symlinks on Windows requires either:

@@ -1,4 +1,3 @@
-using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using ShadowLauncher.Core.Interfaces;
@@ -9,7 +8,7 @@ namespace ShadowLauncher.Application;
 /// <summary>
 /// Runs silently on first launch to pre-populate sensible defaults:
 ///   1. Detects the AC client path from the registry or standard install locations.
-///   2. Imports accounts and servers from ThwargLauncher if it has been used.
+///   2. Imports accounts from ThwargLauncher if they exist and none are configured yet.
 ///
 /// Nothing is overwritten if data already exists. All failures are swallowed so a
 /// missing ThwargLauncher installation or unreadable files never block startup.
@@ -18,7 +17,6 @@ public class FirstRunService
 {
     private readonly IConfigurationProvider _config;
     private readonly AccountFileRepository _accountRepo;
-    private readonly ServerFileRepository _serverRepo;
     private readonly ILogger<FirstRunService> _logger;
 
     // Standard AC install locations to probe if registry lookup fails.
@@ -35,20 +33,13 @@ public class FirstRunService
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "ThwargLauncher", "Accounts.txt");
 
-    // ThwargLauncher stores servers in %AppData%\ThwargLauncher\UserServerList.xml
-    private static readonly string ThwargServersFile = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "ThwargLauncher", "UserServerList.xml");
-
     public FirstRunService(
         IConfigurationProvider config,
         AccountFileRepository accountRepo,
-        ServerFileRepository serverRepo,
         ILogger<FirstRunService> logger)
     {
         _config = config;
         _accountRepo = accountRepo;
-        _serverRepo = serverRepo;
         _logger = logger;
     }
 
@@ -60,7 +51,6 @@ public class FirstRunService
     {
         TryDetectGameClient();
         await TryImportThwargAccountsAsync();
-        await TryImportThwargServersAsync();
     }
 
     // ── Game client detection ──────────────────────────────────────────────────
@@ -155,74 +145,6 @@ public class FirstRunService
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "First-run: could not import ThwargLauncher accounts");
-        }
-    }
-
-    // ── ThwargLauncher server import ───────────────────────────────────────────
-
-    private async Task TryImportThwargServersAsync()
-    {
-        try
-        {
-            var existing = await _serverRepo.GetAllAsync();
-            if (existing.Any())
-                return;
-
-            if (!File.Exists(ThwargServersFile))
-                return;
-
-            var doc = XDocument.Load(ThwargServersFile);
-            var imported = 0;
-
-            foreach (var item in doc.Descendants("ServerItem"))
-            {
-                var name = item.Element("name")?.Value ?? string.Empty;
-                if (string.IsNullOrWhiteSpace(name)) continue;
-
-                var connectString = item.Element("connect_string")?.Value ?? string.Empty;
-                string hostname;
-                int port = 9000;
-
-                if (connectString.Contains(':'))
-                {
-                    var parts = connectString.Split(':', 2);
-                    hostname = parts[0];
-                    int.TryParse(parts[1], out port);
-                }
-                else
-                {
-                    hostname = item.Element("server_host")?.Value ?? connectString;
-                    int.TryParse(item.Element("server_port")?.Value, out port);
-                }
-
-                if (string.IsNullOrWhiteSpace(hostname)) continue;
-
-                var server = new Core.Models.Server
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    Name = name,
-                    Hostname = hostname,
-                    Port = port == 0 ? 9000 : port,
-                    Description = item.Element("description")?.Value ?? string.Empty,
-                    DiscordUrl = item.Element("discord_url")?.Value ?? string.Empty,
-                    WebsiteUrl = item.Element("website_url")?.Value ?? string.Empty,
-                    DefaultRodat = item.Element("default_rodat")?.Value
-                        ?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false,
-                    SecureLogon = item.Element("default_secure")?.Value
-                        ?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false,
-                    IsManuallyAdded = true,
-                };
-
-                await _serverRepo.AddAsync(server);
-                imported++;
-            }
-
-            if (imported > 0)
-                _logger.LogInformation("First-run: imported {Count} server(s) from ThwargLauncher", imported);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "First-run: could not import ThwargLauncher servers");
         }
     }
 

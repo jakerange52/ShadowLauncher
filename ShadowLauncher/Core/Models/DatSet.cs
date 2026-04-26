@@ -4,10 +4,10 @@ namespace ShadowLauncher.Core.Models;
 /// A named, versioned set of AC DAT files that describes a complete client data install.
 ///
 /// The "retail" set is the baseline (end-of-retail AC patch). Any server that uses
-/// non-standard DATs (e.g. Seedsow's Dark Majesty expansion set) will have its own entry.
+/// non-standard DATs (e.g. a Dark Majesty expansion set) will have its own entry.
 ///
-/// DAT sets are defined in a remote DatRegistry.xml (analogous to the community server
-/// list XML) and cached locally under %LocalAppData%\ShadowLauncher\DatSets\{Id}\.
+/// DAT sets are defined in DatRegistry.xml and cached locally under
+/// %LocalAppData%\ShadowLauncher\DatSets\{Id}\.
 /// </summary>
 public class DatSet
 {
@@ -38,9 +38,7 @@ public class DatSet
     /// </summary>
     public string ZipUrl { get; set; } = string.Empty;
 
-    /// <summary>
-    /// The five (or fewer) DAT files that make up this set.
-    /// </summary>
+    /// <summary>The DAT files that make up this set.</summary>
     public List<DatFile> Files { get; set; } = [];
 
     /// <summary>

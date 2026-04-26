@@ -67,6 +67,15 @@ public interface IDatSetService
     Task EnsureCustomDatSourceReadyAsync(Server server, IProgress<DatDownloadProgress>? progress = null);
 
     /// <summary>
+    /// Returns true if all required DAT files for a custom-source server are already
+    /// present on disk. This is a fast local-only check with no network calls — use it
+    /// to decide whether a download is needed before showing progress UI.
+    /// Always returns true for <see cref="Server.CustomDatRegistryPath"/> servers
+    /// (the directory is user-managed; existence is validated at launch time).
+    /// </summary>
+    bool IsCustomDatCachePresent(Server server);
+
+    /// <summary>
     /// Ensures every known DAT file is present in <paramref name="datCacheDir"/> by
     /// copying any missing ones from the retail client directory. This makes the cache
     /// self-contained so instances are never silently backed by the shared retail files.

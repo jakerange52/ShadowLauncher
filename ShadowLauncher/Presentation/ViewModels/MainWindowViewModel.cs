@@ -488,12 +488,15 @@ public class MainWindowViewModel : ViewModelBase
                 serversNeedingDats.Add((server, server.DatSetId));
         }
 
-        // Collect custom-source servers (local path or zip URL) that still need their
-        // DATs fetched. Local paths are validated; zip URLs are downloaded if not cached.
+        // Collect custom-source servers (local path or zip URL) whose DAT cache is not
+        // yet on disk. IsCustomDatCachePresent is a fast local check — no network call.
+        // Servers that are already cached are left for GameLauncher's EnsureCustomDatSourceReadyAsync,
+        // which handles GitHub release version checks cheaply without showing the fetch window.
         var serversNeedingCustomDats = servers
             .DistinctBy(s => s.Id)
             .Where(s => !string.IsNullOrWhiteSpace(s.CustomDatRegistryPath)
                      || !string.IsNullOrWhiteSpace(s.CustomDatZipUrl))
+            .Where(s => !_datSetService.IsCustomDatCachePresent(s))
             .ToList();
 
         if (serversNeedingCustomDats.Count > 0 || serversNeedingDats.Count > 0)

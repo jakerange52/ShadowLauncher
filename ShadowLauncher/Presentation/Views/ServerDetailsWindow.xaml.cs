@@ -89,13 +89,18 @@ public partial class ServerDetailsWindow : Window
             EditPanel.Visibility = Visibility.Visible;
         }
 
-        // DAT refresh: only shown for registry-sourced servers (have a DatSetId, no custom override)
-        if (_datSetService is not null
-            && !string.IsNullOrWhiteSpace(_server.DatSetId)
-            && string.IsNullOrWhiteSpace(_server.CustomDatRegistryPath)
-            && string.IsNullOrWhiteSpace(_server.CustomDatZipUrl))
+        // DAT refresh: shown for any server whose DATs are managed by the launcher —
+        // either a registry DatSetId, a custom zip URL (including beta servers), or both.
+        // Not shown for local CustomDatRegistryPath servers (user manages those files directly).
+        bool hasManagedDats = _datSetService is not null
+            && (!string.IsNullOrWhiteSpace(_server.DatSetId) || !string.IsNullOrWhiteSpace(_server.CustomDatZipUrl))
+            && string.IsNullOrWhiteSpace(_server.CustomDatRegistryPath);
+
+        if (hasManagedDats)
         {
-            DatSetLabel.Text = $"DAT set: {_server.DatSetId}";
+            DatSetLabel.Text = !string.IsNullOrWhiteSpace(_server.DatSetId)
+                ? $"DAT set: {_server.DatSetId}"
+                : $"DAT source: {_server.Name}";
             DatRefreshDivider.Visibility = Visibility.Visible;
             DatRefreshPanel.Visibility = Visibility.Visible;
         }
@@ -103,18 +108,23 @@ public partial class ServerDetailsWindow : Window
 
     private async void RefreshDats_Click(object sender, RoutedEventArgs e)
     {
-        if (_datSetService is null || string.IsNullOrWhiteSpace(_server.DatSetId)) return;
+        if (_datSetService is null) return;
+
+        // Determine what label to show in the confirmation dialog
+        var datLabel = !string.IsNullOrWhiteSpace(_server.DatSetId)
+            ? $"'{_server.DatSetId}'"
+            : $"'{_server.Name}'";
 
         var result = MessageBox.Show(
-            $"This will delete the locally cached DAT files for '{_server.DatSetId}' and re-download them from the registry.\n\nContinue?",
+            $"This will delete the locally cached DAT files for {datLabel} and re-download them.\n\nContinue?",
             "Refresh DATs",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
 
         if (result != MessageBoxResult.Yes) return;
 
-        // Delete the local cache folder for this DAT set
-        var cacheDir = _datSetService.GetLocalDatSetPath(_server.DatSetId);
+        // Resolve the correct cache directory for this server
+        var cacheDir = _datSetService.GetLocalDatSetPathForServer(_server);
         if (Directory.Exists(cacheDir))
         {
             try
@@ -132,25 +142,40 @@ public partial class ServerDetailsWindow : Window
             }
         }
 
-        // Re-download via the existing DatFetchWindow
+        // Re-download using the appropriate service method
         var fetchWindow = new DatFetchWindow(this);
         fetchWindow.Show();
         try
         {
             var progress = new Progress<DatDownloadProgress>(p => fetchWindow.ViewModel.Apply(p));
-            await _datSetService.DownloadMissingFilesAsync(_server.DatSetId, progress);
+
+            if (!string.IsNullOrWhiteSpace(_server.CustomDatZipUrl))
+            {
+                await _datSetService.EnsureCustomDatSourceReadyAsync(_server, progress);
+
+                // Complete the cache with retail DATs for any files not in the zip,
+                // matching what SymlinkLauncher does at launch so IsCustomDatCachePresent
+                // returns true immediately and the fetch window won't reopen on next launch.
+                var clientDir = Path.GetDirectoryName(_config.GameClientPath);
+                if (!string.IsNullOrWhiteSpace(clientDir))
+                {
+                    var cacheDir2 = _datSetService.GetLocalDatSetPathForServer(_server);
+                    await _datSetService.CompleteDatCacheFromRetailAsync(cacheDir2, clientDir);
+                }
+            }
+            else
+                await _datSetService.DownloadMissingFilesAsync(_server.DatSetId!, progress);
+
             fetchWindow.ViewModel.SetComplete();
             await Task.Delay(600);
         }
         catch (Exception ex)
         {
-            fetchWindow.Close();
             MessageBox.Show(
                 $"DAT download failed:\n\n{ex.Message}",
                 "Refresh DATs",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
-            return;
         }
         finally
         {

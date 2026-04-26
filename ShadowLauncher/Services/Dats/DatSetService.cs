@@ -87,6 +87,24 @@ public class DatSetService : IDatSetService
     }
 
     /// <inheritdoc/>
+    public bool IsCustomDatCachePresent(Server server)
+    {
+        // Local path servers are user-managed — treat as present (validated at launch).
+        if (!string.IsNullOrWhiteSpace(server.CustomDatRegistryPath))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(server.CustomDatZipUrl))
+        {
+            var localDir = Path.Combine(_config.DatSetsDirectory, SanitiseId(server.Name));
+            return KnownAcFileNames
+                .Where(f => !f.Equals("acclient.exe", StringComparison.OrdinalIgnoreCase))
+                .All(f => File.Exists(Path.Combine(localDir, f)));
+        }
+
+        return false;
+    }
+
+    /// <inheritdoc/>
     public async Task EnsureCustomDatSourceReadyAsync(Server server, IProgress<DatDownloadProgress>? progress = null)
     {
         // Local path: just verify it exists — no download required.
