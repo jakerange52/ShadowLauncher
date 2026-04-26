@@ -122,6 +122,20 @@
                             HorizontalAlignment="Right" Click="EditServer_Click"/>
                 </DockPanel>
 
+                <!-- Divider before DAT refresh (registry-sourced servers only) -->
+                <Rectangle x:Name="DatRefreshDivider" Height="1" Fill="{DynamicResource BorderBrush}"
+                           Margin="0,10,0,10" Visibility="Collapsed"/>
+
+                <!-- DAT refresh panel -->
+                <DockPanel x:Name="DatRefreshPanel" Visibility="Collapsed">
+                    <TextBlock DockPanel.Dock="Left" x:Name="DatSetLabel"
+                               Foreground="#888" FontSize="11" VerticalAlignment="Center"
+                               Margin="0,0,8,0"/>
+                    <Button DockPanel.Dock="Right" Content="&#x21BA; Refresh DATs" Padding="14,6"
+                            HorizontalAlignment="Right" Click="RefreshDats_Click"
+                            ToolTip="Delete the cached DAT files for this server and re-download from the registry"/>
+                </DockPanel>
+
             </StackPanel>
         </Grid>
     </Border>

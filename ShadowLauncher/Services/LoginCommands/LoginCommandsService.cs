@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Models;
 
 namespace ShadowLauncher.Services.LoginCommands;
@@ -10,11 +11,18 @@ namespace ShadowLauncher.Services.LoginCommands;
 /// </summary>
 public class LoginCommandsService
 {
+    private readonly ILogger<LoginCommandsService> _logger;
+
     private static readonly string ThwargFolder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ThwargLauncher");
 
     private static readonly string LoginCommandsFolder = Path.Combine(ThwargFolder, "LoginCommands");
     private static readonly string CharactersFolder = Path.Combine(ThwargFolder, "characters");
+
+    public LoginCommandsService(ILogger<LoginCommandsService> logger)
+    {
+        _logger = logger;
+    }
 
     /// <summary>
     /// Gets the global login commands (run for every character on login).
@@ -253,11 +261,22 @@ public class LoginCommandsService
         // Global commands
         SetGlobalCommands(profile.GlobalLoginCommands, profile.GlobalLoginCommandsWaitMs);
 
-        // Remove old per-character files first so stale ones don't linger
+        // Remove old per-character files first so stale ones don't linger.
+        // Best-effort: log and skip any file that can't be deleted (locked/read-only)
+        // rather than leaving the app in a half-applied state.
         if (Directory.Exists(LoginCommandsFolder))
         {
             foreach (var file in Directory.GetFiles(LoginCommandsFolder, "LoginCommands-*-*-*.txt"))
-                File.Delete(file);
+            {
+                try
+                {
+                    File.Delete(file);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not delete stale login-command file '{File}' during profile switch; skipping.", file);
+                }
+            }
         }
 
         // Write per-character commands from profile

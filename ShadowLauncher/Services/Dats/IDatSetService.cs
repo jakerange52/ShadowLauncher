@@ -65,6 +65,13 @@ public interface IDatSetService
     /// Throws <see cref="InvalidOperationException"/> if neither source is configured.
     /// </summary>
     Task EnsureCustomDatSourceReadyAsync(Server server, IProgress<DatDownloadProgress>? progress = null);
+
+    /// <summary>
+    /// Ensures every known DAT file is present in <paramref name="datCacheDir"/> by
+    /// copying any missing ones from the retail client directory. This makes the cache
+    /// self-contained so instances are never silently backed by the shared retail files.
+    /// </summary>
+    Task CompleteDatCacheFromRetailAsync(string datCacheDir, string retailClientDir);
 }
 
 /// <summary>Progress report emitted during a DAT download.</summary>

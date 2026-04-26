@@ -4,6 +4,7 @@ using System.Windows.Media;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Presentation.ViewModels;
+using ShadowLauncher.Services.Dats;
 
 namespace ShadowLauncher.Presentation.Views;
 
@@ -12,14 +13,16 @@ public partial class ServerDetailsWindow : Window
     private readonly Server _server;
     private readonly bool _datDeveloperMode;
     private readonly IConfigurationProvider _config;
+    private readonly IDatSetService? _datSetService;
     public event EventHandler<Server>? ServerEdited;
 
-    public ServerDetailsWindow(Server server, Window owner, IConfigurationProvider config)
+    public ServerDetailsWindow(Server server, Window owner, IConfigurationProvider config, IDatSetService? datSetService = null)
     {
         InitializeComponent();
         Owner = owner;
         _server = server;
         _config = config;
+        _datSetService = datSetService;
         _datDeveloperMode = config.DatDeveloperMode;
         Loaded += (_, _) => { Populate(); AddAccountWindow.ClampedOffset(this, owner); };
     }
@@ -84,6 +87,74 @@ public partial class ServerDetailsWindow : Window
         {
             EditDivider.Visibility = Visibility.Visible;
             EditPanel.Visibility = Visibility.Visible;
+        }
+
+        // DAT refresh: only shown for registry-sourced servers (have a DatSetId, no custom override)
+        if (_datSetService is not null
+            && !string.IsNullOrWhiteSpace(_server.DatSetId)
+            && string.IsNullOrWhiteSpace(_server.CustomDatRegistryPath)
+            && string.IsNullOrWhiteSpace(_server.CustomDatZipUrl))
+        {
+            DatSetLabel.Text = $"DAT set: {_server.DatSetId}";
+            DatRefreshDivider.Visibility = Visibility.Visible;
+            DatRefreshPanel.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async void RefreshDats_Click(object sender, RoutedEventArgs e)
+    {
+        if (_datSetService is null || string.IsNullOrWhiteSpace(_server.DatSetId)) return;
+
+        var result = MessageBox.Show(
+            $"This will delete the locally cached DAT files for '{_server.DatSetId}' and re-download them from the registry.\n\nContinue?",
+            "Refresh DATs",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes) return;
+
+        // Delete the local cache folder for this DAT set
+        var cacheDir = _datSetService.GetLocalDatSetPath(_server.DatSetId);
+        if (Directory.Exists(cacheDir))
+        {
+            try
+            {
+                Directory.Delete(cacheDir, recursive: true);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Could not delete cached DAT files:\n\n{ex.Message}",
+                    "Refresh DATs",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                return;
+            }
+        }
+
+        // Re-download via the existing DatFetchWindow
+        var fetchWindow = new DatFetchWindow(this);
+        fetchWindow.Show();
+        try
+        {
+            var progress = new Progress<DatDownloadProgress>(p => fetchWindow.ViewModel.Apply(p));
+            await _datSetService.DownloadMissingFilesAsync(_server.DatSetId, progress);
+            fetchWindow.ViewModel.SetComplete();
+            await Task.Delay(600);
+        }
+        catch (Exception ex)
+        {
+            fetchWindow.Close();
+            MessageBox.Show(
+                $"DAT download failed:\n\n{ex.Message}",
+                "Refresh DATs",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
+        finally
+        {
+            fetchWindow.Close();
         }
     }
 

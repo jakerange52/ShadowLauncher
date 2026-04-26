@@ -6,6 +6,7 @@ using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Presentation.ViewModels;
 using ShadowLauncher.Presentation.Views;
+using ShadowLauncher.Services.Dats;
 
 namespace ShadowLauncher;
 
@@ -13,15 +14,17 @@ public partial class MainWindow : Window
 {
     private readonly MainWindowViewModel _viewModel;
     private readonly IConfigurationProvider _config;
+    private readonly IDatSetService _datSetService;
 
     private bool _suppressServerSelection;
     private bool _suppressAccountSelection;
 
-    public MainWindow(MainWindowViewModel viewModel, IConfigurationProvider config)
+    public MainWindow(MainWindowViewModel viewModel, IConfigurationProvider config, IDatSetService datSetService)
     {
         InitializeComponent();
         _viewModel = viewModel;
         _config = config;
+        _datSetService = datSetService;
         DataContext = _viewModel;
         _viewModel.BrowseGameClientRequested += OnBrowseGameClient;
         _viewModel.ServerSelectionRestoreRequested += RestoreServerSelection;
@@ -170,7 +173,7 @@ public partial class MainWindow : Window
     {
         if (sender is Button { Tag: Server server })
         {
-            var detailsWindow = new Presentation.Views.ServerDetailsWindow(server, this, _config);
+            var detailsWindow = new Presentation.Views.ServerDetailsWindow(server, this, _config, _datSetService);
             detailsWindow.ServerEdited += async (_, updated) =>
                 await _viewModel.UpdateServerAsync(updated);
             detailsWindow.ShowDialog();

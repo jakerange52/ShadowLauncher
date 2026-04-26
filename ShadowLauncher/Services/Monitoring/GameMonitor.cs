@@ -78,7 +78,7 @@ public class GameMonitor : IGameMonitor
     {
         try
         {
-            var process = Process.GetProcessById(processId);
+            using var process = Process.GetProcessById(processId);
             return Task.FromResult<ProcessStatus?>(new ProcessStatus
             {
                 IsRunning = !process.HasExited,
@@ -152,7 +152,7 @@ public class GameMonitor : IGameMonitor
                                 _minimizedStates.Remove(session.ProcessId);
                                 try
                                 {
-                                    var proc = System.Diagnostics.Process.GetProcessById(session.ProcessId);
+                                    using var proc = System.Diagnostics.Process.GetProcessById(session.ProcessId);
                                     proc.Kill(entireProcessTree: true);
                                 }
                                 catch { }

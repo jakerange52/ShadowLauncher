@@ -78,7 +78,7 @@ internal static partial class WindowFocusHelper
     {
         try
         {
-            var process = Process.GetProcessById(processId);
+            using var process = Process.GetProcessById(processId);
             var hWnd = process.MainWindowHandle;
             return hWnd != IntPtr.Zero && IsIconic(hWnd);
         }

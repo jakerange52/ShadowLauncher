@@ -120,6 +120,7 @@ public class UpdateChecker
 
     private static HttpClient MakeHttpClient()
     {
+        // Note: short-lived usage only — each call site wraps this in a using block.
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         // GitHub API requires a User-Agent header.
         http.DefaultRequestHeaders.UserAgent.Add(

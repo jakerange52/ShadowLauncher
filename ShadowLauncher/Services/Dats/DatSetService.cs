@@ -4,6 +4,7 @@ using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
+using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Infrastructure.WebServices;
 
 namespace ShadowLauncher.Services.Dats;
@@ -101,8 +102,12 @@ public class DatSetService : IDatSetService
         {
             var localDir = Path.Combine(_config.DatSetsDirectory, SanitiseId(server.Name));
 
-            // Consider it ready if any known AC file is already present.
-            if (KnownAcFileNames.Any(f => File.Exists(Path.Combine(localDir, f))))
+            // Consider it ready only if all known DAT files are already present.
+            // A partial cache will be completed (the zip re-extracted for missing files),
+            // but ExractDatZip will skip any already-present files so nothing is overwritten.
+            if (KnownAcFileNames
+                    .Where(f => !f.Equals("acclient.exe", StringComparison.OrdinalIgnoreCase))
+                    .All(f => File.Exists(Path.Combine(localDir, f))))
             {
                 _logger.LogInformation("Custom DAT zip for '{Server}' already cached at {Dir}",
                     server.Name, localDir);
@@ -205,6 +210,34 @@ public class DatSetService : IDatSetService
         _logger.LogInformation("DAT set '{Id}' has no downloadable source configured", datSetId);
     }
 
+    /// <inheritdoc/>
+    public Task CompleteDatCacheFromRetailAsync(string datCacheDir, string retailClientDir)
+    {
+        Directory.CreateDirectory(datCacheDir);
+
+        foreach (var datFile in SymlinkLauncher.KnownDatFiles)
+        {
+            var dest = Path.Combine(datCacheDir, datFile);
+            if (File.Exists(dest)) continue;
+
+            var retail = Path.Combine(retailClientDir, datFile);
+            if (!File.Exists(retail))
+            {
+                _logger.LogWarning(
+                    "Cannot complete DAT cache: '{File}' not found in retail directory '{Dir}'",
+                    datFile, retailClientDir);
+                continue;
+            }
+
+            _logger.LogInformation(
+                "Copying retail DAT '{File}' into cache '{Dir}' to complete the set",
+                datFile, datCacheDir);
+            File.Copy(retail, dest);
+        }
+
+        return Task.CompletedTask;
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static bool IsRetailSet(string? id)
@@ -299,8 +332,14 @@ public class DatSetService : IDatSetService
             if (!knownNames.Contains(entryName)) continue;
 
             var destPath = Path.Combine(destDir, entryName);
+            if (File.Exists(destPath))
+            {
+                _logger.LogDebug("Skipping '{File}' — already present in cache", entryName);
+                continue;
+            }
+
             _logger.LogInformation("Extracting {File} from zip", entryName);
-            entry.ExtractToFile(destPath, overwrite: true);
+            entry.ExtractToFile(destPath, overwrite: false);
         }
     }
 

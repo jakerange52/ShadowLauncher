@@ -40,7 +40,7 @@ internal static class WindowTitleSetter
 
                 try
                 {
-                    var proc = Process.GetProcessById(processId);
+                    using var proc = Process.GetProcessById(processId);
                     if (proc.HasExited) return;
                 }
                 catch (ArgumentException) { return; }

@@ -62,8 +62,8 @@ public partial class SettingsWindow : Window
 
     private void OpenLoginCommands_Click(object sender, RoutedEventArgs e)
     {
-        var service = _loginCommandsService ?? new LoginCommandsService();
-        var window = new LoginCommandsWindow(service)
+        if (_loginCommandsService is null) return;
+        var window = new LoginCommandsWindow(_loginCommandsService)
         {
             Owner = Owner ?? this
         };
@@ -73,9 +73,8 @@ public partial class SettingsWindow : Window
 
     private void OpenPerCharacterLoginCommands_Click(object sender, RoutedEventArgs e)
     {
-        if (_accountService is null || _serverService is null) return;
-        var service = _loginCommandsService ?? new LoginCommandsService();
-        var window = new PerCharacterLoginCommandsWindow(service, _accountService, _serverService)
+        if (_accountService is null || _serverService is null || _loginCommandsService is null) return;
+        var window = new PerCharacterLoginCommandsWindow(_loginCommandsService, _accountService, _serverService)
         {
             Owner = Owner ?? this
         };
