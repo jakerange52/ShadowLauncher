@@ -749,41 +749,6 @@ public class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private async Task RemoveSelectedServersAsync()
-    {
-        var toRemove = SelectedServers.ToList();
-        foreach (var server in toRemove)
-        {
-            await _serverService.DeleteServerAsync(server.Id);
-            Servers.Remove(server);
-
-            // Clean up the DAT set cache if no remaining server uses it.
-            if (!string.IsNullOrWhiteSpace(server.DatSetId))
-            {
-                var stillNeeded = Servers.Any(s =>
-                    string.Equals(s.DatSetId, server.DatSetId, StringComparison.OrdinalIgnoreCase));
-                if (!stillNeeded)
-                {
-                    var cacheDir = _datSetService.GetLocalDatSetPath(server.DatSetId);
-                    if (Directory.Exists(cacheDir))
-                    {
-                        try
-                        {
-                            Directory.Delete(cacheDir, recursive: true);
-                            _logger.LogInformation("Removed DAT set cache for '{DatSetId}'", server.DatSetId);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Could not remove DAT set cache for '{DatSetId}'", server.DatSetId);
-                        }
-                    }
-                }
-            }
-        }
-        SelectedServers.Clear();
-        StatusText = $"Removed {toRemove.Count} server(s)";
-    }
-
     public async Task RemoveServerAsync(Server server)
     {
         await _serverService.DeleteServerAsync(server.Id);

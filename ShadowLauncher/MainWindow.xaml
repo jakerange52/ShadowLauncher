@@ -1,4 +1,4 @@
-<Window x:Class="ShadowLauncher.MainWindow"
+﻿<Window x:Class="ShadowLauncher.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -224,7 +224,7 @@
                                            Text="{Binding IsOnline, Converter={StaticResource OnlineStatusConverter}}"
                                            Foreground="{Binding IsOnline, Converter={StaticResource OnlineStatusColorConverter}}"
                                            Margin="0,0,4,0" VerticalAlignment="Center" FontSize="10"/>
-                                <!-- ? badge for beta servers -->
+                                <!-- β badge for beta servers -->
                                 <TextBlock Grid.Column="1" Text="&#x03B2;"
                                            FontFamily="Segoe UI"
                                            Foreground="#E8A838" FontSize="10" FontWeight="Bold"

@@ -248,9 +248,9 @@ public class SymlinkLauncher
 
     private static bool IsInstanceStale(string instanceDir)
     {
-        // An instance is stale if no running process has its executable path inside
-        // this directory. We consider any directory >1 hour old with no running process safe.
-        // (Comparing by path is unreliable cross-reboot; age is the simpler heuristic.)
+        // An instance directory is stale if it is older than 1 hour and no running process
+        // has its working directory inside it. Age is used as a conservative heuristic
+        // because comparing paths across reboots is unreliable.
         var info = new DirectoryInfo(instanceDir);
         return (DateTime.UtcNow - info.CreationTimeUtc).TotalHours > 1;
     }
