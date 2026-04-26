@@ -52,8 +52,9 @@ public class ProfileService
     public void SaveProfile(LaunchProfile profile)
     {
         var index = _profiles.FindIndex(p => p.Id == profile.Id);
-        if (index >= 0)
-            _profiles[index] = profile;
+        if (index < 0)
+            throw new InvalidOperationException($"Profile '{profile.Id}' not found; use CreateProfile to add a new profile.");
+        _profiles[index] = profile;
         Save();
     }
 
