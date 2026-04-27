@@ -1,15 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Custom ExitDialog that replaces the WixUI_FeatureTree stock exit dialog.
-  Adds two checkboxes on the final page:
-    - Launch ShadowLauncher now (LAUNCHAFTERINSTALL, checked by default)
-    - Create a desktop shortcut   (DESKTOPSHORTCUT,    unchecked by default)
--->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
 
   <Fragment>
-    <UI>
+    <UI Id="ExitDialogUI">
+      <!--
+        Suppress the built-in ExitDialog from WixUI_FeatureTree, then redefine it
+        so WiX uses ours instead of the stock one.
+      -->
+      <ui:WixUI Id="WixUI_FeatureTree">
+        <ui:DialogRef Id="ExitDialog" />
+      </ui:WixUI>
+
       <Dialog Id="ExitDialog" Width="370" Height="270" Title="[ProductName] Setup">
 
         <!-- Background bitmap (matches WixUI standard) -->
@@ -25,7 +27,7 @@
                  Transparent="yes" NoPrefix="yes"
                  Text="Click Finish to exit the Setup Wizard." />
 
-        <!-- Launch ShadowLauncher after install (checked by default via Property) -->
+        <!-- Launch ShadowLauncher after install (checked by default) -->
         <Control Id="LaunchCheckBox" Type="CheckBox" X="135" Y="115" Width="220" Height="18"
                  Property="LAUNCHAFTERINSTALL" CheckBoxValue="1"
                  Text="&amp;Launch ShadowLauncher" />
@@ -37,10 +39,10 @@
 
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="1" />
 
-        <!-- Finish / Cancel -->
         <Control Id="Finish" Type="PushButton" X="236" Y="243" Width="56" Height="17"
                  Default="yes" Cancel="no" Text="&amp;Finish">
-          <Publish Event="EndDialog" Value="Return" />
+          <Publish Event="DoAction" Value="WixShellExec" Condition="LAUNCHAFTERINSTALL" Order="1" />
+          <Publish Event="EndDialog" Value="Return" Order="2" />
         </Control>
 
         <Control Id="Cancel" Type="PushButton" X="297" Y="243" Width="56" Height="17"
@@ -48,7 +50,6 @@
           <Publish Event="SpawnDialog" Value="CancelDlg" />
         </Control>
 
-        <!-- Back is disabled on the exit dialog -->
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17"
                  Disabled="yes" Text="&lt; &amp;Back" />
 
