@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Fragment>
+    <UI Id="ExitDialogUI">
+      <!--
+        Suppress the built-in ExitDialog from WixUI_FeatureTree, then redefine it
+        so WiX uses ours instead of the stock one.
+      -->
+      <ui:WixUI Id="WixUI_FeatureTree">
+        <ui:DialogRef Id="ExitDialog" />
+      </ui:WixUI>
+
+      <Dialog Id="ExitDialog" Width="370" Height="270" Title="[ProductName] Setup">
+
+        <!-- Background bitmap (matches WixUI standard) -->
+        <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234"
+                 TabSkip="yes" Text="WixUI_Bmp_Dialog" />
+
+        <!-- Finish heading -->
+        <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="60"
+                 Transparent="yes" NoPrefix="yes"
+                 Text="{\WixUI_Font_Title}Completing the [ProductName] Setup Wizard" />
+
+        <Control Id="Description" Type="Text" X="135" Y="70" Width="220" Height="40"
+                 Transparent="yes" NoPrefix="yes"
+                 Text="Click Finish to exit the Setup Wizard." />
+
+        <!-- Launch ShadowLauncher after install (checked by default) -->
+        <Control Id="LaunchCheckBox" Type="CheckBox" X="135" Y="115" Width="220" Height="18"
+                 Property="LAUNCHAFTERINSTALL" CheckBoxValue="1"
+                 Text="&amp;Launch ShadowLauncher" />
+
+        <!-- Desktop shortcut (unchecked by default) -->
+        <Control Id="DesktopShortcutCheckBox" Type="CheckBox" X="135" Y="136" Width="220" Height="18"
+                 Property="DESKTOPSHORTCUT" CheckBoxValue="1"
+                 Text="Create a &amp;desktop shortcut" />
+
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="1" />
+
+        <Control Id="Finish" Type="PushButton" X="236" Y="243" Width="56" Height="17"
+                 Default="yes" Cancel="no" Text="&amp;Finish">
+          <Publish Event="DoAction" Value="WixShellExec" Condition="LAUNCHAFTERINSTALL" Order="1" />
+          <Publish Event="EndDialog" Value="Return" Order="2" />
+        </Control>
+
+        <Control Id="Cancel" Type="PushButton" X="297" Y="243" Width="56" Height="17"
+                 Default="no" Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17"
+                 Disabled="yes" Text="&lt; &amp;Back" />
+
+      </Dialog>
+    </UI>
+  </Fragment>
+
+</Wix>

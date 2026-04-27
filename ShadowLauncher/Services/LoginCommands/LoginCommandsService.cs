@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using ShadowLauncher.Core.Models;
 
 namespace ShadowLauncher.Services.LoginCommands;
 
@@ -9,11 +11,18 @@ namespace ShadowLauncher.Services.LoginCommands;
 /// </summary>
 public class LoginCommandsService
 {
+    private readonly ILogger<LoginCommandsService> _logger;
+
     private static readonly string ThwargFolder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ThwargLauncher");
 
     private static readonly string LoginCommandsFolder = Path.Combine(ThwargFolder, "LoginCommands");
     private static readonly string CharactersFolder = Path.Combine(ThwargFolder, "characters");
+
+    public LoginCommandsService(ILogger<LoginCommandsService> logger)
+    {
+        _logger = logger;
+    }
 
     /// <summary>
     /// Gets the global login commands (run for every character on login).
@@ -203,5 +212,94 @@ public class LoginCommandsService
         Directory.CreateDirectory(Path.GetDirectoryName(DefaultCharactersFile)!);
         var json = JsonSerializer.Serialize(map, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(DefaultCharactersFile, json);
+    }
+
+    // ═══════ Profile Snapshot / Apply ═══════
+
+    /// <summary>
+    /// Reads all current ThwargFilter command files and default character selections
+    /// into the given profile object so they can be persisted.
+    /// </summary>
+    public void SnapshotIntoProfile(LaunchProfile profile)
+    {
+        // Global commands
+        profile.GlobalLoginCommands = GetGlobalCommands();
+
+        // Read WaitMs from global file if it exists
+        var globalPath = Path.Combine(LoginCommandsFolder, "LoginCommandsGlobal.txt");
+        profile.GlobalLoginCommandsWaitMs = ReadWaitMs(globalPath);
+
+        // Per-character commands — scan all LoginCommands-*.txt files
+        profile.CharacterLoginCommands = [];
+        if (Directory.Exists(LoginCommandsFolder))
+        {
+            foreach (var file in Directory.GetFiles(LoginCommandsFolder, "LoginCommands-*-*-*.txt"))
+            {
+                var fn = Path.GetFileNameWithoutExtension(file);
+                // Format: LoginCommands-{account}-{server}-{character}
+                var parts = fn["LoginCommands-".Length..].Split('-', 3);
+                if (parts.Length != 3) continue;
+                var key = $"{parts[0]}|{parts[1]}|{parts[2]}";
+                profile.CharacterLoginCommands[key] = new ProfileCharacterCommands
+                {
+                    Commands = ParseCommandsFromFile(file),
+                    WaitMs = ReadWaitMs(file)
+                };
+            }
+        }
+
+        // Default character selections
+        profile.DefaultCharacters = LoadDefaultCharacters();
+    }
+
+    /// <summary>
+    /// Writes a profile's stored commands and default character selections back to
+    /// ThwargFilter's files, replacing whatever was there.
+    /// </summary>
+    public void ApplyFromProfile(LaunchProfile profile)
+    {
+        // Global commands
+        SetGlobalCommands(profile.GlobalLoginCommands, profile.GlobalLoginCommandsWaitMs);
+
+        // Remove old per-character files first so stale ones don't linger.
+        // Best-effort: log and skip any file that can't be deleted (locked/read-only)
+        // rather than leaving the app in a half-applied state.
+        if (Directory.Exists(LoginCommandsFolder))
+        {
+            foreach (var file in Directory.GetFiles(LoginCommandsFolder, "LoginCommands-*-*-*.txt"))
+            {
+                try
+                {
+                    File.Delete(file);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not delete stale login-command file '{File}' during profile switch; skipping.", file);
+                }
+            }
+        }
+
+        // Write per-character commands from profile
+        foreach (var (key, entry) in profile.CharacterLoginCommands)
+        {
+            var parts = key.Split('|', 3);
+            if (parts.Length != 3) continue;
+            SetCharacterCommands(parts[0], parts[1], parts[2], entry.Commands, entry.WaitMs);
+        }
+
+        // Default character selections
+        SaveDefaultCharacters(profile.DefaultCharacters);
+    }
+
+    private static int ReadWaitMs(string filePath)
+    {
+        if (!File.Exists(filePath)) return 3000;
+        foreach (var line in File.ReadAllLines(filePath))
+        {
+            if (line.StartsWith("WaitMilliseconds:") &&
+                int.TryParse(line["WaitMilliseconds:".Length..], out var ms))
+                return ms;
+        }
+        return 3000;
     }
 }

@@ -4,6 +4,7 @@ using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
+using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Infrastructure.WebServices;
 
 namespace ShadowLauncher.Services.Dats;
@@ -13,6 +14,7 @@ public class DatSetService : IDatSetService
 {
     private readonly DatRegistryDownloader _downloader;
     private readonly IConfigurationProvider _config;
+    private readonly GitHubReleaseResolver _gitHubResolver;
     private readonly ILogger<DatSetService> _logger;
 
     // In-memory cache so we don't re-fetch on every call within a session.
@@ -21,10 +23,12 @@ public class DatSetService : IDatSetService
     public DatSetService(
         DatRegistryDownloader downloader,
         IConfigurationProvider config,
+        GitHubReleaseResolver gitHubResolver,
         ILogger<DatSetService> logger)
     {
         _downloader = downloader;
         _config = config;
+        _gitHubResolver = gitHubResolver;
         _logger = logger;
     }
 
@@ -83,6 +87,24 @@ public class DatSetService : IDatSetService
     }
 
     /// <inheritdoc/>
+    public bool IsCustomDatCachePresent(Server server)
+    {
+        // Local path servers are user-managed — treat as present (validated at launch).
+        if (!string.IsNullOrWhiteSpace(server.CustomDatRegistryPath))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(server.CustomDatZipUrl))
+        {
+            var localDir = Path.Combine(_config.DatSetsDirectory, SanitiseId(server.Name));
+            return KnownAcFileNames
+                .Where(f => !f.Equals("acclient.exe", StringComparison.OrdinalIgnoreCase))
+                .All(f => File.Exists(Path.Combine(localDir, f)));
+        }
+
+        return false;
+    }
+
+    /// <inheritdoc/>
     public async Task EnsureCustomDatSourceReadyAsync(Server server, IProgress<DatDownloadProgress>? progress = null)
     {
         // Local path: just verify it exists — no download required.
@@ -96,21 +118,34 @@ public class DatSetService : IDatSetService
             return;
         }
 
-        // Zip URL: download if not already cached.
+        // Zip URL: download if not already cached or if a new GitHub release is available.
         if (!string.IsNullOrWhiteSpace(server.CustomDatZipUrl))
         {
             var localDir = Path.Combine(_config.DatSetsDirectory, SanitiseId(server.Name));
+            var (resolvedUrl, releaseTag) = await ResolveZipUrlAsync(server.CustomDatZipUrl);
 
-            // Consider it ready if any known AC file is already present.
-            if (KnownAcFileNames.Any(f => File.Exists(Path.Combine(localDir, f))))
+            if (resolvedUrl is null)
+                throw new InvalidOperationException(
+                    $"Could not resolve DAT zip URL for server '{server.Name}': {server.CustomDatZipUrl}");
+
+            var allDatsPresent = KnownAcFileNames
+                .Where(f => !f.Equals("acclient.exe", StringComparison.OrdinalIgnoreCase))
+                .All(f => File.Exists(Path.Combine(localDir, f)));
+
+            if (allDatsPresent && !IsNewRelease(localDir, releaseTag))
             {
-                _logger.LogInformation("Custom DAT zip for '{Server}' already cached at {Dir}",
-                    server.Name, localDir);
+                _logger.LogInformation("Custom DAT zip for '{Server}' is current (tag: {Tag}) - skipping download",
+                    server.Name, releaseTag ?? "n/a");
                 return;
             }
 
+            var isNewRelease = allDatsPresent && releaseTag is not null;
+            if (isNewRelease)
+                _logger.LogInformation("New GitHub release ({Tag}) detected for '{Server}' - re-downloading DATs",
+                    releaseTag, server.Name);
+
             _logger.LogInformation("Downloading custom DAT zip for '{Server}' from {Url}",
-                server.Name, server.CustomDatZipUrl);
+                server.Name, resolvedUrl);
             Directory.CreateDirectory(localDir);
 
             using var http = new HttpClient { Timeout = TimeSpan.FromHours(2) };
@@ -118,9 +153,10 @@ public class DatSetService : IDatSetService
 
             try
             {
-                await DownloadRawAsync(http, server.CustomDatZipUrl, tempZip, progress);
+                await DownloadRawAsync(http, resolvedUrl, tempZip, progress);
                 _logger.LogInformation("Extracting custom DAT zip for '{Server}'", server.Name);
-                ExtractDatZip(tempZip, localDir, new DatSet()); // accept all known AC filenames
+                ExtractDatZip(tempZip, localDir, new DatSet(), overwrite: isNewRelease);
+                WriteVersionSidecar(localDir, releaseTag);
             }
             finally
             {
@@ -171,11 +207,27 @@ public class DatSetService : IDatSetService
         var localDir = GetLocalDatSetPath(datSetId);
 
         // ── Zip path ───────────────────────────────────────────────────────────
-        // If the set declares a zip URL and any expected DAT files are missing,
-        // download and extract the zip. Only the recognised DAT filenames are kept.
-        if (!string.IsNullOrWhiteSpace(set.ZipUrl) && !set.IsFullyDownloaded(_config.DatSetsDirectory))
+        if (!string.IsNullOrWhiteSpace(set.ZipUrl))
         {
-            _logger.LogInformation("Downloading DAT zip for '{Id}' from {Url}", set.Id, set.ZipUrl);
+            var (resolvedUrl, releaseTag) = await ResolveZipUrlAsync(set.ZipUrl);
+            if (resolvedUrl is null)
+            {
+                _logger.LogInformation("DAT set '{Id}' has no resolvable zip URL", datSetId);
+                return;
+            }
+
+            // Skip download if already fully cached AND the release tag hasn't changed.
+            var isNewRelease = IsNewRelease(localDir, releaseTag);
+            if (set.IsFullyDownloaded(_config.DatSetsDirectory) && !isNewRelease)
+            {
+                _logger.LogInformation("DAT set '{Id}' is current (tag: {Tag}) - skipping download", datSetId, releaseTag ?? "n/a");
+                return;
+            }
+
+            if (isNewRelease)
+                _logger.LogInformation("New release detected for DAT set '{Id}' (tag: {Tag}) - re-downloading", datSetId, releaseTag);
+
+            _logger.LogInformation("Downloading DAT zip for '{Id}' from {Url}", set.Id, resolvedUrl);
             Directory.CreateDirectory(localDir);
 
             using var http = new HttpClient { Timeout = TimeSpan.FromHours(2) };
@@ -183,13 +235,10 @@ public class DatSetService : IDatSetService
 
             try
             {
-                await DownloadRawAsync(http, set.ZipUrl, tempZip, progress);
-
-                if (!string.IsNullOrWhiteSpace(set.ZipSha256))
-                    VerifyChecksum(tempZip, set.ZipSha256, "zip archive");
-
+                await DownloadRawAsync(http, resolvedUrl, tempZip, progress);
                 _logger.LogInformation("Extracting DAT zip for '{Id}'", set.Id);
-                ExtractDatZip(tempZip, localDir, set);
+                ExtractDatZip(tempZip, localDir, set, overwrite: isNewRelease);
+                WriteVersionSidecar(localDir, releaseTag);
             }
             finally
             {
@@ -201,11 +250,74 @@ public class DatSetService : IDatSetService
             return;
         }
 
-        // No zip URL and no individual file URLs — nothing to download.
+        // No zip URL — nothing to download.
         _logger.LogInformation("DAT set '{Id}' has no downloadable source configured", datSetId);
     }
 
+    /// <inheritdoc/>
+    public Task CompleteDatCacheFromRetailAsync(string datCacheDir, string retailClientDir)
+    {
+        Directory.CreateDirectory(datCacheDir);
+
+        foreach (var datFile in SymlinkLauncher.KnownDatFiles)
+        {
+            var dest = Path.Combine(datCacheDir, datFile);
+            if (File.Exists(dest)) continue;
+
+            var retail = Path.Combine(retailClientDir, datFile);
+            if (!File.Exists(retail))
+            {
+                _logger.LogWarning(
+                    "Cannot complete DAT cache: '{File}' not found in retail directory '{Dir}'",
+                    datFile, retailClientDir);
+                continue;
+            }
+
+            _logger.LogInformation(
+                "Copying retail DAT '{File}' into cache '{Dir}' to complete the set",
+                datFile, datCacheDir);
+            File.Copy(retail, dest);
+        }
+
+        return Task.CompletedTask;
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// If <paramref name="zipUrl"/> is a GitHub releases URL, resolves it via the API
+    /// and returns (downloadUrl, releaseTag). Otherwise returns (zipUrl, null) unchanged.
+    /// Returns (null, null) if resolution fails for a GitHub URL.
+    /// </summary>
+    private async Task<(string? url, string? tag)> ResolveZipUrlAsync(string zipUrl)
+    {
+        if (!GitHubReleaseResolver.IsGitHubReleasesUrl(zipUrl))
+            return (zipUrl, null);
+
+        var info = await _gitHubResolver.ResolveLatestAsync(zipUrl);
+        return info is not null ? (info.DownloadUrl, info.Tag) : (null, null);
+    }
+
+    /// <summary>
+    /// Returns true if <paramref name="releaseTag"/> is non-null and differs from
+    /// the tag stored in the <c>.version</c> sidecar file in <paramref name="localDir"/>.
+    /// Always returns false (not a new release) when <paramref name="releaseTag"/> is null,
+    /// meaning the source is not GitHub-tracked.
+    /// </summary>
+    private static bool IsNewRelease(string localDir, string? releaseTag)
+    {
+        if (releaseTag is null) return false;
+        var sidecar = Path.Combine(localDir, ".version");
+        if (!File.Exists(sidecar)) return true;
+        return !File.ReadAllText(sidecar).Trim().Equals(releaseTag, StringComparison.Ordinal);
+    }
+
+    /// <summary>Writes the release tag to a <c>.version</c> sidecar file in the cache dir.</summary>
+    private static void WriteVersionSidecar(string localDir, string? releaseTag)
+    {
+        if (releaseTag is null) return;
+        File.WriteAllText(Path.Combine(localDir, ".version"), releaseTag);
+    }
 
     private static bool IsRetailSet(string? id)
         => string.IsNullOrWhiteSpace(id)
@@ -282,10 +394,8 @@ public class DatSetService : IDatSetService
     /// Files in the zip not matching the set's known filenames are ignored.
     /// The zip may contain files in subdirectories — only the filename is matched.
     /// </summary>
-    private void ExtractDatZip(string zipPath, string destDir, DatSet set)
+    private void ExtractDatZip(string zipPath, string destDir, DatSet set, bool overwrite = false)
     {
-        // If the registry entry has explicit File entries, match only those.
-        // Otherwise (zip-only entry with no File children) accept any known AC filename.
         var knownNames = set.Files.Count > 0
             ? set.Files.Select(f => f.FileName).ToHashSet(StringComparer.OrdinalIgnoreCase)
             : KnownAcFileNames;
@@ -293,28 +403,20 @@ public class DatSetService : IDatSetService
         using var archive = ZipFile.OpenRead(zipPath);
         foreach (var entry in archive.Entries)
         {
-            // Match by filename only, ignoring any directory structure inside the zip.
             var entryName = Path.GetFileName(entry.FullName);
             if (string.IsNullOrEmpty(entryName)) continue;
             if (!knownNames.Contains(entryName)) continue;
 
             var destPath = Path.Combine(destDir, entryName);
-            _logger.LogInformation("Extracting {File} from zip", entryName);
+            if (File.Exists(destPath) && !overwrite)
+            {
+                _logger.LogDebug("Skipping '{File}' - already present in cache", entryName);
+                continue;
+            }
+
+            _logger.LogInformation("{Action} {File} from zip",
+                overwrite ? "Overwriting" : "Extracting", entryName);
             entry.ExtractToFile(destPath, overwrite: true);
-        }
-    }
-
-    private static void VerifyChecksum(string filePath, string expectedSha256, string fileName)
-    {
-        using var sha = System.Security.Cryptography.SHA256.Create();
-        using var stream = File.OpenRead(filePath);
-        var hash = Convert.ToHexString(sha.ComputeHash(stream));
-
-        if (!string.Equals(hash, expectedSha256, StringComparison.OrdinalIgnoreCase))
-        {
-            File.Delete(filePath);
-            throw new InvalidDataException(
-                $"Checksum mismatch for {fileName}: expected {expectedSha256}, got {hash}. File deleted.");
         }
     }
 }

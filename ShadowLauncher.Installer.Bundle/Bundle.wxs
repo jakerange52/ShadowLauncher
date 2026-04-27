@@ -12,7 +12,8 @@
       <bal:WixStandardBootstrapperApplication
           Theme="rtfLicense"
           LicenseFile="$(var.LicenseFile)"
-          LogoFile="$(var.LogoFile)" />
+          LogoFile="$(var.LogoFile)"
+          LaunchTarget="[ProgramFilesFolder]ShadowLauncher\ShadowLauncher.exe" />
     </BootstrapperApplication>
 
     <!--

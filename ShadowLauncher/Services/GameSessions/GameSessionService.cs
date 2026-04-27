@@ -57,6 +57,7 @@ public class GameSessionService : IGameSessionService
         if (_sessions.TryGetValue(sessionId, out var session))
         {
             session.Status = GameSessionStatus.Offline;
+            _sessions.Remove(sessionId);
             _logger.LogInformation("Session closed: {Id}", sessionId);
         }
         return Task.CompletedTask;

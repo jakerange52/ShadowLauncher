@@ -33,7 +33,7 @@ public partial class PerCharacterLoginCommandsWindow : Window
             StartWatchingCharacterFiles();
         };
 
-        Closed += (_, _) => StopWatchingCharacterFiles();
+        Closed += (_, _) => { StopWatchingCharacterFiles(); WindowPositionHelper.Save(this); };
     }
 
     private void StartWatchingCharacterFiles()
@@ -149,7 +149,13 @@ public partial class PerCharacterLoginCommandsWindow : Window
             if (window.ShowDialog() == true)
             {
                 _loginService.SetCharacterCommands(entry.AccountName, entry.ServerName, charName, window.Commands, window.WaitMs);
-                entry.CommandCount = string.IsNullOrWhiteSpace(window.Commands) ? 0 : window.Commands.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
+                var lines = string.IsNullOrWhiteSpace(window.Commands)
+                    ? []
+                    : window.Commands.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                entry.CommandCount = lines.Length;
+                entry.CommandsPreview = lines.Length == 0
+                    ? string.Empty
+                    : string.Join("  |  ", lines.Take(3)) + (lines.Length > 3 ? $"  (+{lines.Length - 3} more)" : string.Empty);
                 CharacterGrid.Items.Refresh();
             }
         }
@@ -158,7 +164,7 @@ public partial class PerCharacterLoginCommandsWindow : Window
     private void OffsetFromOwner()
     {
         if (Owner is null) return;
-        AddAccountWindow.ClampedOffset(this, Owner);
+        WindowPositionHelper.RestoreOrOffset(this, Owner);
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();

@@ -22,6 +22,7 @@
   <ItemGroup>
     <Compile Include="Package.wxs" />
     <Compile Include="Privileges.wxs" />
+    <Compile Include="ExitDialog.wxs" />
   </ItemGroup>
 
   <ItemGroup>

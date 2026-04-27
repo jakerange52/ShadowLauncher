@@ -72,6 +72,24 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of ShadowLauncher is already installed."
                   Schedule="afterInstallInitialize" />
 
+    <!--
+      Post-install options surfaced as checkboxes on the custom ExitDialog.
+      LAUNCHAFTERINSTALL defaults to 1 (checked). DESKTOPSHORTCUT defaults to empty (unchecked).
+    -->
+    <Property Id="LAUNCHAFTERINSTALL" Value="1" />
+    <Property Id="DESKTOPSHORTCUT" Secure="yes" />
+
+    <!--
+      Launch ShadowLauncher after install completes.
+      util:WixShellExecTarget fires from the Finish button in ExitDialog — no deferred
+      custom action needed, avoiding MSI error 2762.
+    -->
+    <Property Id="WixShellExecTarget" Value="[INSTALLFOLDER]ShadowLauncher.exe" />
+
+    <!-- Raises the desktop shortcut feature level from 0 to 1 when checkbox is ticked -->
+    <SetProperty Id="DesktopShortcutFeature" Value="1" After="CostFinalize"
+                 Sequence="both" Condition="DESKTOPSHORTCUT" />
+
     <!-- Feature-tree UI so users can choose Launcher Only or Full install -->
     <ui:WixUI Id="WixUI_FeatureTree" />
     <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseFile)" />
@@ -127,6 +145,8 @@
     <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="ApplicationProgramsFolder" Name="ShadowLauncher" />
     </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder" />
 
     <!-- Main application components -->
     <ComponentGroup Id="AppComponents" Directory="INSTALLFOLDER">
@@ -209,8 +229,24 @@
       </Component>
     </ComponentGroup>
 
+    <!-- Desktop shortcut — only created when DESKTOPSHORTCUT property is set -->
+    <ComponentGroup Id="DesktopShortcutComponents" Directory="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="3F7A2C1E-84B6-4D09-A531-7E2C0F9D4B82">
+        <Shortcut Id="DesktopShortcut"
+                  Name="ShadowLauncher"
+                  Description="AC Multi-boxing Launcher"
+                  Target="[INSTALLFOLDER]ShadowLauncher.exe"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\ShadowLauncher"
+                       Name="DesktopShortcutInstalled"
+                       Type="integer" Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
     <!--
-      Multiboxing optional components Ã¯Â¿Â½ ThwargFilter DLL + dependencies.
+      Multiboxing optional components
       Decal must already be installed (it provides Decal.Adapter.dll at runtime).
       Decal discovers ThwargFilter through its own plugin registry at runtime Ã¯Â¿Â½
       util:RegisterAssembly (regasm) is not used; Decal does not require COM registration.
@@ -265,6 +301,16 @@
              Display="expand">
       <ComponentGroupRef Id="AppComponents" />
       <ComponentGroupRef Id="ShortcutComponents" />
+
+      <!-- Desktop shortcut feature: Level 0 (off) by default.
+           SetDesktopShortcutLevel raises it to 1 when DESKTOPSHORTCUT is set. -->
+      <Feature Id="DesktopShortcutFeature"
+               Title="Desktop shortcut"
+               Description="Creates a shortcut on the desktop."
+               Level="0"
+               AllowAbsent="yes">
+        <ComponentGroupRef Id="DesktopShortcutComponents" />
+      </Feature>
 
       <!--
         Full install: Decal + ThwargFilter for multi-boxing support.

@@ -17,6 +17,8 @@ using ShadowLauncher.Services.Launching;
 using ShadowLauncher.Services.Monitoring;
 using ShadowLauncher.Services.Servers;
 using ShadowLauncher.Services.Dats;
+using ShadowLauncher.Services.Profiles;
+using ShadowLauncher.Services.LoginCommands;
 
 namespace ShadowLauncher.Application;
 
@@ -36,6 +38,8 @@ public static class ServiceBootstrapper
         services.AddSingleton<IEventAggregator, EventAggregator>();
         services.AddSingleton<IHeartbeatReader, HeartbeatReader>();
         services.AddSingleton<ServerListDownloader>();
+        services.AddSingleton<BetaServerListDownloader>();
+        services.AddSingleton<GitHubReleaseResolver>();
         services.AddSingleton<UpdateChecker>();
         services.AddSingleton<ThemeService>();
         services.AddSingleton<DatRegistryDownloader>();
@@ -64,6 +68,13 @@ public static class ServiceBootstrapper
         services.AddSingleton<IGameSessionService, GameSessionService>();
         services.AddSingleton<IGameLauncher, GameLauncher>();
         services.AddSingleton<IGameMonitor, GameMonitor>();
+        services.AddSingleton<LoginCommandsService>();
+        services.AddSingleton<FirstRunService>();
+        services.AddSingleton<ProfileService>(sp =>
+        {
+            var config = sp.GetRequiredService<IConfigurationProvider>();
+            return new ProfileService(Path.Combine(config.DataDirectory, "profiles.json"));
+        });
 
         // Application
         services.AddSingleton<AppCoordinator>();

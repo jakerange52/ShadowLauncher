@@ -16,6 +16,8 @@ using ShadowLauncher.Services.Launching;
 using ShadowLauncher.Services.Monitoring;
 using ShadowLauncher.Services.Dats;
 using ShadowLauncher.Services.Servers;
+using ShadowLauncher.Services.Profiles;
+using ShadowLauncher.Services.LoginCommands;
 
 namespace ShadowLauncher.Presentation.ViewModels;
 
@@ -32,16 +34,25 @@ public class MainWindowViewModel : ViewModelBase
     private readonly AccountFileRepository _accountFileRepo;
     private readonly ServerFileRepository _serverFileRepo;
     private readonly ServerListDownloader _serverListDownloader;
+    private readonly BetaServerListDownloader _betaServerListDownloader;
     private readonly IGameMonitor _gameMonitor;
     private readonly ILogger<MainWindowViewModel> _logger;
+    private readonly ProfileService _profileService;
+    private readonly LoginCommandsService _loginCommandsService;
 
     private string _statusText = "Ready";
     private bool _isLoading;
     private string _gameClientPath = string.Empty;
     private string _currentThemeName;
+    private LaunchProfile? _currentProfile;
+    private bool _applyingProfile;
+
+    // Debounce state for profile saves
+    private CancellationTokenSource? _saveCts;
+    private const int SaveDebounceMs = 400;
 
     /// <summary>Tracks PID → (Account, Server) for auto-relaunch.</summary>
-    private readonly Dictionary<int, (Account Account, Server Server)> _launchedSessions = [];
+    private readonly Dictionary<int, (Account Account, Server Server, bool WasMinimized)> _launchedSessions = [];
 
     /// <summary>
     /// Raised when the VM needs the view to show a file-browse dialog.
@@ -57,11 +68,14 @@ public class MainWindowViewModel : ViewModelBase
         AccountFileRepository accountFileRepo,
         ServerFileRepository serverFileRepo,
         ServerListDownloader serverListDownloader,
+        BetaServerListDownloader betaServerListDownloader,
         AppCoordinator appCoordinator,
         IGameMonitor gameMonitor,
         UpdateChecker updateChecker,
         ThemeService themeService,
         IDatSetService datSetService,
+        ProfileService profileService,
+        LoginCommandsService loginCommandsService,
         ILogger<MainWindowViewModel> logger)
     {
         _accountService = accountService;
@@ -75,7 +89,10 @@ public class MainWindowViewModel : ViewModelBase
         _accountFileRepo = accountFileRepo;
         _serverFileRepo = serverFileRepo;
         _serverListDownloader = serverListDownloader;
+        _betaServerListDownloader = betaServerListDownloader;
         _gameMonitor = gameMonitor;
+        _profileService = profileService;
+        _loginCommandsService = loginCommandsService;
         _logger = logger;
 
         _currentThemeName = _themeService.CurrentThemeName;
@@ -91,27 +108,35 @@ public class MainWindowViewModel : ViewModelBase
         appCoordinator.ServerStatusRefreshed += (_, _) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(ReloadServersAsync);
         _gameMonitor.GameExited += (_, e) =>
-            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnGameExited(e.ProcessId));
+            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnGameExited(e.ProcessId, e.WasMinimized));
         _gameMonitor.HeartbeatReceived += (_, e) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnHeartbeatReceived(e));
 
         _gameClientPath = _config.GameClientPath;
 
-        SelectedAccounts.CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanLaunch));
-        SelectedServers.CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanLaunch));
+        SelectedAccounts.CollectionChanged += (_, _) => { OnPropertyChanged(nameof(CanLaunch)); SaveCurrentProfile(); };
+        SelectedServers.CollectionChanged += (_, _) => { OnPropertyChanged(nameof(CanLaunch)); SaveCurrentProfile(); };
 
         LaunchCommand = new AsyncRelayCommand(LaunchGameAsync, () => CanLaunch);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         AddAccountCommand = new AsyncRelayCommand(AddAccountAsync);
         AddServerCommand = new AsyncRelayCommand(AddServerAsync);
         BrowseServersCommand = new RelayCommand(BrowseServers);
-        RemoveServersCommand = new AsyncRelayCommand(RemoveSelectedServersAsync, () => SelectedServers.Count > 0);
         SettingsCommand = new RelayCommand(OpenSettings);
         BrowseGameClientCommand = new RelayCommand(() => BrowseGameClientRequested?.Invoke(this, EventArgs.Empty));
         FocusSessionCommand = new RelayCommand(FocusSelectedSession, () => SelectedSession is not null);
         OpenAccountsFileCommand = new RelayCommand(OpenAccountsFile);
+        MinimizeSessionCommand = new RelayCommand(p => MinimizeSession(p as GameSession));
+        RestoreSessionCommand  = new RelayCommand(p => RestoreSession(p as GameSession));
+        MinimizeAllSessionsCommand = new RelayCommand(MinimizeAllSessions);
+        RestoreAllSessionsCommand  = new RelayCommand(RestoreAllSessions);
         PreviousThemeCommand = new RelayCommand(PreviousTheme);
         NextThemeCommand = new RelayCommand(NextTheme);
+        AddProfileCommand = new RelayCommand(AddProfile);
+
+        foreach (var p in _profileService.Profiles)
+            Profiles.Add(p);
+        _currentProfile = _profileService.ActiveProfile;
     }
 
     public ObservableCollection<Account> Accounts { get; } = [];
@@ -154,17 +179,6 @@ public class MainWindowViewModel : ViewModelBase
         }
     }
 
-    public bool NeverKillOnMissingHeartbeat
-    {
-        get => !_config.KillOnMissingHeartbeat;
-        set
-        {
-            _config.KillOnMissingHeartbeat = !value;
-            _config.Save();
-            OnPropertyChanged();
-        }
-    }
-
     public bool KillOnMissingHeartbeat
     {
         get => _config.KillOnMissingHeartbeat;
@@ -175,6 +189,7 @@ public class MainWindowViewModel : ViewModelBase
                 _config.KillOnMissingHeartbeat = value;
                 _config.Save();
                 OnPropertyChanged();
+                SaveCurrentProfile();
             }
         }
     }
@@ -189,6 +204,7 @@ public class MainWindowViewModel : ViewModelBase
                 _config.KillHeartbeatTimeoutSeconds = value;
                 _config.Save();
                 OnPropertyChanged();
+                SaveCurrentProfile();
             }
         }
     }
@@ -203,6 +219,7 @@ public class MainWindowViewModel : ViewModelBase
                 _config.AutoRelaunch = value;
                 _config.Save();
                 OnPropertyChanged();
+                SaveCurrentProfile();
             }
         }
     }
@@ -217,6 +234,7 @@ public class MainWindowViewModel : ViewModelBase
                 _config.AutoRelaunchDelaySeconds = value;
                 _config.Save();
                 OnPropertyChanged();
+                SaveCurrentProfile();
             }
         }
     }
@@ -232,13 +250,32 @@ public class MainWindowViewModel : ViewModelBase
     public ICommand AddAccountCommand { get; }
     public ICommand AddServerCommand { get; }
     public ICommand BrowseServersCommand { get; }
-    public ICommand RemoveServersCommand { get; }
     public ICommand SettingsCommand { get; }
     public ICommand BrowseGameClientCommand { get; }
     public ICommand FocusSessionCommand { get; }
     public ICommand OpenAccountsFileCommand { get; }
+    public ICommand MinimizeSessionCommand { get; }
+    public ICommand RestoreSessionCommand { get; }
+    public ICommand MinimizeAllSessionsCommand { get; }
+    public ICommand RestoreAllSessionsCommand { get; }
     public ICommand PreviousThemeCommand { get; }
     public ICommand NextThemeCommand { get; }
+    public ICommand AddProfileCommand { get; }
+
+    public ObservableCollection<LaunchProfile> Profiles { get; } = [];
+
+    public LaunchProfile? CurrentProfile
+    {
+        get => _currentProfile;
+        set
+        {
+            if (_currentProfile?.Id == value?.Id) return;
+            _currentProfile = value;
+            OnPropertyChanged();
+            if (value is not null)
+                ApplyProfile(value);
+        }
+    }
 
     public string CurrentThemeName
     {
@@ -290,6 +327,11 @@ public class MainWindowViewModel : ViewModelBase
                 ActiveSessions.Add(session);
 
             StatusText = $"Loaded {Accounts.Count} accounts, {Servers.Count} servers";
+
+            // Restore active profile selections now that accounts/servers are loaded
+            if (_currentProfile is not null)
+                ProfileSelectionRestoreRequested?.Invoke(
+                    _currentProfile.SelectedAccountIds, _currentProfile.SelectedServerIds);
         }
         catch (Exception ex)
         {
@@ -324,7 +366,7 @@ public class MainWindowViewModel : ViewModelBase
             ServerSelectionRestoreRequested?.Invoke(selectedIds);
     }
 
-    private async void OnGameExited(int processId)
+    private async void OnGameExited(int processId, bool wasMinimized)
     {
         _logger.LogInformation("Game process exited: PID {Pid}", processId);
         var session = ActiveSessions.FirstOrDefault(s => s.ProcessId == processId);
@@ -334,56 +376,69 @@ public class MainWindowViewModel : ViewModelBase
             StatusText = $"Session ended: {session.AccountName} on {session.ServerName}";
         }
 
-        // Auto-relaunch if enabled and we know which account/server this was
-        if (AutoRelaunch && _launchedSessions.TryGetValue(processId, out var info))
+        // Auto-relaunch if enabled and we know which account/server this was.
+        // Remove is atomic — if the monitor fires twice for the same PID (race),
+        // only the first call finds the entry and proceeds.
+        if (!_launchedSessions.Remove(processId, out var info))
+            return;
+
+        if (!AutoRelaunch)
+            return;
+
+        var hasAliveSessionForCombo = ActiveSessions.Any(s =>
+            string.Equals(s.AccountId, info.Account.Id, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(s.ServerId, info.Server.Id, StringComparison.OrdinalIgnoreCase));
+
+        if (hasAliveSessionForCombo)
         {
-            _launchedSessions.Remove(processId);
+            _logger.LogInformation("Skipping auto-relaunch for {Account} on {Server} because an active session already exists.",
+                info.Account.Name, info.Server.Name);
+            StatusText = $"Skipping relaunch for {info.Account.Name} on {info.Server.Name} (already active).";
+            return;
+        }
 
-            var hasAliveSessionForCombo = ActiveSessions.Any(s =>
-                string.Equals(s.AccountId, info.Account.Id, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(s.ServerId, info.Server.Id, StringComparison.OrdinalIgnoreCase));
+        _logger.LogInformation("Auto-relaunching {Account} on {Server}", info.Account.Name, info.Server.Name);
+        StatusText = $"Auto-relaunching {info.Account.Name} on {info.Server.Name}...";
 
-            if (hasAliveSessionForCombo)
+        try
+        {
+            var character = info.Account.Characters.FirstOrDefault()
+                ?? new Core.Models.Character { Id = Guid.NewGuid().ToString(), Name = "Default", AccountId = info.Account.Id, Level = 1 };
+
+            // Delay before relaunch — re-check toggle after the wait in case it was turned off
+            await Task.Delay(AutoRelaunchDelaySeconds * 1000);
+
+            if (!AutoRelaunch)
             {
-                _logger.LogInformation("Skipping auto-relaunch for {Account} on {Server} because an active session already exists.",
-                    info.Account.Name, info.Server.Name);
-                StatusText = $"Skipping relaunch for {info.Account.Name} on {info.Server.Name} (already active).";
+                _logger.LogInformation("Auto-relaunch cancelled (disabled during delay) for {Account}", info.Account.Name);
+                StatusText = $"Auto-relaunch cancelled for {info.Account.Name}.";
                 return;
             }
 
-            _logger.LogInformation("Auto-relaunching {Account} on {Server}", info.Account.Name, info.Server.Name);
-            StatusText = $"Auto-relaunching {info.Account.Name} on {info.Server.Name}...";
-
-            try
+            var result = await _gameLauncher.LaunchGameAsync(info.Account, character, info.Server);
+            if (result.Success)
             {
-                var character = info.Account.Characters.FirstOrDefault()
-                    ?? new Core.Models.Character { Id = Guid.NewGuid().ToString(), Name = "Default", AccountId = info.Account.Id, Level = 1 };
-
-                // Delay before relaunch
-                await Task.Delay(AutoRelaunchDelaySeconds * 1000);
-
-                var result = await _gameLauncher.LaunchGameAsync(info.Account, character, info.Server);
-                if (result.Success)
+                var newSession = await _sessionService.CreateSessionAsync(info.Account, info.Server, result.ProcessId);
+                ActiveSessions.Add(newSession);
+                if (AutoRelaunch)
+                    _launchedSessions[result.ProcessId] = (info.Account, info.Server, wasMinimized);
+                if (wasMinimized)
                 {
-                    var newSession = await _sessionService.CreateSessionAsync(info.Account, info.Server, result.ProcessId);
-                    ActiveSessions.Add(newSession);
-                    _launchedSessions[result.ProcessId] = info;
-                    StatusText = $"Auto-relaunched {info.Account.Name} (PID {result.ProcessId})";
+                    // Give the new client a moment to create its window then minimize
+                    await Task.Delay(3000);
+                    WindowFocusHelper.MinimizeProcess(result.ProcessId);
                 }
-                else
-                {
-                    StatusText = $"Auto-relaunch failed for {info.Account.Name}";
-                }
+                StatusText = $"Auto-relaunched {info.Account.Name} (PID {result.ProcessId})";
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogError(ex, "Auto-relaunch failed for {Account}", info.Account.Name);
-                StatusText = $"Auto-relaunch error: {ex.Message}";
+                StatusText = $"Auto-relaunch failed for {info.Account.Name}";
             }
         }
-        else
+        catch (Exception ex)
         {
-            _launchedSessions.Remove(processId);
+            _logger.LogError(ex, "Auto-relaunch failed for {Account}", info.Account.Name);
+            StatusText = $"Auto-relaunch error: {ex.Message}";
         }
     }
 
@@ -433,12 +488,15 @@ public class MainWindowViewModel : ViewModelBase
                 serversNeedingDats.Add((server, server.DatSetId));
         }
 
-        // Collect custom-source servers (local path or zip URL) that still need their
-        // DATs fetched. Local paths are validated; zip URLs are downloaded if not cached.
+        // Collect custom-source servers (local path or zip URL) whose DAT cache is not
+        // yet on disk. IsCustomDatCachePresent is a fast local check — no network call.
+        // Servers that are already cached are left for GameLauncher's EnsureCustomDatSourceReadyAsync,
+        // which handles GitHub release version checks cheaply without showing the fetch window.
         var serversNeedingCustomDats = servers
             .DistinctBy(s => s.Id)
             .Where(s => !string.IsNullOrWhiteSpace(s.CustomDatRegistryPath)
                      || !string.IsNullOrWhiteSpace(s.CustomDatZipUrl))
+            .Where(s => !_datSetService.IsCustomDatCachePresent(s))
             .ToList();
 
         if (serversNeedingCustomDats.Count > 0 || serversNeedingDats.Count > 0)
@@ -526,7 +584,7 @@ public class MainWindowViewModel : ViewModelBase
                     {
                         var session = await _sessionService.CreateSessionAsync(account, server, result.ProcessId);
                         ActiveSessions.Add(session);
-                        _launchedSessions[result.ProcessId] = (account, server);
+                        _launchedSessions[result.ProcessId] = (account, server, false);
                         account.LaunchCount++;
                         account.LastUsedDate = DateTime.UtcNow;
                         await _accountService.UpdateAccountAsync(account);
@@ -610,14 +668,64 @@ public class MainWindowViewModel : ViewModelBase
             StatusText = $"Focused session PID {SelectedSession.ProcessId}";
     }
 
+    private void MinimizeSession(GameSession? session)
+    {
+        if (session is null) return;
+        WindowFocusHelper.MinimizeProcess(session.ProcessId);
+    }
+
+    private void RestoreSession(GameSession? session)
+    {
+        if (session is null) return;
+        WindowFocusHelper.RestoreProcess(session.ProcessId);
+    }
+
+    private void MinimizeAllSessions()
+    {
+        foreach (var session in ActiveSessions)
+            WindowFocusHelper.MinimizeProcess(session.ProcessId);
+    }
+
+    private void RestoreAllSessions()
+    {
+        foreach (var session in ActiveSessions)
+            WindowFocusHelper.RestoreProcess(session.ProcessId);
+    }
+
     private void OpenSettings()
     {
         var vm = new SettingsViewModel(_config, _updateChecker, _themeService);
-        var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService);
+        var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService, _loginCommandsService, _profileService);
         window.Owner = System.Windows.Application.Current.MainWindow;
+        window.LoginCommandsSaved += (_, _) => SnapshotLoginCommandsAndSave();
+        window.ProfilesEdited += (_, _) => SyncProfilesCollection();
         if (window.ShowDialog() == true)
         {
             StatusText = "Settings saved.";
+        }
+    }
+
+    private void SyncProfilesCollection()
+    {
+        Profiles.Clear();
+        foreach (var p in _profileService.Profiles)
+            Profiles.Add(p);
+
+        // Try to keep the same profile selected (survive renames).
+        var stillPresent = Profiles.FirstOrDefault(p => p.Id == _currentProfile?.Id);
+        if (stillPresent is not null)
+        {
+            // Profile still exists — update backing field only (no need to re-apply).
+            _currentProfile = stillPresent;
+            OnPropertyChanged(nameof(CurrentProfile));
+        }
+        else
+        {
+            // Current profile was deleted; ProfileService already switched ActiveProfileId.
+            // Go through the property setter so ApplyProfile() is called and config +
+            // ThwargFilter files are updated to reflect the new active profile.
+            CurrentProfile = Profiles.FirstOrDefault(p => p.Id == _profileService.ActiveProfile?.Id)
+                             ?? Profiles.FirstOrDefault();
         }
     }
 
@@ -642,41 +750,6 @@ public class MainWindowViewModel : ViewModelBase
                 StatusText = $"Error adding server: {ex.Message}";
             }
         }
-    }
-
-    private async Task RemoveSelectedServersAsync()
-    {
-        var toRemove = SelectedServers.ToList();
-        foreach (var server in toRemove)
-        {
-            await _serverService.DeleteServerAsync(server.Id);
-            Servers.Remove(server);
-
-            // Clean up the DAT set cache if no remaining server uses it.
-            if (!string.IsNullOrWhiteSpace(server.DatSetId))
-            {
-                var stillNeeded = Servers.Any(s =>
-                    string.Equals(s.DatSetId, server.DatSetId, StringComparison.OrdinalIgnoreCase));
-                if (!stillNeeded)
-                {
-                    var cacheDir = _datSetService.GetLocalDatSetPath(server.DatSetId);
-                    if (Directory.Exists(cacheDir))
-                    {
-                        try
-                        {
-                            Directory.Delete(cacheDir, recursive: true);
-                            _logger.LogInformation("Removed DAT set cache for '{DatSetId}'", server.DatSetId);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Could not remove DAT set cache for '{DatSetId}'", server.DatSetId);
-                        }
-                    }
-                }
-            }
-        }
-        SelectedServers.Clear();
-        StatusText = $"Removed {toRemove.Count} server(s)";
     }
 
     public async Task RemoveServerAsync(Server server)
@@ -710,7 +783,7 @@ public class MainWindowViewModel : ViewModelBase
 
     private void BrowseServers()
     {
-        var vm = new BrowseServersViewModel(_serverListDownloader);
+        var vm = new BrowseServersViewModel(_serverListDownloader, _betaServerListDownloader);
         vm.ServerAdded += async (_, server) =>
         {
             try
@@ -727,8 +800,11 @@ public class MainWindowViewModel : ViewModelBase
                     WebsiteUrl = server.WebsiteUrl,
                     DefaultRodat = server.DefaultRodat,
                     SecureLogon = server.SecureLogon,
-                    DatSetId = server.DatSetId
-                        ?? await _datSetService.ResolveDatSetIdForServerAsync(server.Name)
+                    DatSetId = server.IsBeta
+                        ? null
+                        : server.DatSetId ?? await _datSetService.ResolveDatSetIdForServerAsync(server.Name),
+                    CustomDatZipUrl = server.CustomDatZipUrl,
+                    IsBeta = server.IsBeta
                 };
 
                 var added = await _serverService.CreateServerAsync(copy);
@@ -754,4 +830,128 @@ public class MainWindowViewModel : ViewModelBase
         };
         window.ShowDialog();
     }
+
+    private void AddProfile()
+    {
+        var existingNames = _profileService.Profiles.Select(p => p.Name).ToList();
+        var vm = new AddProfileViewModel(existingNames);
+        var window = new Presentation.Views.AddProfileWindow(vm)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        if (window.ShowDialog() == true)
+        {
+            var trimmedProfileName = vm.ProfileName.Trim();
+            var profile = _profileService.CreateProfile(trimmedProfileName);
+            Profiles.Add(profile);
+            CurrentProfile = profile;
+        }
+    }
+
+    /// <summary>Raised when the view needs to restore ListBox selections from a profile.</summary>
+    public event Action<IReadOnlyList<string>, IReadOnlyList<string>>? ProfileSelectionRestoreRequested;
+
+    private void ApplyProfile(LaunchProfile profile)
+    {
+        _applyingProfile = true;
+        try
+        {
+            _profileService.SetActiveProfile(profile.Id);
+
+            // Apply options
+            _config.KillOnMissingHeartbeat = profile.KillOnMissingHeartbeat;
+            _config.KillHeartbeatTimeoutSeconds = profile.KillHeartbeatTimeoutSeconds;
+            _config.AutoRelaunch = profile.AutoRelaunch;
+            _config.AutoRelaunchDelaySeconds = profile.AutoRelaunchDelaySeconds;
+            _config.Save();
+            OnPropertyChanged(nameof(KillOnMissingHeartbeat));
+            OnPropertyChanged(nameof(KillHeartbeatTimeoutSeconds));
+            OnPropertyChanged(nameof(AutoRelaunch));
+            OnPropertyChanged(nameof(AutoRelaunchDelaySeconds));
+
+            // Ask the view to restore list selections
+            ProfileSelectionRestoreRequested?.Invoke(profile.SelectedAccountIds, profile.SelectedServerIds);
+
+            // Apply stored login commands to ThwargFilter files
+            _loginCommandsService.ApplyFromProfile(profile);
+        }
+        finally
+        {
+            _applyingProfile = false;
+        }
+    }
+
+    /// <summary>
+    /// Schedules a lightweight profile save (selections + options) debounced by
+    /// <see cref="SaveDebounceMs"/> ms. Multiple rapid calls coalesce into one write.
+    /// Login-command file scanning is NOT included here; call
+    /// <see cref="SnapshotLoginCommandsAndSave"/> explicitly when commands change.
+    /// </summary>
+    private void SaveCurrentProfile()
+    {
+        if (_currentProfile is null || _applyingProfile) return;
+
+        // Cancel any pending save and schedule a fresh one.
+        _saveCts?.Cancel();
+        _saveCts = new CancellationTokenSource();
+        var token = _saveCts.Token;
+        var profile = _currentProfile;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(SaveDebounceMs, token);
+
+                // Capture selections on the UI thread, then write off it.
+                var accountIds = await System.Windows.Application.Current.Dispatcher
+                    .InvokeAsync(() => SelectedAccounts.Select(a => a.Id).ToList());
+                var serverIds = await System.Windows.Application.Current.Dispatcher
+                    .InvokeAsync(() => SelectedServers.Select(s => s.Id).ToList());
+
+                profile.SelectedAccountIds = accountIds;
+                profile.SelectedServerIds = serverIds;
+                profile.KillOnMissingHeartbeat = _config.KillOnMissingHeartbeat;
+                profile.KillHeartbeatTimeoutSeconds = _config.KillHeartbeatTimeoutSeconds;
+                profile.AutoRelaunch = _config.AutoRelaunch;
+                profile.AutoRelaunchDelaySeconds = _config.AutoRelaunchDelaySeconds;
+
+                _profileService.SaveProfile(profile);
+            }
+            catch (OperationCanceledException) { /* superseded by a newer save */ }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Background profile save failed");
+            }
+        }, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Performs a full profile save that includes snapshotting the login-command files.
+    /// Called only when the user explicitly saves login commands in Settings.
+    /// Runs off the UI thread.
+    /// </summary>
+    public void SnapshotLoginCommandsAndSave()
+    {
+        if (_currentProfile is null) return;
+        var profile = _currentProfile;
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                profile.KillOnMissingHeartbeat = _config.KillOnMissingHeartbeat;
+                profile.KillHeartbeatTimeoutSeconds = _config.KillHeartbeatTimeoutSeconds;
+                profile.AutoRelaunch = _config.AutoRelaunch;
+                profile.AutoRelaunchDelaySeconds = _config.AutoRelaunchDelaySeconds;
+                _loginCommandsService.SnapshotIntoProfile(profile);
+                _profileService.SaveProfile(profile);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Login-commands snapshot save failed");
+            }
+        });
+    }
 }
+

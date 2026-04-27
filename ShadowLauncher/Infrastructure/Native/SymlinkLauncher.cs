@@ -26,7 +26,7 @@ namespace ShadowLauncher.Infrastructure.Native;
 ///
 /// Cleanup:
 ///   The instance directory is deleted after the game process exits (or on next
-///   launcher startup via <see cref="CleanupStaleInstancesAsync"/>).
+///   launcher startup via <see cref="CleanupStaleInstances"/>).
 ///
 /// Prerequisites:
 ///   Creating file symlinks on Windows requires either:
@@ -38,7 +38,7 @@ namespace ShadowLauncher.Infrastructure.Native;
 public class SymlinkLauncher
 {
     // DAT filenames acclient.exe looks for in its working directory.
-    private static readonly string[] KnownDatFiles =
+    internal static readonly string[] KnownDatFiles =
     [
         "client_portal.dat",
         "client_cell_1.dat",
@@ -103,24 +103,36 @@ public class SymlinkLauncher
         var clientDir = Path.GetDirectoryName(clientPath)!;
 
         // Determine which DAT source directory to use.
-        //   - "retail" / null → use the files already next to acclient.exe
-        //   - anything else   → use the locally cached DAT set directory
+        //   - "retail" / null / empty → use the files already next to acclient.exe
+        //   - custom local path       → server.CustomDatRegistryPath (Dat Developer Mode)
+        //   - custom zip URL          → cached under DatSets\{sanitised server name}
+        //   - registry DatSetId       → cached under DatSets\{datSetId}
         var datSetId = server.DatSetId;
         string datSourceDir;
 
         if (string.IsNullOrWhiteSpace(datSetId) ||
             string.Equals(datSetId, "retail", StringComparison.OrdinalIgnoreCase))
         {
-            datSourceDir = clientDir;
-            _logger.LogInformation("Server '{Server}' uses retail DATs", server.Name);
+            // No custom source either — use the retail install directory.
+            bool hasCustomSource = !string.IsNullOrWhiteSpace(server.CustomDatRegistryPath)
+                                || !string.IsNullOrWhiteSpace(server.CustomDatZipUrl);
+            if (!hasCustomSource)
+            {
+                datSourceDir = clientDir;
+                _logger.LogInformation("Server '{Server}' uses retail DATs", server.Name);
+            }
+            else
+            {
+                datSourceDir = _datSetService.GetLocalDatSetPathForServer(server);
+                _logger.LogInformation("Server '{Server}' uses custom DAT source: {Dir}", server.Name, datSourceDir);
+            }
         }
         else
         {
-            // Ensure the required DAT set is present, downloading any missing files.
-            _logger.LogInformation("Server '{Server}' requires DAT set '{DatSetId}'", server.Name, datSetId);
-            await _datSetService.DownloadMissingFilesAsync(datSetId, downloadProgress);
-
-            datSourceDir = _datSetService.GetLocalDatSetPath(datSetId);
+            // Registry or custom-override — GetLocalDatSetPathForServer resolves the right path.
+            datSourceDir = _datSetService.GetLocalDatSetPathForServer(server);
+            _logger.LogInformation("Server '{Server}' requires DAT set '{DatSetId}', source: {Dir}",
+                server.Name, datSetId, datSourceDir);
         }
 
         // Create a fresh instance directory for this launch.
@@ -128,6 +140,15 @@ public class SymlinkLauncher
         var instanceDir = Path.Combine(
             _config.DataDirectory, "Instances", instanceId);
         Directory.CreateDirectory(instanceDir);
+
+        // If the server has its own DAT cache dir (not the retail dir), ensure every
+        // known DAT file is present there before symlinking. Any that were not included
+        // in the download (or partial registry set) are copied from retail, making the
+        // cache self-contained so instances never fall back silently to shared retail files.
+        if (!string.Equals(datSourceDir, clientDir, StringComparison.OrdinalIgnoreCase))
+        {
+            await _datSetService.CompleteDatCacheFromRetailAsync(datSourceDir, clientDir);
+        }
 
         _logger.LogInformation("Creating instance directory: {Dir}", instanceDir);
 
@@ -142,18 +163,18 @@ public class SymlinkLauncher
             }
 
             // Step 2: override DAT symlinks with files from the DAT set cache.
-            // Any DAT present in datSourceDir replaces the retail symlink created above.
+            // The cache is guaranteed complete (CompleteDatCacheFromRetailAsync ran above),
+            // so every known DAT should exist in datSourceDir for non-retail servers.
             foreach (var datFile in KnownDatFiles)
             {
                 var sourceDat = Path.Combine(datSourceDir, datFile);
                 if (!File.Exists(sourceDat))
                 {
-                    _logger.LogDebug("DAT not found in DAT set source, keeping retail: {File}", datFile);
+                    _logger.LogWarning("DAT '{File}' unexpectedly missing from source '{Dir}' — instance will use retail symlink", datFile, datSourceDir);
                     continue;
                 }
 
                 var linkPath = Path.Combine(instanceDir, datFile);
-                // Delete the retail symlink created in step 1 (if any) before replacing.
                 if (File.Exists(linkPath))
                     File.Delete(linkPath);
 
@@ -187,14 +208,18 @@ public class SymlinkLauncher
 
     /// <summary>
     /// Watches the given process and deletes the instance directory when it exits.
+    /// Takes ownership of <paramref name="process"/> and disposes it on completion.
     /// </summary>
     public async Task WatchAndCleanupAsync(System.Diagnostics.Process process, string instanceDir)
     {
-        try
+        using (process)
         {
-            await process.WaitForExitAsync();
+            try
+            {
+                await process.WaitForExitAsync();
+            }
+            catch { /* process already gone */ }
         }
-        catch { /* process already gone */ }
 
         await Task.Delay(2000);
         CleanupInstance(instanceDir);
@@ -223,9 +248,9 @@ public class SymlinkLauncher
 
     private static bool IsInstanceStale(string instanceDir)
     {
-        // An instance is stale if no running process has its executable path inside
-        // this directory. We consider any directory >1 hour old with no running process safe.
-        // (Comparing by path is unreliable cross-reboot; age is the simpler heuristic.)
+        // An instance directory is stale if it is older than 1 hour and no running process
+        // has its working directory inside it. Age is used as a conservative heuristic
+        // because comparing paths across reboots is unreliable.
         var info = new DirectoryInfo(instanceDir);
         return (DateTime.UtcNow - info.CreationTimeUtc).TotalHours > 1;
     }

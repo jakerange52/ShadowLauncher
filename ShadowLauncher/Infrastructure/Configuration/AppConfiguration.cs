@@ -65,12 +65,6 @@ public class AppConfiguration : IConfigurationProvider
         set => SetSetting(nameof(ServerCheckInterval), ((int)value.TotalSeconds).ToString());
     }
 
-    public bool NeverKillOnMissingHeartbeat
-    {
-        get => bool.TryParse(GetSetting(nameof(NeverKillOnMissingHeartbeat), "false"), out var v) && v;
-        set => SetSetting(nameof(NeverKillOnMissingHeartbeat), value.ToString());
-    }
-
     public bool AutoRelaunch
     {
         get => bool.TryParse(GetSetting(nameof(AutoRelaunch), "false"), out var v) && v;

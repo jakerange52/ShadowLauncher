@@ -11,7 +11,18 @@
     <Border Background="{DynamicResource BgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
     <Grid Margin="12">
         <DockPanel VerticalAlignment="Top" Margin="0,-4,0,0" Height="28">
-            <TextBlock Text="Browse Community Servers" Foreground="#888" VerticalAlignment="Center" FontWeight="SemiBold"/>
+            <TextBlock Foreground="#888" VerticalAlignment="Center" FontWeight="SemiBold">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Text" Value="Browse Community Servers"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowingBeta}" Value="True">
+                                <Setter Property="Text" Value="Browse Beta Servers"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
             <Button DockPanel.Dock="Right" Content="&#x2715;" Padding="8,2" FontSize="11" Click="Close_Click"
                     Style="{DynamicResource IconButton}" Foreground="#888" HorizontalAlignment="Right"
                     WindowChrome.IsHitTestVisibleInChrome="True"/>
@@ -137,6 +148,9 @@
             <TextBlock DockPanel.Dock="Left" Text="{Binding StatusText}"
                        VerticalAlignment="Center" Foreground="#4CAF50" FontWeight="SemiBold"/>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="{Binding ToggleButtonContent}" Padding="14,6" Margin="0,0,8,0"
+                        Command="{Binding ToggleListCommand}"
+                        ToolTip="Switch between the community server list and beta servers"/>
                 <Button Content="Close" Padding="16,6" Margin="0,0,8,0" IsCancel="True"/>
                 <Button Content="Add to My Servers" Padding="16,6" FontWeight="Bold"
                         Command="{Binding AddSelectedCommand}"/>

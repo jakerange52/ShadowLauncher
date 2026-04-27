@@ -27,7 +27,34 @@
 
         <DataGrid Grid.Row="1" x:Name="CharacterGrid" AutoGenerateColumns="False"
                   IsReadOnly="False" CanUserAddRows="False" CanUserDeleteRows="False"
-                  SelectionMode="Single">
+                  SelectionMode="Single" Background="#1A1A1F" RowBackground="#1A1A1F"
+                  Foreground="#EEE" BorderBrush="#2A2A30" GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="#2A2A30">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Setter Property="Background" Value="#1A1A1F"/>
+                    <Setter Property="Foreground" Value="#EEE"/>
+                    <Style.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="#2A2A38"/>
+                            <Setter Property="Foreground" Value="#EEE"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="Foreground" Value="#EEE"/>
+                    <Setter Property="BorderBrush" Value="Transparent"/>
+                    <Style.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="#2A2A38"/>
+                            <Setter Property="Foreground" Value="#EEE"/>
+                            <Setter Property="BorderBrush" Value="Transparent"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.CellStyle>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Account" Binding="{Binding AccountName}" Width="140" IsReadOnly="True"/>
                 <DataGridTextColumn Header="Server" Binding="{Binding ServerName}" Width="140" IsReadOnly="True"/>

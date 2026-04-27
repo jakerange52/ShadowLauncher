@@ -7,8 +7,7 @@ namespace ShadowLauncher.Infrastructure.WebServices;
 
 /// <summary>
 /// Downloads and parses the community DAT registry XML, which lists all known
-/// DAT sets (retail, Dark Majesty, etc.) along with per-file download URLs
-/// and optional SHA-256 checksums.
+/// DAT sets (retail, Dark Majesty, etc.) along with per-file download URLs.
 ///
 /// Registry URL is stored in AppConfiguration and can point to any HTTP source
 /// (GitHub raw, a community-hosted file, etc.).
@@ -18,11 +17,10 @@ namespace ShadowLauncher.Infrastructure.WebServices;
 /// &lt;DatRegistry&gt;
 ///   &lt;DatSet id="dark-majesty" name="Dark Majesty" version="1.0"&gt;
 ///     &lt;Description&gt;...&lt;/Description&gt;
-///     &lt;File name="client_portal.dat"
-///           url="https://example.com/dm/client_portal.dat"
-///           sha256="ABCD..."
-///           size="1234567890"/&gt;
-///     ...
+///     &lt;Zip url="https://github.com/owner/repo/releases/tag/v1.0/"/&gt;
+///     &lt;Servers&gt;
+///       &lt;Server name="Dark Majesty"/&gt;
+///     &lt;/Servers&gt;
 ///   &lt;/DatSet&gt;
 /// &lt;/DatRegistry&gt;
 /// </code>
@@ -42,7 +40,6 @@ public class DatRegistryDownloader
     {
         _cachePath = Path.Combine(config.DataDirectory, CacheFileName);
 
-        // Allow the registry URL to be overridden in settings; fall back to the default.
         var configured = config.GetSetting("DatRegistryUrl");
         _registryUrl = string.IsNullOrWhiteSpace(configured) ? DefaultRegistryUrl : configured;
     }
@@ -95,22 +92,13 @@ public class DatRegistryDownloader
 
             var zipEl = setEl.Element("Zip");
             if (zipEl is not null)
-            {
                 set.ZipUrl = zipEl.Attribute("url")?.Value?.Trim() ?? string.Empty;
-                set.ZipSha256 = zipEl.Attribute("sha256")?.Value?.Trim() ?? string.Empty;
-            }
 
             foreach (var fileEl in setEl.Elements("File"))
             {
                 var fileName = fileEl.Attribute("name")?.Value?.Trim() ?? string.Empty;
-                if (string.IsNullOrEmpty(fileName)) continue;
-
-                set.Files.Add(new DatFile
-                {
-                    FileName = fileName,
-                    DownloadUrl = fileEl.Attribute("url")?.Value?.Trim() ?? string.Empty,
-                    Sha256 = fileEl.Attribute("sha256")?.Value?.Trim() ?? string.Empty,
-                });
+                if (!string.IsNullOrEmpty(fileName))
+                    set.Files.Add(new DatFile { FileName = fileName });
             }
 
             foreach (var serverEl in setEl.Descendants("Server"))

@@ -14,7 +14,6 @@ public interface IConfigurationProvider
     TimeSpan HeartbeatInterval { get; set; }
     TimeSpan HeartbeatTimeout { get; set; }
     TimeSpan ServerCheckInterval { get; set; }
-    bool NeverKillOnMissingHeartbeat { get; set; }
     bool KillOnMissingHeartbeat { get; set; }
     int KillHeartbeatTimeoutSeconds { get; set; }
     bool AutoRelaunch { get; set; }

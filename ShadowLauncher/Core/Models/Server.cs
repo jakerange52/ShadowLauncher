@@ -44,6 +44,12 @@ public class Server : IEquatable<Server>
     /// </summary>
     public bool IsManuallyAdded { get; set; }
 
+    /// <summary>
+    /// True when this server was sourced from the beta server list.
+    /// These servers display a β badge in the UI.
+    /// </summary>
+    public bool IsBeta { get; set; }
+
     public bool IsOnline { get; set; }
     public DateTime LastStatusCheck { get; set; }
 

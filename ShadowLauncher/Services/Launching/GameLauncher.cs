@@ -29,7 +29,7 @@ public class GameLauncher : IGameLauncher
     private readonly IConfigurationProvider _config;
     private readonly IEventAggregator _events;
     private readonly ILogger<GameLauncher> _logger;
-    private readonly LoginCommandsService _loginCommandsService = new();
+    private readonly LoginCommandsService _loginCommandsService;
     private readonly SymlinkLauncher _symlinkLauncher;
     private readonly IDatSetService _datSetService;
 
@@ -38,12 +38,14 @@ public class GameLauncher : IGameLauncher
         IEventAggregator events,
         SymlinkLauncher symlinkLauncher,
         IDatSetService datSetService,
+        LoginCommandsService loginCommandsService,
         ILogger<GameLauncher> logger)
     {
         _config = config;
         _events = events;
         _symlinkLauncher = symlinkLauncher;
         _datSetService = datSetService;
+        _loginCommandsService = loginCommandsService;
         _logger = logger;
     }
 
@@ -149,7 +151,10 @@ public class GameLauncher : IGameLauncher
 
             if (useSymlink)
             {
-                if (!await _datSetService.IsDatSetReadyAsync(datSetId!))
+                // Custom-source servers (local path or zip URL) were already verified by
+                // EnsureCustomDatSourceReadyAsync above — skip the registry-based readiness check.
+                // For registry servers, confirm the DAT set files are fully downloaded first.
+                if (!hasCustomSource && !await _datSetService.IsDatSetReadyAsync(datSetId!))
                 {
                     result.ErrorMessage = $"DAT files for '{server.Name}' are not ready. " +
                         $"Expected in: {_datSetService.GetLocalDatSetPath(datSetId!)}\n\nOpen the DAT Manager to download them.";
@@ -205,7 +210,7 @@ public class GameLauncher : IGameLauncher
             // Confirm the process is still alive after all launch machinery has finished.
             try
             {
-                var proc = Process.GetProcessById(processId);
+                using var proc = Process.GetProcessById(processId);
                 result.Success = !proc.HasExited;
             }
             catch (ArgumentException)
@@ -239,7 +244,7 @@ public class GameLauncher : IGameLauncher
     {
         try
         {
-            var process = Process.GetProcessById(processId);
+            using var process = Process.GetProcessById(processId);
             process.Kill(entireProcessTree: true);
             _logger.LogInformation("Terminated game process {Pid}", processId);
         }
@@ -254,7 +259,7 @@ public class GameLauncher : IGameLauncher
     {
         try
         {
-            var process = Process.GetProcessById(processId);
+            using var process = Process.GetProcessById(processId);
             return Task.FromResult(!process.HasExited);
         }
         catch (ArgumentException)

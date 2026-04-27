@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:converters="clr-namespace:ShadowLauncher.Presentation.Converters"
-        Title="Settings" Height="320" Width="560"
+        Title="Settings" Height="310" Width="560"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         Background="{DynamicResource BgBrush}" WindowStyle="None" AllowsTransparency="True">
     <Window.Resources>
@@ -44,12 +44,20 @@
                     Command="{Binding BrowseDecalCommand}"/>
         </Grid>
 
-        <!-- Open User File -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
+        <!-- Accounts / Profiles buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,6">
             <Button Content="&#x1F4C2; Open Accounts File" HorizontalAlignment="Left"
                     Padding="12,4" Margin="0,0,8,0"
                     Command="{Binding OpenUserFileCommand}"
                     ToolTip="Opens the accounts.txt file in your default editor"/>
+            <Button Content="&#x270E; Edit Profiles" HorizontalAlignment="Left"
+                    Padding="12,4"
+                    Click="OpenEditProfiles_Click"
+                    ToolTip="Rename, add, or delete profiles"/>
+        </StackPanel>
+
+        <!-- Login command buttons -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,12">
             <Button Content="Global Login Commands" HorizontalAlignment="Left"
                     Padding="12,4" Margin="0,0,8,0"
                     Click="OpenLoginCommands_Click"
@@ -60,26 +68,19 @@
                     ToolTip="Edit login commands for specific characters only"/>
         </StackPanel>
 
-        <!-- Dat Developer Mode -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,12">
-            <CheckBox IsChecked="{Binding DatDeveloperMode}" VerticalAlignment="Center"
-                      Content="Dat Developer Mode" Foreground="#E8A838" FontWeight="SemiBold"
-                      ToolTip="Enables a Custom Dat Registry field when adding servers, bypassing the community DAT registry for that server."/>
-        </StackPanel>
-
         <!-- Footer -->
         <DockPanel Grid.Row="5">
             <StackPanel DockPanel.Dock="Left" Orientation="Vertical" Margin="0,0,8,0">
-                <Button Content="&#x2753; Help" Padding="12,5"
-                        Click="OpenHelp_Click" ToolTip="Setup instructions for multi-clienting"/>
-            </StackPanel>
-            <StackPanel DockPanel.Dock="Left" Orientation="Vertical" Margin="8,0,0,0">
                 <TextBlock Text="{Binding StatusText}" Foreground="Gray"
                            VerticalAlignment="Center" FontSize="11" Margin="0,0,0,4"/>
-                <Button Content="Check for Updates" Padding="12,6"
-                        Command="{Binding CheckForUpdatesCommand}"
-                        Visibility="{Binding IsDownloading, Converter={StaticResource InverseBoolToVisibility}}"
-                        ToolTip="Check GitHub for a newer version of ShadowLauncher"/>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="&#x2753; Help" Padding="12,6" Margin="0,0,8,0"
+                            Click="OpenHelp_Click" ToolTip="Setup instructions for multi-clienting"/>
+                    <Button Content="Check for Updates" Padding="12,6"
+                            Command="{Binding CheckForUpdatesCommand}"
+                            Visibility="{Binding IsDownloading, Converter={StaticResource InverseBoolToVisibility}}"
+                            ToolTip="Check GitHub for a newer version of ShadowLauncher"/>
+                </StackPanel>
                 <!-- Download progress (visible only while downloading) -->
                 <ProgressBar Minimum="0" Maximum="100"
                              Value="{Binding DownloadProgress}"
@@ -87,7 +88,12 @@
                              Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVisibility}}"
                              ToolTip="{Binding StatusText}"/>
             </StackPanel>
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom">
+                <CheckBox IsChecked="{Binding DatDeveloperMode}" VerticalAlignment="Center"
+                          Content="Dat Dev Mode" Foreground="#E8A838" FontWeight="SemiBold"
+                          Margin="0,0,12,0"
+                          ToolTip="Enables a Custom Dat Registry field when adding servers, bypassing the community DAT registry for that server."/>
                 <Button Content="Cancel" Padding="16,6" Margin="0,0,8,0" IsCancel="True"/>
                 <Button Content="Save" Padding="16,6" FontWeight="Bold"
                         Command="{Binding SaveCommand}"/>
