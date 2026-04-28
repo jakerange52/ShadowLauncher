@@ -27,14 +27,19 @@
                   Return="ignore" />
 
     <InstallExecuteSequence>
-      <!-- GrantSymlinkPrivilege runs on every install — symlinks are core to how
-           ShadowLauncher launches multiple clients. Not gated on any feature. -->
+      <!-- GrantSymlinkPrivilege runs on every install and upgrade — symlinks are
+           core to how ShadowLauncher launches multiple clients. Skipped only on
+           pure remove. -->
       <Custom Action="GrantSymlinkPrivilege"
                After="InstallFiles"
-               Condition="NOT Installed" />
+               Condition="NOT REMOVE~&quot;ALL&quot;" />
+      <!-- CleanupAppData must NOT run during upgrades (MajorUpgrade sets REMOVE=ALL
+           on the old product even though a new version is about to be installed).
+           UPGRADINGPRODUCTCODE is set on the old product during an upgrade sequence,
+           so we guard against it here to preserve user settings and data. -->
       <Custom Action="CleanupAppData"
                After="RemoveFiles"
-               Condition="REMOVE~=&quot;ALL&quot;" />
+               Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
 
   </Fragment>

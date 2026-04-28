@@ -61,6 +61,11 @@ public class AppCoordinator
         Directory.CreateDirectory(_config.DataDirectory);
         Directory.CreateDirectory(_config.LogDirectory);
 
+        // Delete any leftover update installer from a previous update run.
+        // This retroactively cleans up %TEMP%\ShadowLauncher-Setup-Update.exe
+        // for users who updated before the cmd command was patched to do so.
+        CleanupStaleTempInstaller();
+
         // Remove instance directories left over from a previous session.
         // Also sweeps the Instances\ root when it becomes empty (fix #5).
         _symlinkLauncher.CleanupStaleInstances();
@@ -107,6 +112,21 @@ public class AppCoordinator
         _serverMonitorTask = ServerStatusLoopAsync(_appCts.Token);
 
         _logger.LogInformation("ShadowLauncher initialized successfully");
+    }
+
+    private void CleanupStaleTempInstaller()
+    {
+        var tempInstaller = Path.Combine(Path.GetTempPath(), "ShadowLauncher-Setup-Update.exe");
+        if (!File.Exists(tempInstaller)) return;
+        try
+        {
+            File.Delete(tempInstaller);
+            _logger.LogInformation("Cleaned up stale temp installer: {Path}", tempInstaller);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not delete stale temp installer at {Path}", tempInstaller);
+        }
     }
 
     /// <summary>

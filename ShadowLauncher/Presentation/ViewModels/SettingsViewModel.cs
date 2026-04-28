@@ -194,7 +194,7 @@ public class SettingsViewModel : ViewModelBase
         // to finish before starting the new exe — we can't wait ourselves because
         // we're about to exit.
         var exePath = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
-        var relaunchCmd = $"/c start \"\" /wait \"{installerPath}\" /install /quiet /norestart & start \"\" \"{exePath}\"";
+        var relaunchCmd = $"/c start \"\" /wait \"{installerPath}\" /install /quiet /norestart & del /f /q \"{installerPath}\" & start \"\" \"{exePath}\"";
 
         Process.Start(new ProcessStartInfo
         {

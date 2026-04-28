@@ -282,7 +282,6 @@
                        KeyPath="yes" />
         <!-- Tell MSI to remove the ThwargFilter subdirectory on uninstall -->
         <RemoveFolder Id="RemoveThwargFilterFolder" Directory="ThwargFilterFolder" On="uninstall" />
-        <RemoveFolder Id="RemoveInstallFolder"      Directory="INSTALLFOLDER"      On="uninstall" />
       </Component>
 
     </ComponentGroup>
