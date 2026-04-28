@@ -47,24 +47,6 @@ public class AppConfiguration : IConfigurationProvider
         set => SetSetting(nameof(Theme), value);
     }
 
-    public TimeSpan HeartbeatInterval
-    {
-        get => TimeSpan.FromSeconds(int.TryParse(GetSetting(nameof(HeartbeatInterval), "5"), out var v) ? v : 5);
-        set => SetSetting(nameof(HeartbeatInterval), ((int)value.TotalSeconds).ToString());
-    }
-
-    public TimeSpan HeartbeatTimeout
-    {
-        get => TimeSpan.FromSeconds(int.TryParse(GetSetting(nameof(HeartbeatTimeout), "60"), out var v) ? v : 60);
-        set => SetSetting(nameof(HeartbeatTimeout), ((int)value.TotalSeconds).ToString());
-    }
-
-    public TimeSpan ServerCheckInterval
-    {
-        get => TimeSpan.FromSeconds(int.TryParse(GetSetting(nameof(ServerCheckInterval), "300"), out var v) ? v : 300);
-        set => SetSetting(nameof(ServerCheckInterval), ((int)value.TotalSeconds).ToString());
-    }
-
     public bool AutoRelaunch
     {
         get => bool.TryParse(GetSetting(nameof(AutoRelaunch), "false"), out var v) && v;

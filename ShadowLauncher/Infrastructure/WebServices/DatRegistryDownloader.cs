@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Xml.Linq;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
@@ -33,6 +32,8 @@ public class DatRegistryDownloader
 
     private const string CacheFileName = "DatRegistry.xml";
 
+    private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(15) };
+
     private readonly string _cachePath;
     private readonly string _registryUrl;
 
@@ -54,8 +55,7 @@ public class DatRegistryDownloader
         string xml;
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            xml = await http.GetStringAsync(_registryUrl);
+            xml = await _http.GetStringAsync(_registryUrl);
 
             Directory.CreateDirectory(Path.GetDirectoryName(_cachePath)!);
             await File.WriteAllTextAsync(_cachePath, xml);

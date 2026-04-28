@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Xml.Linq;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
@@ -15,6 +14,8 @@ public class BetaServerListDownloader
         "https://raw.githubusercontent.com/jakerange52/ac-dat-registry/main/BetaServerList.xml";
 
     private const string CacheFileName = "BetaServerList.xml";
+
+    private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
     private readonly string _cachePath;
 
@@ -33,8 +34,7 @@ public class BetaServerListDownloader
         string xml;
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            xml = await http.GetStringAsync(BetaServerListUrl);
+            xml = await _http.GetStringAsync(BetaServerListUrl);
 
             Directory.CreateDirectory(Path.GetDirectoryName(_cachePath)!);
             await File.WriteAllTextAsync(_cachePath, xml);

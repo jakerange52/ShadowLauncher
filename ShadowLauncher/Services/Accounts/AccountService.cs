@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
@@ -92,12 +90,6 @@ public class AccountService : IAccountService
         account.Characters.RemoveAll(c =>
             c.Name.Equals(characterName, StringComparison.OrdinalIgnoreCase));
         await _repository.UpdateAsync(account);
-    }
-
-    private static string HashPassword(string password)
-    {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(password));
-        return Convert.ToBase64String(bytes);
     }
 }
 

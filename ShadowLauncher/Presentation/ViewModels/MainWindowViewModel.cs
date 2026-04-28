@@ -15,6 +15,7 @@ using ShadowLauncher.Services.GameSessions;
 using ShadowLauncher.Services.Launching;
 using ShadowLauncher.Services.Monitoring;
 using ShadowLauncher.Services.Dats;
+using ShadowLauncher.Services.Profiles;
 using ShadowLauncher.Services.Servers;
 
 namespace ShadowLauncher.Presentation.ViewModels;
@@ -32,6 +33,8 @@ public class MainWindowViewModel : ViewModelBase
     private readonly AccountFileRepository _accountFileRepo;
     private readonly ServerFileRepository _serverFileRepo;
     private readonly ServerListDownloader _serverListDownloader;
+    private readonly BetaServerListDownloader _betaServerListDownloader;
+    private readonly ProfileService _profileService;
     private readonly IGameMonitor _gameMonitor;
     private readonly ILogger<MainWindowViewModel> _logger;
 
@@ -57,6 +60,8 @@ public class MainWindowViewModel : ViewModelBase
         AccountFileRepository accountFileRepo,
         ServerFileRepository serverFileRepo,
         ServerListDownloader serverListDownloader,
+        BetaServerListDownloader betaServerListDownloader,
+        ProfileService profileService,
         AppCoordinator appCoordinator,
         IGameMonitor gameMonitor,
         UpdateChecker updateChecker,
@@ -75,6 +80,8 @@ public class MainWindowViewModel : ViewModelBase
         _accountFileRepo = accountFileRepo;
         _serverFileRepo = serverFileRepo;
         _serverListDownloader = serverListDownloader;
+        _betaServerListDownloader = betaServerListDownloader;
+        _profileService = profileService;
         _gameMonitor = gameMonitor;
         _logger = logger;
 
@@ -97,8 +104,16 @@ public class MainWindowViewModel : ViewModelBase
 
         _gameClientPath = _config.GameClientPath;
 
-        SelectedAccounts.CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanLaunch));
-        SelectedServers.CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanLaunch));
+        SelectedAccounts.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(CanLaunch));
+            PersistSelectionToProfile();
+        };
+        SelectedServers.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(CanLaunch));
+            PersistSelectionToProfile();
+        };
 
         LaunchCommand = new AsyncRelayCommand(LaunchGameAsync, () => CanLaunch);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
@@ -151,17 +166,6 @@ public class MainWindowViewModel : ViewModelBase
                 _config.Save();
                 OnPropertyChanged(nameof(CanLaunch));
             }
-        }
-    }
-
-    public bool NeverKillOnMissingHeartbeat
-    {
-        get => !_config.KillOnMissingHeartbeat;
-        set
-        {
-            _config.KillOnMissingHeartbeat = !value;
-            _config.Save();
-            OnPropertyChanged();
         }
     }
 
@@ -243,6 +247,15 @@ public class MainWindowViewModel : ViewModelBase
         private set => SetProperty(ref _currentThemeName, value);
     }
 
+    private void PersistSelectionToProfile()
+    {
+        var active = _profileService.ActiveProfile;
+        if (active is null) return;
+        active.SelectedAccountIds = SelectedAccounts.Select(a => a.Id).ToList();
+        active.SelectedServerIds  = SelectedServers.Select(s => s.Id).ToList();
+        _profileService.SaveProfile(active);
+    }
+
     private void PreviousTheme()
     {
         _themeService.Previous();
@@ -287,6 +300,15 @@ public class MainWindowViewModel : ViewModelBase
                 ActiveSessions.Add(session);
 
             StatusText = $"Loaded {Accounts.Count} accounts, {Servers.Count} servers";
+
+            var active = _profileService.ActiveProfile;
+            if (active is not null
+                && (active.SelectedAccountIds.Count > 0 || active.SelectedServerIds.Count > 0))
+            {
+                ProfileSelectionRestoreRequested?.Invoke(
+                    active.SelectedAccountIds,
+                    active.SelectedServerIds);
+            }
         }
         catch (Exception ex)
         {
@@ -309,6 +331,9 @@ public class MainWindowViewModel : ViewModelBase
 
     /// <summary>Raised after a server reload so the view can restore ListBox selection by ID.</summary>
     public event Action<IReadOnlyList<string>>? ServerSelectionRestoreRequested;
+
+    /// <summary>Raised after load/profile-switch so the view can restore both account and server selections.</summary>
+    public event Action<IReadOnlyList<string>, IReadOnlyList<string>>? ProfileSelectionRestoreRequested;
 
     private async Task ReloadServersAsync()
     {
@@ -707,7 +732,7 @@ public class MainWindowViewModel : ViewModelBase
 
     private void BrowseServers()
     {
-        var vm = new BrowseServersViewModel(_serverListDownloader);
+        var vm = new BrowseServersViewModel(_serverListDownloader, _betaServerListDownloader);
         vm.ServerAdded += async (_, server) =>
         {
             try

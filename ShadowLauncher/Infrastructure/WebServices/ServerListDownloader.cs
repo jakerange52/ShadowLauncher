@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Xml.Linq;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
@@ -14,6 +13,8 @@ public class ServerListDownloader
         "https://raw.githubusercontent.com/acresources/serverslist/master/Servers.xml";
 
     private const string CacheFileName = "PublishedWildWestServerList.xml";
+
+    private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
     private readonly string _cachePath;
 
@@ -31,8 +32,7 @@ public class ServerListDownloader
         string xml;
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            xml = await http.GetStringAsync(ServerListUrl);
+            xml = await _http.GetStringAsync(ServerListUrl);
 
             // Cache to disk
             Directory.CreateDirectory(Path.GetDirectoryName(_cachePath)!);

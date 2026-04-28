@@ -38,12 +38,6 @@ public class GameSessionService : IGameSessionService
         return Task.FromResult(session);
     }
 
-    public Task UpdateSessionAsync(GameSession session)
-    {
-        _sessions[session.Id] = session;
-        return Task.CompletedTask;
-    }
-
     public Task<GameSession?> GetSessionAsync(string sessionId)
     {
         _sessions.TryGetValue(sessionId, out var session);
@@ -77,13 +71,6 @@ public class GameSessionService : IGameSessionService
         session.CharacterName = heartbeatData.CharacterName;
         session.Status = heartbeatData.Status;
         session.UptimeSeconds = heartbeatData.UptimeSeconds;
-    }
-
-    public async Task<bool> IsSessionAliveAsync(string sessionId, TimeSpan timeout)
-    {
-        var session = await GetSessionAsync(sessionId);
-        if (session is null) return false;
-        return (DateTime.UtcNow - session.LastHeartbeatTime) < timeout;
     }
 
     public Task<IEnumerable<GameSession>> GetActiveSessionsAsync()
