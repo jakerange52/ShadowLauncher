@@ -5,6 +5,7 @@ using ShadowLauncher.Core.Models;
 using ShadowLauncher.Infrastructure.FileSystem;
 using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Services.GameSessions;
+using ShadowLauncher.Services.Launching;
 
 namespace ShadowLauncher.Services.Monitoring;
 
@@ -14,6 +15,7 @@ public class GameMonitor : IGameMonitor
     private readonly IHeartbeatReader _heartbeatReader;
     private readonly IConfigurationProvider _config;
     private readonly ILogger<GameMonitor> _logger;
+    private readonly IGameLauncher _gameLauncher;
     private CancellationTokenSource? _cts;
     private Task? _monitoringTask;
 
@@ -30,11 +32,13 @@ public class GameMonitor : IGameMonitor
         IGameSessionService sessionService,
         IHeartbeatReader heartbeatReader,
         IConfigurationProvider config,
+        IGameLauncher gameLauncher,
         ILogger<GameMonitor> logger)
     {
         _sessionService = sessionService;
         _heartbeatReader = heartbeatReader;
         _config = config;
+        _gameLauncher = gameLauncher;
         _logger = logger;
     }
 
@@ -217,6 +221,7 @@ public class GameMonitor : IGameMonitor
         var session = await _sessionService.GetSessionByProcessIdAsync(processId);
         if (session is not null)
         {
+            _gameLauncher.CleanupThwargFilterLaunchFile(session.AccountName, session.ServerName);
             await _sessionService.CloseSessionAsync(sessionId);
             GameExited?.Invoke(this, new GameExitedEventArgs(processId, wasMinimized));
             _logger.LogInformation("Process {Pid} exited — session closed immediately via WaitForExitAsync", processId);

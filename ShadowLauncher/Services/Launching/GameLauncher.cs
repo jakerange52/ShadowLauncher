@@ -317,6 +317,30 @@ public class GameLauncher : IGameLauncher
     }
 
     /// <summary>
+    /// Removes the ThwargFilter launch file written at session start.
+    /// Called when the game process exits so stale launch files do not accumulate.
+    /// </summary>
+    public void CleanupThwargFilterLaunchFile(string accountName, string serverName)
+    {
+        try
+        {
+            var launchFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "ThwargLauncher", "LaunchFiles");
+            var filePath = Path.Combine(launchFolder, $"launch_ThwargFilter_{serverName}_{accountName}.txt");
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+                _logger.LogInformation("Removed ThwargFilter launch file for {Account} on {Server}", accountName, serverName);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to remove ThwargFilter launch file");
+        }
+    }
+
+    /// <summary>
     /// Writes a ThwargFilter launch file so the filter knows which account/server/character
     /// is logging in. This enables ThwargFilter to record character lists and execute login commands.
     /// File: %AppData%\ThwargLauncher\LaunchFiles\launch_ThwargFilter_{Server}_{Account}.txt

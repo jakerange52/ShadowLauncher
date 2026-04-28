@@ -45,6 +45,7 @@ public static class ServiceBootstrapper
         services.AddSingleton<DatRegistryDownloader>();
         services.AddSingleton<IDatSetService, DatSetService>();
         services.AddSingleton<ShadowLauncher.Infrastructure.Native.SymlinkLauncher>();
+        services.AddSingleton<ShadowLauncher.Infrastructure.FileSystem.SessionJournal>();
 
         // Repositories
         services.AddSingleton<AccountFileRepository>(sp =>

@@ -12,6 +12,9 @@ public interface IGameSessionService
     Task RecordHeartbeatAsync(string sessionId, HeartbeatData heartbeatData);
     Task<bool> IsSessionAliveAsync(string sessionId, TimeSpan timeout);
     Task<IEnumerable<GameSession>> GetActiveSessionsAsync();
+
+    /// <summary>Restores a session recovered from the on-disk journal into the in-memory store.</summary>
+    Task RestoreSessionAsync(GameSession session);
 }
 
 public class HeartbeatData
