@@ -19,5 +19,4 @@ public interface IConfigurationProvider
     void Load();
     void Save();
     string GetSetting(string key, string defaultValue = "");
-    void SetSetting(string key, string value);
 }

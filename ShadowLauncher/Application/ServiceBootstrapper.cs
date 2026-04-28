@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Infrastructure.Configuration;
-using ShadowLauncher.Infrastructure.Events;
 using ShadowLauncher.Infrastructure.FileSystem;
 using ShadowLauncher.Infrastructure.Logging;
 using ShadowLauncher.Infrastructure.Persistence;
@@ -35,7 +34,6 @@ public static class ServiceBootstrapper
         });
 
         // Infrastructure
-        services.AddSingleton<IEventAggregator, EventAggregator>();
         services.AddSingleton<IHeartbeatReader, HeartbeatReader>();
         services.AddSingleton<ServerListDownloader>();
         services.AddSingleton<BetaServerListDownloader>();

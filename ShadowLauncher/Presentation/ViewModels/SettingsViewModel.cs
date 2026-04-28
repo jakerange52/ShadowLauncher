@@ -44,6 +44,8 @@ public class SettingsViewModel : ViewModelBase
     public string CurrentVersion { get; } =
         $"v{UpdateChecker.CurrentVersion.Major}.{UpdateChecker.CurrentVersion.Minor}.{UpdateChecker.CurrentVersion.Build}";
 
+    public string DatSetsDirectory => _config.DatSetsDirectory;
+
     public string DecalPath
     {
         get => _decalPath;

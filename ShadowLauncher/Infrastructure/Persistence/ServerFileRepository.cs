@@ -129,10 +129,14 @@ public sealed class ServerFileRepository : IRepository<Server>, IDisposable
                         DatSetId = resolvedDatSetId,
                         IsManuallyAdded = item.Element("manually_added")?.Value
                             .Equals("true", StringComparison.OrdinalIgnoreCase) ?? false,
-                        IsBeta = item.Element("is_beta")?.Value
-                            .Equals("true", StringComparison.OrdinalIgnoreCase) ?? false,
                         CustomDatRegistryPath = item.Element("custom_dat_path")?.Value is { Length: > 0 } p ? p : null,
                         CustomDatZipUrl = item.Element("custom_dat_zip_url")?.Value is { Length: > 0 } z ? z : null,
+                        // A non-empty CustomDatZipUrl is the reliable indicator the server came from the
+                        // beta list — use it as a fallback so servers saved before IsBeta was copied
+                        // across self-heal on the first load.
+                        IsBeta = (item.Element("is_beta")?.Value
+                            .Equals("true", StringComparison.OrdinalIgnoreCase) ?? false)
+                            || !string.IsNullOrWhiteSpace(item.Element("custom_dat_zip_url")?.Value),
                         // Preserve live status from the existing cache so the watcher
                         // reloading the file doesn't reset indicators that were just updated.
                         IsOnline = _cache.FirstOrDefault(c =>

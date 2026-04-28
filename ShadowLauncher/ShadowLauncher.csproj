@@ -15,7 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Resource Include="SLicon.ico"/>
+    <Resource Include="SLicon.ico" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.6" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.6" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.6" />

@@ -16,6 +16,7 @@ using ShadowLauncher.Services.Launching;
 using ShadowLauncher.Services.Monitoring;
 using ShadowLauncher.Services.Dats;
 using ShadowLauncher.Services.Profiles;
+using ShadowLauncher.Services.LoginCommands;
 using ShadowLauncher.Services.Servers;
 
 namespace ShadowLauncher.Presentation.ViewModels;
@@ -35,6 +36,7 @@ public class MainWindowViewModel : ViewModelBase
     private readonly ServerListDownloader _serverListDownloader;
     private readonly BetaServerListDownloader _betaServerListDownloader;
     private readonly ProfileService _profileService;
+    private readonly LoginCommandsService _loginCommandsService;
     private readonly IGameMonitor _gameMonitor;
     private readonly ILogger<MainWindowViewModel> _logger;
 
@@ -42,6 +44,8 @@ public class MainWindowViewModel : ViewModelBase
     private bool _isLoading;
     private string _gameClientPath = string.Empty;
     private string _currentThemeName;
+    private LaunchProfile? _currentProfile;
+    private bool _applyingProfile;
 
     /// <summary>Tracks PID → (Account, Server) for auto-relaunch.</summary>
     private readonly Dictionary<int, (Account Account, Server Server)> _launchedSessions = [];
@@ -62,6 +66,7 @@ public class MainWindowViewModel : ViewModelBase
         ServerListDownloader serverListDownloader,
         BetaServerListDownloader betaServerListDownloader,
         ProfileService profileService,
+        LoginCommandsService loginCommandsService,
         AppCoordinator appCoordinator,
         IGameMonitor gameMonitor,
         UpdateChecker updateChecker,
@@ -82,6 +87,7 @@ public class MainWindowViewModel : ViewModelBase
         _serverListDownloader = serverListDownloader;
         _betaServerListDownloader = betaServerListDownloader;
         _profileService = profileService;
+        _loginCommandsService = loginCommandsService;
         _gameMonitor = gameMonitor;
         _logger = logger;
 
@@ -104,16 +110,8 @@ public class MainWindowViewModel : ViewModelBase
 
         _gameClientPath = _config.GameClientPath;
 
-        SelectedAccounts.CollectionChanged += (_, _) =>
-        {
-            OnPropertyChanged(nameof(CanLaunch));
-            PersistSelectionToProfile();
-        };
-        SelectedServers.CollectionChanged += (_, _) =>
-        {
-            OnPropertyChanged(nameof(CanLaunch));
-            PersistSelectionToProfile();
-        };
+        SelectedAccounts.CollectionChanged += (_, _) => { OnPropertyChanged(nameof(CanLaunch)); SaveCurrentProfile(); };
+        SelectedServers.CollectionChanged += (_, _) => { OnPropertyChanged(nameof(CanLaunch)); SaveCurrentProfile(); };
 
         LaunchCommand = new AsyncRelayCommand(LaunchGameAsync, () => CanLaunch);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
@@ -127,11 +125,35 @@ public class MainWindowViewModel : ViewModelBase
         OpenAccountsFileCommand = new RelayCommand(OpenAccountsFile);
         PreviousThemeCommand = new RelayCommand(PreviousTheme);
         NextThemeCommand = new RelayCommand(NextTheme);
+        AddProfileCommand = new RelayCommand(AddProfile);
+
+        foreach (var p in _profileService.Profiles)
+            Profiles.Add(p);
+        _currentProfile = _profileService.ActiveProfile;
     }
 
     public ObservableCollection<Account> Accounts { get; } = [];
     public ObservableCollection<Server> Servers { get; } = [];
     public ObservableCollection<GameSession> ActiveSessions { get; } = [];
+    public ObservableCollection<LaunchProfile> Profiles { get; } = [];
+
+    public ICommand AddProfileCommand { get; }
+
+    public LaunchProfile? CurrentProfile
+    {
+        get => _currentProfile;
+        set
+        {
+            if (_currentProfile?.Id == value?.Id) return;
+            _currentProfile = value;
+            OnPropertyChanged();
+            if (value is not null)
+                ApplyProfile(value);
+        }
+    }
+
+    public string CurrentVersion { get; } =
+        $"v{UpdateChecker.CurrentVersion.Major}.{UpdateChecker.CurrentVersion.Minor}.{UpdateChecker.CurrentVersion.Build}";
 
     private GameSession? _selectedSession;
     public GameSession? SelectedSession
@@ -247,13 +269,59 @@ public class MainWindowViewModel : ViewModelBase
         private set => SetProperty(ref _currentThemeName, value);
     }
 
-    private void PersistSelectionToProfile()
+    private void AddProfile()
     {
-        var active = _profileService.ActiveProfile;
-        if (active is null) return;
-        active.SelectedAccountIds = SelectedAccounts.Select(a => a.Id).ToList();
-        active.SelectedServerIds  = SelectedServers.Select(s => s.Id).ToList();
-        _profileService.SaveProfile(active);
+        var vm = new AddProfileViewModel(Profiles.Select(p => p.Name).ToList());
+        var window = new Presentation.Views.AddProfileWindow(vm)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        if (window.ShowDialog() == true)
+        {
+            var profile = _profileService.CreateProfile(vm.ProfileName);
+            Profiles.Add(profile);
+            CurrentProfile = profile;
+        }
+    }
+
+    /// <summary>Raised when the view needs to restore ListBox selections from a profile.</summary>
+    public event Action<IReadOnlyList<string>, IReadOnlyList<string>>? ProfileSelectionRestoreRequested;
+
+    private void ApplyProfile(LaunchProfile profile)
+    {
+        _applyingProfile = true;
+        try
+        {
+            _profileService.SetActiveProfile(profile.Id);
+            _config.KillOnMissingHeartbeat = profile.KillOnMissingHeartbeat;
+            _config.KillHeartbeatTimeoutSeconds = profile.KillHeartbeatTimeoutSeconds;
+            _config.AutoRelaunch = profile.AutoRelaunch;
+            _config.AutoRelaunchDelaySeconds = profile.AutoRelaunchDelaySeconds;
+            _config.Save();
+            OnPropertyChanged(nameof(KillOnMissingHeartbeat));
+            OnPropertyChanged(nameof(KillHeartbeatTimeoutSeconds));
+            OnPropertyChanged(nameof(AutoRelaunch));
+            OnPropertyChanged(nameof(AutoRelaunchDelaySeconds));
+            ProfileSelectionRestoreRequested?.Invoke(profile.SelectedAccountIds, profile.SelectedServerIds);
+            _loginCommandsService.ApplyFromProfile(profile);
+        }
+        finally
+        {
+            _applyingProfile = false;
+        }
+    }
+
+    private void SaveCurrentProfile()
+    {
+        if (_currentProfile is null || _applyingProfile) return;
+        _currentProfile.SelectedAccountIds = SelectedAccounts.Select(a => a.Id).ToList();
+        _currentProfile.SelectedServerIds  = SelectedServers.Select(s => s.Id).ToList();
+        _currentProfile.KillOnMissingHeartbeat = _config.KillOnMissingHeartbeat;
+        _currentProfile.KillHeartbeatTimeoutSeconds = _config.KillHeartbeatTimeoutSeconds;
+        _currentProfile.AutoRelaunch = _config.AutoRelaunch;
+        _currentProfile.AutoRelaunchDelaySeconds = _config.AutoRelaunchDelaySeconds;
+        _loginCommandsService.SnapshotIntoProfile(_currentProfile);
+        _profileService.SaveProfile(_currentProfile);
     }
 
     private void PreviousTheme()
@@ -301,14 +369,10 @@ public class MainWindowViewModel : ViewModelBase
 
             StatusText = $"Loaded {Accounts.Count} accounts, {Servers.Count} servers";
 
-            var active = _profileService.ActiveProfile;
-            if (active is not null
-                && (active.SelectedAccountIds.Count > 0 || active.SelectedServerIds.Count > 0))
-            {
+            if (_currentProfile is not null)
                 ProfileSelectionRestoreRequested?.Invoke(
-                    active.SelectedAccountIds,
-                    active.SelectedServerIds);
-            }
+                    _currentProfile.SelectedAccountIds,
+                    _currentProfile.SelectedServerIds);
         }
         catch (Exception ex)
         {
@@ -331,9 +395,6 @@ public class MainWindowViewModel : ViewModelBase
 
     /// <summary>Raised after a server reload so the view can restore ListBox selection by ID.</summary>
     public event Action<IReadOnlyList<string>>? ServerSelectionRestoreRequested;
-
-    /// <summary>Raised after load/profile-switch so the view can restore both account and server selections.</summary>
-    public event Action<IReadOnlyList<string>, IReadOnlyList<string>>? ProfileSelectionRestoreRequested;
 
     private async Task ReloadServersAsync()
     {
@@ -456,11 +517,12 @@ public class MainWindowViewModel : ViewModelBase
         }
 
         // Collect custom-source servers (local path or zip URL) that still need their
-        // DATs fetched. Local paths are validated; zip URLs are downloaded if not cached.
+        // DATs fetched. Skip servers whose cache is already fully present on disk.
         var serversNeedingCustomDats = servers
             .DistinctBy(s => s.Id)
-            .Where(s => !string.IsNullOrWhiteSpace(s.CustomDatRegistryPath)
-                     || !string.IsNullOrWhiteSpace(s.CustomDatZipUrl))
+            .Where(s => (!string.IsNullOrWhiteSpace(s.CustomDatRegistryPath)
+                      || !string.IsNullOrWhiteSpace(s.CustomDatZipUrl))
+                     && !_datSetService.IsCustomDatCachePresent(s))
             .ToList();
 
         if (serversNeedingCustomDats.Count > 0 || serversNeedingDats.Count > 0)
@@ -749,6 +811,8 @@ public class MainWindowViewModel : ViewModelBase
                     WebsiteUrl = server.WebsiteUrl,
                     DefaultRodat = server.DefaultRodat,
                     SecureLogon = server.SecureLogon,
+                    IsBeta = server.IsBeta,
+                    CustomDatZipUrl = server.CustomDatZipUrl,
                     DatSetId = server.DatSetId
                         ?? await _datSetService.ResolveDatSetIdForServerAsync(server.Name)
                 };

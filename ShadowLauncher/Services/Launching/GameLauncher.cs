@@ -27,7 +27,6 @@ namespace ShadowLauncher.Services.Launching;
 public class GameLauncher : IGameLauncher
 {
     private readonly IConfigurationProvider _config;
-    private readonly IEventAggregator _events;
     private readonly ILogger<GameLauncher> _logger;
     private readonly LoginCommandsService _loginCommandsService;
     private readonly SymlinkLauncher _symlinkLauncher;
@@ -35,14 +34,12 @@ public class GameLauncher : IGameLauncher
 
     public GameLauncher(
         IConfigurationProvider config,
-        IEventAggregator events,
         SymlinkLauncher symlinkLauncher,
         IDatSetService datSetService,
         LoginCommandsService loginCommandsService,
         ILogger<GameLauncher> logger)
     {
         _config = config;
-        _events = events;
         _symlinkLauncher = symlinkLauncher;
         _datSetService = datSetService;
         _loginCommandsService = loginCommandsService;
@@ -220,7 +217,6 @@ public class GameLauncher : IGameLauncher
 
             if (result.Success)
             {
-                _events.Publish(new GameLaunchedEvent(account.Id, character.Name, server.Id, processId));
                 _logger.LogInformation("Game launched successfully, PID: {Pid}", processId);
             }
             else
@@ -370,5 +366,3 @@ public class GameLauncher : IGameLauncher
         }
     }
 }
-
-public record GameLaunchedEvent(string AccountId, string CharacterName, string ServerId, int ProcessId);

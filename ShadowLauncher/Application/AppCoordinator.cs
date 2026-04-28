@@ -15,7 +15,6 @@ public class AppCoordinator
     private readonly IConfigurationProvider _config;
     private readonly IGameMonitor _gameMonitor;
     private readonly IServerService _serverService;
-    private readonly IEventAggregator _events;
     private readonly IDatSetService _datSetService;
     private readonly FirstRunService _firstRunService;
     private readonly SymlinkLauncher _symlinkLauncher;
@@ -33,7 +32,6 @@ public class AppCoordinator
         IConfigurationProvider config,
         IGameMonitor gameMonitor,
         IServerService serverService,
-        IEventAggregator events,
         IDatSetService datSetService,
         FirstRunService firstRunService,
         SymlinkLauncher symlinkLauncher,
@@ -45,7 +43,6 @@ public class AppCoordinator
         _config = config;
         _gameMonitor = gameMonitor;
         _serverService = serverService;
-        _events = events;
         _datSetService = datSetService;
         _firstRunService = firstRunService;
         _symlinkLauncher = symlinkLauncher;

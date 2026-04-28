@@ -10,21 +10,10 @@ namespace ShadowLauncher.Infrastructure.Native;
 internal static class MovieSkipper
 {
     private const uint WM_LBUTTONDOWN = 0x0201;
-    private const uint WM_LBUTTONUP = 0x0202;
+    private const uint WM_LBUTTONUP   = 0x0202;
 
     [DllImport("user32.dll")]
     private static extern bool PostMessage(nint hWnd, uint Msg, nint wParam, nint lParam);
-
-    [DllImport("user32.dll")]
-    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, nint lParam);
-
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(nint hWnd, out uint lpdwProcessId);
-
-    [DllImport("user32.dll")]
-    private static extern bool IsWindowVisible(nint hWnd);
-
-    private delegate bool EnumWindowsProc(nint hWnd, nint lParam);
 
     /// <summary>
     /// Sends clicks to the game window at intervals to skip intro movies.
@@ -34,7 +23,6 @@ internal static class MovieSkipper
     {
         _ = Task.Run(async () =>
         {
-            // Wait a moment for the window to appear
             await Task.Delay(2000);
 
             for (int i = 0; i < maxAttempts; i++)
@@ -44,10 +32,9 @@ internal static class MovieSkipper
                     var proc = Process.GetProcessById(processId);
                     if (proc.HasExited) break;
 
-                    var hWnd = FindWindowForProcess(processId);
+                    var hWnd = WindowFocusHelper.FindWindowForProcess(processId);
                     if (hWnd != nint.Zero)
                     {
-                        // Click at center-ish area (350, 100) — same coords ThwargFilter uses
                         nint lParam = MakeLParam(350, 100);
                         PostMessage(hWnd, WM_LBUTTONDOWN, 1, lParam);
                         PostMessage(hWnd, WM_LBUTTONUP, 0, lParam);
@@ -55,28 +42,12 @@ internal static class MovieSkipper
                 }
                 catch (ArgumentException)
                 {
-                    break; // Process exited
+                    break;
                 }
 
                 await Task.Delay(intervalMs);
             }
         });
-    }
-
-    private static nint FindWindowForProcess(int processId)
-    {
-        nint found = nint.Zero;
-        EnumWindows((hWnd, _) =>
-        {
-            GetWindowThreadProcessId(hWnd, out uint pid);
-            if (pid == processId && IsWindowVisible(hWnd))
-            {
-                found = hWnd;
-                return false; // stop enumerating
-            }
-            return true;
-        }, nint.Zero);
-        return found;
     }
 
     private static nint MakeLParam(int x, int y) => (nint)((y << 16) | (x & 0xFFFF));
