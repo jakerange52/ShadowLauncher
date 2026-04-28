@@ -742,7 +742,9 @@ public class MainWindowViewModel : ViewModelBase
             try
             {
                 var server = await _serverService.CreateServerAsync(vm.ToServer());
-                Servers.Add(server);
+                await _serverService.CheckServerStatusAsync(server.Id);
+                var refreshed = await _serverService.GetServerAsync(server.Id);
+                Servers.Add(refreshed ?? server);
                 StatusText = $"Server '{server.Name}' added.";
             }
             catch (Exception ex)

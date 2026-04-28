@@ -27,9 +27,11 @@
                   Return="ignore" />
 
     <InstallExecuteSequence>
+      <!-- GrantSymlinkPrivilege runs on every install — symlinks are core to how
+           ShadowLauncher launches multiple clients. Not gated on any feature. -->
       <Custom Action="GrantSymlinkPrivilege"
                After="InstallFiles"
-               Condition="NOT Installed AND &amp;MultiboxingFeature=3" />
+               Condition="NOT Installed" />
       <Custom Action="CleanupAppData"
                After="RemoveFiles"
                Condition="REMOVE~=&quot;ALL&quot;" />

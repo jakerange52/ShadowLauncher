@@ -22,6 +22,10 @@ public class GameMonitor : IGameMonitor
 
     private readonly Dictionary<int, bool> _minimizedStates = [];
 
+    // Tracks PIDs that already have a WaitForExitAsync watcher running so we
+    // don't spin up duplicates each time the monitor loop iterates.
+    private readonly HashSet<int> _watchedPids = [];
+
     public GameMonitor(
         IGameSessionService sessionService,
         IHeartbeatReader heartbeatReader,
@@ -107,17 +111,11 @@ public class GameMonitor : IGameMonitor
                 {
                     if (token.IsCancellationRequested) break;
 
-                    // Check if process is still running
-                    var status = await GetProcessStatusAsync(session.ProcessId);
-                    if (status is null || !status.IsRunning)
-                    {
-                        // Process genuinely gone — use last known minimized state
-                        _minimizedStates.TryGetValue(session.ProcessId, out var wasMinimized);
-                        _minimizedStates.Remove(session.ProcessId);
-                        await _sessionService.CloseSessionAsync(session.Id);
-                        GameExited?.Invoke(this, new GameExitedEventArgs(session.ProcessId, wasMinimized));
-                        continue;
-                    }
+                    // Start a zero-overhead exit watcher for this PID if not already running.
+                    // WaitForExitAsync fires the moment the OS signals process termination —
+                    // no polling delay. The loop below handles heartbeat/state only.
+                    if (_watchedPids.Add(session.ProcessId))
+                        _ = WatchForExitAsync(session.ProcessId, session.Id, token);
 
                     // Update minimized state while process is alive
                     _minimizedStates[session.ProcessId] = WindowFocusHelper.IsMinimized(session.ProcessId);
@@ -127,16 +125,13 @@ public class GameMonitor : IGameMonitor
 
                     if (heartbeat is not null)
                     {
-                        // We have real in-game data from the filter plugin
                         await _sessionService.RecordHeartbeatAsync(session.Id, heartbeat);
                         HeartbeatReceived?.Invoke(this, new HeartbeatReceivedEventArgs(session.Id, heartbeat));
                     }
                     else
                     {
-                        // Kill on missing heartbeat if enabled and session has been alive long enough
                         var elapsed = (DateTime.UtcNow - session.LastHeartbeatTime).TotalSeconds;
 
-                        // Always mark as hanging after 5s regardless of kill toggle
                         if (elapsed > 5)
                             session.Status = GameSessionStatus.Hanging;
 
@@ -150,6 +145,7 @@ public class GameMonitor : IGameMonitor
                                     session.ProcessId, (int)elapsed, timeout);
                                 var wasMinimizedBeforeKill = _minimizedStates.TryGetValue(session.ProcessId, out var m) && m;
                                 _minimizedStates.Remove(session.ProcessId);
+                                _watchedPids.Remove(session.ProcessId);
                                 try
                                 {
                                     using var proc = System.Diagnostics.Process.GetProcessById(session.ProcessId);
@@ -162,14 +158,14 @@ public class GameMonitor : IGameMonitor
                             }
                         }
 
-                        // No filter heartbeat file — synthesize from process uptime
+                        var status = await GetProcessStatusAsync(session.ProcessId);
                         var synthetic = new HeartbeatData
                         {
                             CharacterName = session.CharacterName,
                             Status = session.Status == GameSessionStatus.Hanging
                                 ? GameSessionStatus.Hanging
                                 : GameSessionStatus.InGame,
-                            UptimeSeconds = (int)status.Uptime.TotalSeconds,
+                            UptimeSeconds = (int)(status?.Uptime.TotalSeconds ?? 0),
                             Timestamp = DateTime.UtcNow
                         };
                         HeartbeatReceived?.Invoke(this, new HeartbeatReceivedEventArgs(session.Id, synthetic));
@@ -184,6 +180,46 @@ public class GameMonitor : IGameMonitor
                 _logger.LogError(ex, "Error in game monitoring loop");
                 await Task.Delay(TimeSpan.FromSeconds(10), token);
             }
+        }
+    }
+
+    /// <summary>
+    /// Waits for the process to exit using OS-level event notification (zero polling cost),
+    /// then immediately fires <see cref="GameExited"/>. This runs concurrently with the
+    /// heartbeat loop so exit detection is instant regardless of the 3-second poll interval.
+    /// </summary>
+    private async Task WatchForExitAsync(int processId, string sessionId, CancellationToken token)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            process.EnableRaisingEvents = true;
+            await process.WaitForExitAsync(token);
+        }
+        catch (ArgumentException)
+        {
+            // Process was already gone by the time we opened it — treat as exited below.
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "WatchForExitAsync error for PID {Pid}", processId);
+        }
+
+        _minimizedStates.TryGetValue(processId, out var wasMinimized);
+        _minimizedStates.Remove(processId);
+        _watchedPids.Remove(processId);
+
+        // Only fire if the session is still active (heartbeat kill path may have beaten us).
+        var session = await _sessionService.GetSessionByProcessIdAsync(processId);
+        if (session is not null)
+        {
+            await _sessionService.CloseSessionAsync(sessionId);
+            GameExited?.Invoke(this, new GameExitedEventArgs(processId, wasMinimized));
+            _logger.LogInformation("Process {Pid} exited — session closed immediately via WaitForExitAsync", processId);
         }
     }
 }

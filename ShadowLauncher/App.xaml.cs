@@ -4,6 +4,7 @@ using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using ShadowLauncher.Application;
 using ShadowLauncher.Infrastructure;
+using ShadowLauncher.Infrastructure.Native;
 
 namespace ShadowLauncher;
 
@@ -28,6 +29,10 @@ public partial class App : System.Windows.Application
         _serviceProvider = services.BuildServiceProvider();
 
         _coordinator = _serviceProvider.GetRequiredService<AppCoordinator>();
+
+        SymlinkPrivilegeHelper.PrivilegeStatus? symlinkStatus = null;
+        _coordinator.SymlinkPrivilegeChecked += (_, status) => symlinkStatus = status;
+
         await _coordinator.InitializeAsync();
 
         // Apply saved theme (replaces the default ShadowTheme loaded from App.xaml).
@@ -48,6 +53,26 @@ public partial class App : System.Windows.Application
         }
 
         mainWindow.Show();
+
+        // Notify user about symlink privilege result if action was needed.
+        if (symlinkStatus == SymlinkPrivilegeHelper.PrivilegeStatus.GrantedNeedsLogoff)
+        {
+            MessageBox.Show(
+                "ShadowLauncher has granted the symbolic link permission required for multi-client launching.\n\n" +
+                "Please sign out and back in to activate it, then relaunch ShadowLauncher.",
+                "Sign Out Required",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        else if (symlinkStatus == SymlinkPrivilegeHelper.PrivilegeStatus.GrantFailed)
+        {
+            MessageBox.Show(
+                "ShadowLauncher could not set the symbolic link permission required for multi-client launching.\n\n" +
+                "Please right-click ShadowLauncher and choose 'Run as administrator' once to apply it, then relaunch normally.",
+                "Permission Required",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     protected override async void OnExit(ExitEventArgs e)

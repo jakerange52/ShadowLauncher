@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Interfaces;
+using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Services.Dats;
 using ShadowLauncher.Services.Monitoring;
 using ShadowLauncher.Services.Servers;
@@ -19,6 +20,7 @@ public class AppCoordinator
     private Task? _serverMonitorTask;
 
     public event EventHandler? ServerStatusRefreshed;
+    public event EventHandler<SymlinkPrivilegeHelper.PrivilegeStatus>? SymlinkPrivilegeChecked;
 
     public AppCoordinator(
         IConfigurationProvider config,
@@ -49,6 +51,12 @@ public class AppCoordinator
 
         // Silently detect AC client and import ThwargLauncher data on first launch.
         await _firstRunService.RunAsync();
+
+        // Ensure SeCreateSymbolicLinkPrivilege is active — covers users who installed
+        // an older build before the installer granted it unconditionally.
+        var privilegeStatus = SymlinkPrivilegeHelper.EnsurePrivilege(_logger);
+        if (privilegeStatus != SymlinkPrivilegeHelper.PrivilegeStatus.AlreadyActive)
+            SymlinkPrivilegeChecked?.Invoke(this, privilegeStatus);
 
         // Fetch a fresh DatRegistry.xml in the background so checksums and server
         // mappings are always up to date. Failures are non-fatal — the bundled or

@@ -73,10 +73,12 @@ public class SymlinkLauncher
         try
         {
             Directory.CreateDirectory(testDir);
-            // Attempt to create a file symlink to a non-existent target — we only care
-            // whether the API succeeds, not whether the target exists.
-            // Flag 2 = SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE (required for Developer Mode).
-            return CreateSymbolicLink(linkPath, "dummy_target", 2);
+            // Try Developer Mode first (flag 2 = SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE).
+            if (CreateSymbolicLink(linkPath, "dummy_target", 2))
+                return true;
+            // Fall back to privilege-based creation (flag 0) — works when
+            // SeCreateSymbolicLinkPrivilege has been granted (e.g. by the installer).
+            return CreateSymbolicLink(linkPath, "dummy_target", 0);
         }
         catch
         {
@@ -248,11 +250,43 @@ public class SymlinkLauncher
 
     private static bool IsInstanceStale(string instanceDir)
     {
-        // An instance directory is stale if it is older than 1 hour and no running process
-        // has its working directory inside it. Age is used as a conservative heuristic
-        // because comparing paths across reboots is unreliable.
-        var info = new DirectoryInfo(instanceDir);
-        return (DateTime.UtcNow - info.CreationTimeUtc).TotalHours > 1;
+        // An instance is stale only if no acclient.exe process is running from it.
+        // We check the process's main module path against the instance directory.
+        // If we can't read a process's module (access denied / 32-bit vs 64-bit), we
+        // conservatively treat it as still active so we never kill a live session.
+        // The age fallback is intentionally removed — a 1-hour heuristic was causing
+        // live instances to be cleaned up mid-session on long play sessions.
+        var instanceDirNorm = Path.GetFullPath(instanceDir)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .ToLowerInvariant();
+
+        foreach (var proc in System.Diagnostics.Process.GetProcessesByName("acclient"))
+        {
+            try
+            {
+                var exePath = proc.MainModule?.FileName;
+                if (string.IsNullOrEmpty(exePath)) return false; // can't confirm — keep it
+
+                var exeDirNorm = Path.GetFullPath(Path.GetDirectoryName(exePath)!)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    .ToLowerInvariant();
+
+                if (exeDirNorm == instanceDirNorm)
+                    return false; // actively in use
+            }
+            catch
+            {
+                // Can't read the module (e.g. access denied on a 32-bit process from 64-bit host).
+                // Conservatively assume it might be ours.
+                return false;
+            }
+            finally
+            {
+                proc.Dispose();
+            }
+        }
+
+        return true; // no running acclient.exe found in this instance dir
     }
 
     private void CleanupInstance(string instanceDir)
@@ -270,14 +304,15 @@ public class SymlinkLauncher
 
     private static void CreateFileSymlink(string linkPath, string targetPath)
     {
-        // SYMBOLIC_LINK_FLAG_FILE = 0; SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE = 2
-        // The unprivileged flag is required for Developer Mode to bypass elevation.
-        if (!CreateSymbolicLink(linkPath, targetPath, 2))
-        {
-            var error = Marshal.GetLastWin32Error();
-            throw new InvalidOperationException(
-                $"CreateSymbolicLink failed for '{linkPath}' → '{targetPath}' (Win32 error {error}).");
-        }
+        // Try Developer Mode first (flag 2), then privilege-based (flag 0).
+        if (CreateSymbolicLink(linkPath, targetPath, 2))
+            return;
+        if (CreateSymbolicLink(linkPath, targetPath, 0))
+            return;
+
+        var error = Marshal.GetLastWin32Error();
+        throw new InvalidOperationException(
+            $"CreateSymbolicLink failed for '{linkPath}' → '{targetPath}' (Win32 error {error}).");
     }
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]

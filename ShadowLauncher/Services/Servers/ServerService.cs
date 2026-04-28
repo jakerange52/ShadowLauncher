@@ -45,26 +45,21 @@ public class ServerService : IServerService
         var server = await _repository.GetByIdAsync(serverId);
         if (server is null) return false;
 
+        bool isOnline;
         try
         {
-            // Resolve hostname first
             var addresses = await System.Net.Dns.GetHostAddressesAsync(server.Hostname);
-            if (addresses.Length == 0)
-            {
-                server.IsOnline = false;
-            }
-            else
-            {
-                // Send a UDP login probe packet (same approach as ThwargLauncher).
-                // AC emulator servers respond to this even when ICMP is blocked.
-                server.IsOnline = await IsUdpServerUpAsync(addresses[0].ToString(), server.Port);
-            }
+            isOnline = addresses.Length > 0 &&
+                       await IsUdpServerUpAsync(addresses[0].ToString(), server.Port);
         }
         catch
         {
-            server.IsOnline = false;
+            isOnline = false;
         }
 
+        // Mutate IsOnline in-place on the cached object so any UI-bound reference
+        // fires INotifyPropertyChanged without needing a full collection reload.
+        server.IsOnline = isOnline;
         server.LastStatusCheck = DateTime.UtcNow;
         await _repository.UpdateAsync(server);
         return server.IsOnline;

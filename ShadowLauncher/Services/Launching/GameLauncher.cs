@@ -108,9 +108,8 @@ public class GameLauncher : IGameLauncher
             {
                 if (!SymlinkLauncher.CanCreateSymlinks())
                 {
-                    result.ErrorMessage = "This server requires DAT file switching via symbolic links, but symlink creation failed. " +
-                        "Enable Developer Mode in Windows Settings → For developers, then restart the launcher.";
-                    _logger.LogError("CanCreateSymlinks() returned false — Developer Mode may be off");
+                    result.ErrorMessage = "Symbolic link creation failed. Sign out and back in to activate the privilege granted during install, then try again.";
+                    _logger.LogError("CanCreateSymlinks() returned false for server '{Server}'", server.Name);
                     return result;
                 }
 
@@ -140,9 +139,8 @@ public class GameLauncher : IGameLauncher
 
                 if (!SymlinkLauncher.CanCreateSymlinks())
                 {
-                    result.ErrorMessage = "This server requires DAT file switching via symbolic links, but symlink creation failed. " +
-                        "Enable Developer Mode in Windows Settings → For developers, then restart the launcher.";
-                    _logger.LogError("CanCreateSymlinks() returned false — Developer Mode may be off");
+                    result.ErrorMessage = "Symbolic link creation failed. Sign out and back in to activate the privilege granted during install, then try again.";
+                    _logger.LogError("CanCreateSymlinks() returned false for server '{Server}'", server.Name);
                     return result;
                 }
 
