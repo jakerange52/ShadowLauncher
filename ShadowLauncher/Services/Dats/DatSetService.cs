@@ -155,8 +155,8 @@ public class DatSetService : IDatSetService
 
             try
             {
-                await DownloadRawAsync(_httpClient, resolvedUrl, tempZip, progress);
-                _logger.LogInformation("Extracting custom DAT zip for '{Server}'", server.Name);
+await DownloadRawAsync(_httpClient, resolvedUrl, tempZip, progress);
+_logger.LogInformation("Extracting custom DAT zip for '{Server}'", server.Name);
                 ExtractDatZip(tempZip, localDir, new DatSet(), overwrite: isNewRelease);
                 WriteVersionSidecar(localDir, releaseTag);
             }
@@ -236,8 +236,8 @@ public class DatSetService : IDatSetService
 
             try
             {
-                await DownloadRawAsync(_httpClient, resolvedUrl, tempZip, progress);
-                _logger.LogInformation("Extracting DAT zip for '{Id}'", set.Id);
+await DownloadRawAsync(_httpClient, resolvedUrl, tempZip, progress);
+_logger.LogInformation("Extracting DAT zip for '{Id}'", set.Id);
                 ExtractDatZip(tempZip, localDir, set, overwrite: isNewRelease);
                 WriteVersionSidecar(localDir, releaseTag);
             }

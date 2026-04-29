@@ -118,7 +118,7 @@ public class FirstRunService
                 if (trimmed.StartsWith("Version=", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                var props = ThwargLineParser.Parse(trimmed);
+var props = ThwargLineParser.Parse(trimmed);
                 if (!props.TryGetValue("Name", out var name) || string.IsNullOrWhiteSpace(name))
                     continue;
                 props.TryGetValue("Password", out var password);

@@ -29,30 +29,30 @@ public class BetaServerListDownloader
     /// </summary>
     public async Task<IReadOnlyList<Server>> FetchServersAsync()
     {
-        var xml = await ServerListFetcher.FetchXmlWithCacheAsync(BetaServerListUrl, _cachePath);
-        return xml is null ? [] : ParseXml(xml);
+var xml = await ServerListFetcher.FetchXmlWithCacheAsync(BetaServerListUrl, _cachePath);
+return xml is null ? [] : ParseXml(xml);
     }
 
     private static List<Server> ParseXml(string xml)
     {
-        var servers = new List<Server>();
-        foreach (var item in XDocument.Parse(xml).Descendants("ServerItem"))
-        {
-            var server = ServerListFetcher.ParseCommonFields(item);
-            if (server is null) continue;
+var servers = new List<Server>();
+foreach (var item in XDocument.Parse(xml).Descendants("ServerItem"))
+{
+    var server = ServerListFetcher.ParseCommonFields(item);
+    if (server is null) continue;
 
-            var datZipUrl = item.Element("dat_zip_url")?.Value?.Trim();
+    var datZipUrl = item.Element("dat_zip_url")?.Value?.Trim();
 
-            server.DefaultRodat = item.Element("default_rodat")?.Value
-                                      ?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
-            server.SecureLogon  = item.Element("default_secure")?.Value
-                                      ?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
-            server.CustomDatZipUrl  = string.IsNullOrWhiteSpace(datZipUrl) ? null : datZipUrl;
-            server.IsManuallyAdded  = false;
-            server.IsBeta           = true;
+    server.DefaultRodat = item.Element("default_rodat")?.Value
+                              ?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
+    server.SecureLogon  = item.Element("default_secure")?.Value
+                              ?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
+    server.CustomDatZipUrl  = string.IsNullOrWhiteSpace(datZipUrl) ? null : datZipUrl;
+    server.IsManuallyAdded  = false;
+    server.IsBeta           = true;
 
-            servers.Add(server);
-        }
+    servers.Add(server);
+}
         return servers;
     }
 }
