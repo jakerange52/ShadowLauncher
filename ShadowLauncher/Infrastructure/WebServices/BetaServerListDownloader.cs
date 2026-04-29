@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Xml.Linq;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
@@ -30,68 +29,30 @@ public class BetaServerListDownloader
     /// </summary>
     public async Task<IReadOnlyList<Server>> FetchServersAsync()
     {
-        string xml;
-        try
-        {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            xml = await http.GetStringAsync(BetaServerListUrl);
-
-            Directory.CreateDirectory(Path.GetDirectoryName(_cachePath)!);
-            await File.WriteAllTextAsync(_cachePath, xml);
-        }
-        catch
-        {
-            if (File.Exists(_cachePath))
-                xml = await File.ReadAllTextAsync(_cachePath);
-            else
-                return [];
-        }
-
-        return ParseXml(xml);
+var xml = await ServerListFetcher.FetchXmlWithCacheAsync(BetaServerListUrl, _cachePath);
+return xml is null ? [] : ParseXml(xml);
     }
 
     private static List<Server> ParseXml(string xml)
     {
-        var doc = XDocument.Parse(xml);
-        var servers = new List<Server>();
+var servers = new List<Server>();
+foreach (var item in XDocument.Parse(xml).Descendants("ServerItem"))
+{
+    var server = ServerListFetcher.ParseCommonFields(item);
+    if (server is null) continue;
 
-        foreach (var item in doc.Descendants("ServerItem"))
-        {
-            var name = item.Element("name")?.Value?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(name)) continue;
+    var datZipUrl = item.Element("dat_zip_url")?.Value?.Trim();
 
-            var emuText = item.Element("emu")?.Value?.Trim() ?? "ACE";
-            var emulator = emuText.Equals("GDL", StringComparison.OrdinalIgnoreCase)
-                        || emuText.Equals("GDLE", StringComparison.OrdinalIgnoreCase)
-                ? EmulatorType.GDLE
-                : EmulatorType.ACE;
+    server.DefaultRodat = item.Element("default_rodat")?.Value
+                              ?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
+    server.SecureLogon  = item.Element("default_secure")?.Value
+                              ?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
+    server.CustomDatZipUrl  = string.IsNullOrWhiteSpace(datZipUrl) ? null : datZipUrl;
+    server.IsManuallyAdded  = false;
+    server.IsBeta           = true;
 
-            _ = int.TryParse(item.Element("server_port")?.Value?.Trim(), out var port);
-            if (port <= 0) port = 9000;
-
-            var datZipUrl = item.Element("dat_zip_url")?.Value?.Trim() ?? string.Empty;
-
-            servers.Add(new Server
-            {
-                Id            = (item.Element("id")?.Value?.Trim() ?? name).ToLowerInvariant(),
-                Name          = name,
-                Description   = item.Element("description")?.Value?.Trim() ?? string.Empty,
-                Emulator      = emulator,
-                Hostname      = item.Element("server_host")?.Value?.Trim() ?? string.Empty,
-                Port          = port,
-                DiscordUrl    = item.Element("discord_url")?.Value?.Trim() ?? string.Empty,
-                WebsiteUrl    = item.Element("website_url")?.Value?.Trim() ?? string.Empty,
-                PublishedStatus = item.Element("status")?.Value?.Trim() ?? string.Empty,
-                DefaultRodat  = item.Element("default_rodat")?.Value
-                                    ?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false,
-                SecureLogon   = item.Element("default_secure")?.Value
-                                    ?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false,
-                CustomDatZipUrl = string.IsNullOrWhiteSpace(datZipUrl) ? null : datZipUrl,
-                IsManuallyAdded = false,
-                IsBeta          = true,
-            });
-        }
-
+    servers.Add(server);
+}
         return servers;
     }
 }

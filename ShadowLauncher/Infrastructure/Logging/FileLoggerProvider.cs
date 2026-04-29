@@ -74,7 +74,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
             var cutoff = DateTime.Now.AddDays(-_retentionDays);
             foreach (var file in Directory.GetFiles(_logDirectory, "ShadowLauncher_*.log"))
             {
-                if (File.GetCreationTime(file) < cutoff)
+                if (File.GetLastWriteTime(file) < cutoff)
                     File.Delete(file);
             }
         }

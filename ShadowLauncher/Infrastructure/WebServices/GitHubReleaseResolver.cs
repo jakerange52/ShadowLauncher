@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -16,6 +15,16 @@ namespace ShadowLauncher.Infrastructure.WebServices;
 /// </summary>
 public class GitHubReleaseResolver
 {
+    private static readonly HttpClient _http = CreateHttpClient();
+
+    private static HttpClient CreateHttpClient()
+    {
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("ShadowLauncher", "1.0"));
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        return client;
+    }
+
     // Captures owner, repo, and an optional specific tag from /releases/tag/{tag}
     private static readonly Regex GitHubRepoPattern = new(
         @"https://github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)/releases(?:/tag/(?<tag>[^/?#]+))?",
@@ -54,11 +63,7 @@ public class GitHubReleaseResolver
 
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("ShadowLauncher", "1.0"));
-            http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-
-            var json = await http.GetStringAsync(apiUrl);
+            var json = await _http.GetStringAsync(apiUrl);
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             var tag  = root.GetProperty("tag_name").GetString() ?? string.Empty;

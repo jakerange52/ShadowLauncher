@@ -5,13 +5,14 @@ namespace ShadowLauncher.Services.GameSessions;
 public interface IGameSessionService
 {
     Task<GameSession> CreateSessionAsync(Account account, Server server, int processId);
-    Task UpdateSessionAsync(GameSession session);
     Task<GameSession?> GetSessionAsync(string sessionId);
     Task<GameSession?> GetSessionByProcessIdAsync(int processId);
     Task CloseSessionAsync(string sessionId);
     Task RecordHeartbeatAsync(string sessionId, HeartbeatData heartbeatData);
-    Task<bool> IsSessionAliveAsync(string sessionId, TimeSpan timeout);
     Task<IEnumerable<GameSession>> GetActiveSessionsAsync();
+
+    /// <summary>Restores a session recovered from the on-disk journal into the in-memory store.</summary>
+    Task RestoreSessionAsync(GameSession session);
 }
 
 public class HeartbeatData

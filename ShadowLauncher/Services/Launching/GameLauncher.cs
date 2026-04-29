@@ -27,7 +27,6 @@ namespace ShadowLauncher.Services.Launching;
 public class GameLauncher : IGameLauncher
 {
     private readonly IConfigurationProvider _config;
-    private readonly IEventAggregator _events;
     private readonly ILogger<GameLauncher> _logger;
     private readonly LoginCommandsService _loginCommandsService;
     private readonly SymlinkLauncher _symlinkLauncher;
@@ -35,14 +34,12 @@ public class GameLauncher : IGameLauncher
 
     public GameLauncher(
         IConfigurationProvider config,
-        IEventAggregator events,
         SymlinkLauncher symlinkLauncher,
         IDatSetService datSetService,
         LoginCommandsService loginCommandsService,
         ILogger<GameLauncher> logger)
     {
         _config = config;
-        _events = events;
         _symlinkLauncher = symlinkLauncher;
         _datSetService = datSetService;
         _loginCommandsService = loginCommandsService;
@@ -108,9 +105,8 @@ public class GameLauncher : IGameLauncher
             {
                 if (!SymlinkLauncher.CanCreateSymlinks())
                 {
-                    result.ErrorMessage = "This server requires DAT file switching via symbolic links, but symlink creation failed. " +
-                        "Enable Developer Mode in Windows Settings → For developers, then restart the launcher.";
-                    _logger.LogError("CanCreateSymlinks() returned false — Developer Mode may be off");
+                    result.ErrorMessage = "Symbolic link creation failed. Sign out and back in to activate the privilege granted during install, then try again.";
+                    _logger.LogError("CanCreateSymlinks() returned false for server '{Server}'", server.Name);
                     return result;
                 }
 
@@ -140,9 +136,8 @@ public class GameLauncher : IGameLauncher
 
                 if (!SymlinkLauncher.CanCreateSymlinks())
                 {
-                    result.ErrorMessage = "This server requires DAT file switching via symbolic links, but symlink creation failed. " +
-                        "Enable Developer Mode in Windows Settings → For developers, then restart the launcher.";
-                    _logger.LogError("CanCreateSymlinks() returned false — Developer Mode may be off");
+                    result.ErrorMessage = "Symbolic link creation failed. Sign out and back in to activate the privilege granted during install, then try again.";
+                    _logger.LogError("CanCreateSymlinks() returned false for server '{Server}'", server.Name);
                     return result;
                 }
 
@@ -222,7 +217,6 @@ public class GameLauncher : IGameLauncher
 
             if (result.Success)
             {
-                _events.Publish(new GameLaunchedEvent(account.Id, character.Name, server.Id, processId));
                 _logger.LogInformation("Game launched successfully, PID: {Pid}", processId);
             }
             else
@@ -319,6 +313,30 @@ public class GameLauncher : IGameLauncher
     }
 
     /// <summary>
+    /// Removes the ThwargFilter launch file written at session start.
+    /// Called when the game process exits so stale launch files do not accumulate.
+    /// </summary>
+    public void CleanupThwargFilterLaunchFile(string accountName, string serverName)
+    {
+        try
+        {
+            var launchFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "ThwargLauncher", "LaunchFiles");
+            var filePath = Path.Combine(launchFolder, $"launch_ThwargFilter_{serverName}_{accountName}.txt");
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+                _logger.LogInformation("Removed ThwargFilter launch file for {Account} on {Server}", accountName, serverName);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to remove ThwargFilter launch file");
+        }
+    }
+
+    /// <summary>
     /// Writes a ThwargFilter launch file so the filter knows which account/server/character
     /// is logging in. This enables ThwargFilter to record character lists and execute login commands.
     /// File: %AppData%\ThwargLauncher\LaunchFiles\launch_ThwargFilter_{Server}_{Account}.txt
@@ -348,5 +366,3 @@ public class GameLauncher : IGameLauncher
         }
     }
 }
-
-public record GameLaunchedEvent(string AccountId, string CharacterName, string ServerId, int ProcessId);

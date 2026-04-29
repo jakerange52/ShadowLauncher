@@ -1,7 +1,17 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
 namespace ShadowLauncher.Core.Models;
 
-public class Server : IEquatable<Server>
+public class Server : IEquatable<Server>, INotifyPropertyChanged
 {
+    private bool _isOnline;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged([CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public EmulatorType Emulator { get; set; } = EmulatorType.ACE;
@@ -50,19 +60,23 @@ public class Server : IEquatable<Server>
     /// </summary>
     public bool IsBeta { get; set; }
 
-    public bool IsOnline { get; set; }
+    public bool IsOnline
+    {
+        get => _isOnline;
+        set
+        {
+            if (_isOnline == value) return;
+            _isOnline = value;
+            OnPropertyChanged();
+        }
+    }
+
     public DateTime LastStatusCheck { get; set; }
 
     public bool IsValid()
         => !string.IsNullOrWhiteSpace(Name)
         && !string.IsNullOrWhiteSpace(Hostname)
         && Port > 0 && Port <= 65535;
-
-    public string GetDisplayName()
-    {
-        var status = IsOnline ? "●" : "○";
-        return $"{status} {Name} [{Emulator}]";
-    }
 
     public bool Equals(Server? other) => other is not null && Id == other.Id;
     public override bool Equals(object? obj) => Equals(obj as Server);

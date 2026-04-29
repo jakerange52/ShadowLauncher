@@ -12,6 +12,4 @@ public interface IServerService
     Task DeleteServerAsync(string serverId);
     Task<bool> CheckServerStatusAsync(string serverId);
     Task RefreshAllServerStatusAsync();
-    Task AssociateServerWithAccountAsync(string accountId, string serverId);
-    Task RemoveServerFromAccountAsync(string accountId, string serverId);
 }

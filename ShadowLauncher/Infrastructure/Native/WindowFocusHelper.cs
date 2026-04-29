@@ -17,8 +17,39 @@ internal static partial class WindowFocusHelper
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, nint lParam);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(nint hWnd);
+
+    private delegate bool EnumWindowsProc(nint hWnd, nint lParam);
+
     private const int SW_RESTORE  = 9;
     private const int SW_MINIMIZE = 6;
+
+    /// <summary>
+    /// Finds the first visible top-level window belonging to <paramref name="processId"/>.
+    /// Returns <see cref="nint.Zero"/> if none is found.
+    /// </summary>
+    internal static nint FindWindowForProcess(int processId)
+    {
+        nint found = nint.Zero;
+        EnumWindows((hWnd, _) =>
+        {
+            GetWindowThreadProcessId(hWnd, out uint pid);
+            if (pid == (uint)processId && IsWindowVisible(hWnd))
+            {
+                found = hWnd;
+                return false; // stop enumerating
+            }
+            return true;
+        }, nint.Zero);
+        return found;
+    }
 
     /// <summary>Brings the main window of the given process to the foreground.
     /// Returns true if a window was found and focused.

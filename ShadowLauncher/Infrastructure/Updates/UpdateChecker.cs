@@ -1,5 +1,4 @@
-﻿using System.Net.Http;
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text.Json;
 
@@ -16,6 +15,18 @@ public class UpdateChecker
     private const string GitHubRepo  = "ShadowLauncher";
     private const string ApiUrl      = $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}/releases/latest";
 
+    private static readonly HttpClient _http = CreateHttpClient();
+
+    private static HttpClient CreateHttpClient()
+    {
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        client.DefaultRequestHeaders.UserAgent.Add(
+            new ProductInfoHeaderValue("ShadowLauncher", CurrentVersion.ToString()));
+        client.DefaultRequestHeaders.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        return client;
+    }
+
     /// <summary>Returns the version of the currently running assembly.</summary>
     public static Version CurrentVersion =>
         Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 1, 0);
@@ -28,8 +39,7 @@ public class UpdateChecker
     {
         try
         {
-            using var http = MakeHttpClient();
-            var json = await http.GetStringAsync(ApiUrl);
+            var json = await _http.GetStringAsync(ApiUrl);
 
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
@@ -95,8 +105,7 @@ public class UpdateChecker
     {
         var destPath = Path.Combine(Path.GetTempPath(), "ShadowLauncher-Setup-Update.exe");
 
-        using var http = MakeHttpClient();
-        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
 
         var totalBytes = response.Content.Headers.ContentLength ?? 0;
@@ -118,18 +127,7 @@ public class UpdateChecker
         return destPath;
     }
 
-    private static HttpClient MakeHttpClient()
-    {
-        // Note: short-lived usage only — each call site wraps this in a using block.
-        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        // GitHub API requires a User-Agent header.
-        http.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue("ShadowLauncher", CurrentVersion.ToString()));
-        http.DefaultRequestHeaders.Accept.Add(
-            new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        return http;
     }
-}
 
 /// <summary>Result returned by <see cref="UpdateChecker.CheckAsync"/>.</summary>
 public class UpdateCheckResult

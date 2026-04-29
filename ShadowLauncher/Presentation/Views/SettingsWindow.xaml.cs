@@ -58,6 +58,14 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void OpenDatCache_Click(object sender, RoutedEventArgs e)
+    {
+        var vm = (SettingsViewModel)DataContext;
+        var dir = vm.DatSetsDirectory;
+        System.IO.Directory.CreateDirectory(dir);
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dir) { UseShellExecute = true });
+    }
+
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
     private void OpenLoginCommands_Click(object sender, RoutedEventArgs e)

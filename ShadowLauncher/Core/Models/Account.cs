@@ -5,7 +5,6 @@ public class Account : IEquatable<Account>
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
     public List<Character> Characters { get; set; } = [];
     public List<string> ServerIds { get; set; } = [];
     public bool IsActive { get; set; } = true;

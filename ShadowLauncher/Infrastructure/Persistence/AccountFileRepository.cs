@@ -70,7 +70,7 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
                 if (trimmed.StartsWith("Version="))
                     continue;
 
-                var properties = ParseThwargLine(trimmed);
+                var properties = ThwargLineParser.Parse(trimmed);
                 if (!properties.TryGetValue("Name", out var name) || string.IsNullOrEmpty(name))
                     continue;
                 if (!properties.TryGetValue("Password", out var password))
@@ -114,11 +114,11 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
             {
                 var parts = new List<string>
                 {
-                    $"Name={Encode(a.Name)}",
-                    $"Password={Encode(a.PasswordHash)}"
+                    $"Name={ThwargLineParser.Encode(a.Name)}",
+                    $"Password={ThwargLineParser.Encode(a.PasswordHash)}"
                 };
                 if (!string.IsNullOrEmpty(a.Notes))
-                    parts.Add($"Alias={Encode(a.Notes)}");
+                    parts.Add($"Alias={ThwargLineParser.Encode(a.Notes)}");
 
                 lines.Add(string.Join(",", parts));
             }
@@ -128,84 +128,6 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
         {
             _watcher.EnableRaisingEvents = true;
         }
-    }
-
-    /// <summary>
-    /// Parses a ThwargLauncher account line into key-value pairs.
-    /// Format: Key1=Value1,Key2=Value2 with ^c/^e/^u encoding.
-    /// </summary>
-    private static Dictionary<string, string> ParseThwargLine(string line)
-    {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var pairs = SplitEncoded(line, ',');
-        foreach (var pair in pairs)
-        {
-            var eqIndex = FindUnescapedEquals(pair);
-            if (eqIndex <= 0) continue;
-            var key = Decode(pair[..eqIndex]);
-            var value = Decode(pair[(eqIndex + 1)..]);
-            result[key] = value;
-        }
-        return result;
-    }
-
-    private static List<string> SplitEncoded(string text, char delimiter)
-    {
-        // Split on unencoded commas (^c is an encoded comma, not a real one)
-        var parts = new List<string>();
-        var current = new System.Text.StringBuilder();
-        for (int i = 0; i < text.Length; i++)
-        {
-            if (text[i] == '^' && i + 1 < text.Length)
-            {
-                current.Append(text[i]);
-                current.Append(text[i + 1]);
-                i++;
-            }
-            else if (text[i] == delimiter)
-            {
-                parts.Add(current.ToString());
-                current.Clear();
-            }
-            else
-            {
-                current.Append(text[i]);
-            }
-        }
-        parts.Add(current.ToString());
-        return parts;
-    }
-
-    private static int FindUnescapedEquals(string text)
-    {
-        for (int i = 0; i < text.Length; i++)
-        {
-            if (text[i] == '^' && i + 1 < text.Length)
-            {
-                i++; // skip encoded char
-            }
-            else if (text[i] == '=')
-            {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private static string Encode(string text)
-    {
-        text = text.Replace("^", "^u");
-        text = text.Replace(",", "^c");
-        text = text.Replace("=", "^e");
-        return text;
-    }
-
-    private static string Decode(string text)
-    {
-        text = text.Replace("^e", "=");
-        text = text.Replace("^c", ",");
-        text = text.Replace("^u", "^");
-        return text;
     }
 
     public Task<Account?> GetByIdAsync(string id)

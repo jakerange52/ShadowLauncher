@@ -64,6 +64,7 @@
     <SolidColorBrush x:Key="RedPressBrush" Color="{StaticResource ShadowRedPress}"/>
     <SolidColorBrush x:Key="TextBrush" Color="{StaticResource ShadowText}"/>
     <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource ShadowTextMuted}"/>
+    <SolidColorBrush x:Key="BetaBadgeBrush" Color="#F5C842"/>
 
     <!-- ═══════ Window ═══════ -->
     <Style TargetType="Window">

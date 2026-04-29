@@ -21,17 +21,17 @@
         <converters:StringNotEmptyToVisibilityConverter x:Key="StringNotEmptyToVisibilityConverter"/>
         <converters:WebsiteMenuVisibilityConverter x:Key="WebsiteMenuVisibilityConverter"/>
         <converters:ServerDetailsButtonVisibilityConverter x:Key="ServerDetailsButtonVisibilityConverter"/>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
     </Window.Resources>
 
     <Border CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
             Background="{DynamicResource BgBrush}">
         <Grid Margin="14">
             <!-- Title bar: icon + stacked title + Settings + Minimize + Close -->
-            <DockPanel VerticalAlignment="Top" Margin="0,-6,0,0" Height="52">
+            <DockPanel VerticalAlignment="Top" Margin="0,-6,0,0" Height="52"
+                       WindowChrome.IsHitTestVisibleInChrome="True">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
-                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0"
-                            WindowChrome.IsHitTestVisibleInChrome="True">
+                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0">
                     <!-- Theme scroller -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
                         <Button Content="&#x276E;" Width="22" Height="22" Padding="0" FontSize="11"
@@ -56,7 +56,7 @@
                             ToolTip="Close"/>
                 </StackPanel>
                 <!-- Title text + version -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" IsHitTestVisible="False">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock FontSize="28" FontWeight="Bold"
                                Foreground="{DynamicResource RedBrush}"
                                FontFamily="{DynamicResource TitleFont}"
@@ -66,8 +66,10 @@
                         </TextBlock.Effect>
                         <Run Text="Shadow"/><LineBreak/><Run Text="Launcher"/>
                     </TextBlock>
-                    <TextBlock Text="{Binding CurrentVersion}" FontSize="10" Foreground="#666"
-                               VerticalAlignment="Bottom" Margin="6,0,0,2"/>
+                    <TextBlock Text="{Binding CurrentVersion}" FontSize="10"
+                               Foreground="#555" Margin="6,0,0,0"
+                               VerticalAlignment="Bottom"
+                               FontFamily="{DynamicResource EmojiFont}"/>
                 </StackPanel>
             </DockPanel>
         <Grid Margin="0,56,0,0">
@@ -219,21 +221,16 @@
                                                   Visibility="{Binding IsManuallyAdded, Converter={StaticResource BoolToVisibility}}"/>
                                     </ContextMenu>
                                 </Grid.ContextMenu>
-                                <!-- Status dot -->
+                                <!-- Status arrow -->
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding IsOnline, Converter={StaticResource OnlineStatusConverter}}"
                                            Foreground="{Binding IsOnline, Converter={StaticResource OnlineStatusColorConverter}}"
-                                           Margin="0,0,4,0" VerticalAlignment="Center" FontSize="10"/>
-                                <!-- β badge for beta servers -->
-                                <TextBlock Grid.Column="1" Text="&#x03B2;"
-                                           FontFamily="Segoe UI"
-                                           Foreground="#E8A838" FontSize="10" FontWeight="Bold"
-                                           VerticalAlignment="Center" Margin="0,0,4,0"
-                                           ToolTip="Beta server - may have custom DATs or be in early development">
-                                    <TextBlock.Visibility>
-                                        <Binding Path="IsBeta" Converter="{StaticResource BoolToVisibility}"/>
-                                    </TextBlock.Visibility>
-                                </TextBlock>
+                                           Margin="0,0,6,0" VerticalAlignment="Center" FontSize="10"/>
+                                <!-- Beta badge -->
+                                <TextBlock Grid.Column="1" Text="β" FontSize="10" FontWeight="Bold"
+                                           Foreground="{DynamicResource BetaBadgeBrush}" VerticalAlignment="Center" Margin="0,0,4,0"
+                                           ToolTip="Beta server"
+                                           Visibility="{Binding IsBeta, Converter={StaticResource BoolToVisibility}}"/>
                                 <!-- Server name -->
                                 <TextBlock Grid.Column="2" Text="{Binding Name}"
                                            VerticalAlignment="Center" Foreground="#DDD"/>
@@ -282,44 +279,6 @@
                     <DataGridTextColumn Header="Status" Binding="{Binding Status, Converter={StaticResource SessionStatusConverter}}" Width="100"/>
                     <DataGridTextColumn Header="PID" Binding="{Binding ProcessId}" Width="60"/>
                     <DataGridTextColumn Header="Active Time" Binding="{Binding UptimeSeconds, Converter={StaticResource UptimeConverter}}" Width="90"/>
-                    <DataGridTemplateColumn Width="80">
-                        <DataGridTemplateColumn.HeaderTemplate>
-                            <DataTemplate>
-                                <Button Content="Min All" Padding="4,2"
-                                        Style="{DynamicResource GridActionButton}"
-                                        Command="{Binding DataContext.MinimizeAllSessionsCommand,
-                                                  RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.HeaderTemplate>
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Button Content="Minimize" Padding="4,2"
-                                        Style="{DynamicResource GridActionButton}"
-                                        Command="{Binding DataContext.MinimizeSessionCommand,
-                                                  RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                        CommandParameter="{Binding}"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Width="80">
-                        <DataGridTemplateColumn.HeaderTemplate>
-                            <DataTemplate>
-                                <Button Content="Rst All" Padding="4,2"
-                                        Style="{DynamicResource GridActionButton}"
-                                        Command="{Binding DataContext.RestoreAllSessionsCommand,
-                                                  RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.HeaderTemplate>
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Button Content="Restore" Padding="4,2"
-                                        Style="{DynamicResource GridActionButton}"
-                                        Command="{Binding DataContext.RestoreSessionCommand,
-                                                  RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                        CommandParameter="{Binding}"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </GroupBox>

@@ -118,7 +118,7 @@ public class FirstRunService
                 if (trimmed.StartsWith("Version=", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                var props = ParseThwargLine(trimmed);
+var props = ThwargLineParser.Parse(trimmed);
                 if (!props.TryGetValue("Name", out var name) || string.IsNullOrWhiteSpace(name))
                     continue;
                 props.TryGetValue("Password", out var password);
@@ -146,33 +146,5 @@ public class FirstRunService
         {
             _logger.LogDebug(ex, "First-run: could not import ThwargLauncher accounts");
         }
-    }
-
-    // ── Shared parsing ─────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Parses a ThwargLauncher account line.
-    /// Thwarg escapes commas as ^c, equals as ^e, and carets as ^u.
-    /// </summary>
-    private static Dictionary<string, string> ParseThwargLine(string line)
-    {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var pairs = line.Split(',');
-
-        foreach (var pair in pairs)
-        {
-            var eqIdx = pair.IndexOf('=');
-            if (eqIdx < 0) continue;
-
-            var key = pair[..eqIdx].Trim();
-            var value = pair[(eqIdx + 1)..]
-                .Replace("^c", ",")
-                .Replace("^e", "=")
-                .Replace("^u", "^");
-
-            result[key] = value;
-        }
-
-        return result;
     }
 }

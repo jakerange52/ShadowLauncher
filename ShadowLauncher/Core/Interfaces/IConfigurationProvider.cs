@@ -11,9 +11,6 @@ public interface IConfigurationProvider
     string GameClientPath { get; set; }
     string DecalPath { get; set; }
     string Theme { get; set; }
-    TimeSpan HeartbeatInterval { get; set; }
-    TimeSpan HeartbeatTimeout { get; set; }
-    TimeSpan ServerCheckInterval { get; set; }
     bool KillOnMissingHeartbeat { get; set; }
     int KillHeartbeatTimeoutSeconds { get; set; }
     bool AutoRelaunch { get; set; }
@@ -22,5 +19,4 @@ public interface IConfigurationProvider
     void Load();
     void Save();
     string GetSetting(string key, string defaultValue = "");
-    void SetSetting(string key, string value);
 }

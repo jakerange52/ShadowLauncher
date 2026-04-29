@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Xml.Linq;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
@@ -28,62 +27,22 @@ public class ServerListDownloader
     /// </summary>
     public async Task<IReadOnlyList<Server>> FetchServersAsync()
     {
-        string xml;
-        try
-        {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            xml = await http.GetStringAsync(ServerListUrl);
-
-            // Cache to disk
-            Directory.CreateDirectory(Path.GetDirectoryName(_cachePath)!);
-            await File.WriteAllTextAsync(_cachePath, xml);
-        }
-        catch
-        {
-            // Fall back to cached copy
-            if (File.Exists(_cachePath))
-                xml = await File.ReadAllTextAsync(_cachePath);
-            else
-                return [];
-        }
-
-        return ParseXml(xml);
+        var xml = await ServerListFetcher.FetchXmlWithCacheAsync(ServerListUrl, _cachePath);
+        return xml is null ? [] : ParseXml(xml);
     }
 
     private static List<Server> ParseXml(string xml)
     {
-        var doc = XDocument.Parse(xml);
         var servers = new List<Server>();
-
-        foreach (var item in doc.Descendants("ServerItem"))
+        foreach (var item in XDocument.Parse(xml).Descendants("ServerItem"))
         {
-            var name = item.Element("name")?.Value?.Trim() ?? string.Empty;
-            if (string.IsNullOrEmpty(name)) continue;
+            var server = ServerListFetcher.ParseCommonFields(item);
+            if (server is null) continue;
 
-            var emuText = item.Element("emu")?.Value?.Trim() ?? "ACE";
-            var emulator = emuText.Equals("GDL", StringComparison.OrdinalIgnoreCase)
-                           || emuText.Equals("GDLE", StringComparison.OrdinalIgnoreCase)
-                ? EmulatorType.GDLE
-                : EmulatorType.ACE;
-
-            _ = int.TryParse(item.Element("server_port")?.Value?.Trim(), out var port);
-            if (port <= 0) port = 9000;
-
-            servers.Add(new Server
-            {
-                Id = (item.Element("id")?.Value?.Trim() ?? name).ToLowerInvariant(),
-                Name = name,
-                Description = item.Element("description")?.Value?.Trim() ?? string.Empty,
-                Emulator = emulator,
-                Hostname = item.Element("server_host")?.Value?.Trim() ?? string.Empty,
-                Port = port,
-                DiscordUrl = item.Element("discord_url")?.Value?.Trim() ?? string.Empty,
-                WebsiteUrl = item.Element("website_url")?.Value?.Trim() ?? string.Empty,
-                PublishedStatus = item.Element("status")?.Value?.Trim() ?? string.Empty,
-                DefaultRodat = emulator == EmulatorType.ACE, // ACE = rodat on, GDLE = rodat off
-            });
+            // Community list: rodat follows emulator convention (ACE = on, GDLE = off)
+            server.DefaultRodat = server.Emulator == EmulatorType.ACE;
+            servers.Add(server);
         }
-
         return servers;
     }
 }

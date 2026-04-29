@@ -7,19 +7,13 @@ namespace ShadowLauncher.Services.Servers;
 public class ServerService : IServerService
 {
     private readonly IRepository<Server> _repository;
-    private readonly IRepository<Account> _accountRepository;
-    private readonly IEventAggregator _events;
     private readonly ILogger<ServerService> _logger;
 
     public ServerService(
         IRepository<Server> repository,
-        IRepository<Account> accountRepository,
-        IEventAggregator events,
         ILogger<ServerService> logger)
     {
         _repository = repository;
-        _accountRepository = accountRepository;
-        _events = events;
         _logger = logger;
     }
 
@@ -45,26 +39,21 @@ public class ServerService : IServerService
         var server = await _repository.GetByIdAsync(serverId);
         if (server is null) return false;
 
+        bool isOnline;
         try
         {
-            // Resolve hostname first
             var addresses = await System.Net.Dns.GetHostAddressesAsync(server.Hostname);
-            if (addresses.Length == 0)
-            {
-                server.IsOnline = false;
-            }
-            else
-            {
-                // Send a UDP login probe packet (same approach as ThwargLauncher).
-                // AC emulator servers respond to this even when ICMP is blocked.
-                server.IsOnline = await IsUdpServerUpAsync(addresses[0].ToString(), server.Port);
-            }
+            isOnline = addresses.Length > 0 &&
+                       await IsUdpServerUpAsync(addresses[0].ToString(), server.Port);
         }
         catch
         {
-            server.IsOnline = false;
+            isOnline = false;
         }
 
+        // Mutate IsOnline in-place on the cached object so any UI-bound reference
+        // fires INotifyPropertyChanged without needing a full collection reload.
+        server.IsOnline = isOnline;
         server.LastStatusCheck = DateTime.UtcNow;
         await _repository.UpdateAsync(server);
         return server.IsOnline;
@@ -117,22 +106,4 @@ public class ServerService : IServerService
         _logger.LogInformation("Refreshed status for all servers");
     }
 
-    public async Task AssociateServerWithAccountAsync(string accountId, string serverId)
-    {
-        var account = await _accountRepository.GetByIdAsync(accountId);
-        if (account is null) return;
-        if (!account.ServerIds.Contains(serverId))
-        {
-            account.ServerIds.Add(serverId);
-            await _accountRepository.UpdateAsync(account);
-        }
     }
-
-    public async Task RemoveServerFromAccountAsync(string accountId, string serverId)
-    {
-        var account = await _accountRepository.GetByIdAsync(accountId);
-        if (account is null) return;
-        account.ServerIds.Remove(serverId);
-        await _accountRepository.UpdateAsync(account);
-    }
-}

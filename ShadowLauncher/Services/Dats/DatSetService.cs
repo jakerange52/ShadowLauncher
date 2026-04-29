@@ -20,6 +20,9 @@ public class DatSetService : IDatSetService
     // In-memory cache so we don't re-fetch on every call within a session.
     private IReadOnlyList<DatSet>? _cachedSets;
 
+    // Shared HttpClient — reused across all downloads to avoid socket exhaustion.
+    private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromHours(2) };
+
     public DatSetService(
         DatRegistryDownloader downloader,
         IConfigurationProvider config,
@@ -148,13 +151,12 @@ public class DatSetService : IDatSetService
                 server.Name, resolvedUrl);
             Directory.CreateDirectory(localDir);
 
-            using var http = new HttpClient { Timeout = TimeSpan.FromHours(2) };
             var tempZip = Path.Combine(localDir, "__custom_download.zip");
 
             try
             {
-                await DownloadRawAsync(http, resolvedUrl, tempZip, progress);
-                _logger.LogInformation("Extracting custom DAT zip for '{Server}'", server.Name);
+await DownloadRawAsync(_httpClient, resolvedUrl, tempZip, progress);
+_logger.LogInformation("Extracting custom DAT zip for '{Server}'", server.Name);
                 ExtractDatZip(tempZip, localDir, new DatSet(), overwrite: isNewRelease);
                 WriteVersionSidecar(localDir, releaseTag);
             }
@@ -230,13 +232,12 @@ public class DatSetService : IDatSetService
             _logger.LogInformation("Downloading DAT zip for '{Id}' from {Url}", set.Id, resolvedUrl);
             Directory.CreateDirectory(localDir);
 
-            using var http = new HttpClient { Timeout = TimeSpan.FromHours(2) };
             var tempZip = Path.Combine(localDir, "__download.zip");
 
             try
             {
-                await DownloadRawAsync(http, resolvedUrl, tempZip, progress);
-                _logger.LogInformation("Extracting DAT zip for '{Id}'", set.Id);
+await DownloadRawAsync(_httpClient, resolvedUrl, tempZip, progress);
+_logger.LogInformation("Extracting DAT zip for '{Id}'", set.Id);
                 ExtractDatZip(tempZip, localDir, set, overwrite: isNewRelease);
                 WriteVersionSidecar(localDir, releaseTag);
             }
