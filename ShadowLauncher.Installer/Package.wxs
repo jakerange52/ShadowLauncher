@@ -83,8 +83,13 @@
       Launch ShadowLauncher after install completes.
       util:WixShellExecTarget fires from the Finish button in ExitDialog — no deferred
       custom action needed, avoiding MSI error 2762.
+      SetProperty is used instead of Property so INSTALLFOLDER is resolved after
+      CostFinalize, avoiding WIX1077.
     -->
-    <Property Id="WixShellExecTarget" Value="[INSTALLFOLDER]ShadowLauncher.exe" />
+    <SetProperty Id="WixShellExecTarget"
+                 Value="[INSTALLFOLDER]ShadowLauncher.exe"
+                 After="CostFinalize"
+                 Sequence="execute" />
 
     <!-- Raises the desktop shortcut feature level from 0 to 1 when checkbox is ticked -->
     <SetProperty Id="DesktopShortcutFeature" Value="1" After="CostFinalize"

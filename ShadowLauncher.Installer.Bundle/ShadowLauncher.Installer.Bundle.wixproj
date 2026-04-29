@@ -1,9 +1,10 @@
-﻿<Project Sdk="WixToolset.Sdk/5.0.2">
+<Project Sdk="WixToolset.Sdk/5.0.2">
 
   <PropertyGroup>
     <OutputName>ShadowLauncher-Setup</OutputName>
     <OutputType>Bundle</OutputType>
     <InstallerPlatform>x86</InstallerPlatform>
+    <Version>0.2.1</Version>
   </PropertyGroup>
 
   <PropertyGroup>
