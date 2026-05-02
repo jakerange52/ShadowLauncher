@@ -4,6 +4,8 @@ namespace ShadowLauncher.Services.Servers;
 
 public interface IServerService
 {
+    event EventHandler? ServersChanged;
+
     Task<Server?> GetServerAsync(string serverId);
     Task<IEnumerable<Server>> GetAllServersAsync();
     Task<IEnumerable<Server>> GetActiveServersAsync();

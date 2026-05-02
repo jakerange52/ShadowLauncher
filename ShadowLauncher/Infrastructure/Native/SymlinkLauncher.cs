@@ -37,6 +37,10 @@ namespace ShadowLauncher.Infrastructure.Native;
 /// </summary>
 public class SymlinkLauncher
 {
+    // Windows SDK symbolic link flag values (from winbase.h)
+    private const int SymlinkFlagFile = 0;
+    private const int SymlinkFlagAllowUnprivilegedCreate = 2;
+
     // DAT filenames acclient.exe looks for in its working directory.
     internal static readonly string[] KnownDatFiles =
     [
@@ -73,12 +77,10 @@ public class SymlinkLauncher
         try
         {
             Directory.CreateDirectory(testDir);
-            // Try Developer Mode first (flag 2 = SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE).
-            if (CreateSymbolicLink(linkPath, "dummy_target", 2))
+            // Try Developer Mode first, then privilege-based creation.
+            if (CreateSymbolicLink(linkPath, "dummy_target", SymlinkFlagAllowUnprivilegedCreate))
                 return true;
-            // Fall back to privilege-based creation (flag 0) — works when
-            // SeCreateSymbolicLinkPrivilege has been granted (e.g. by the installer).
-            return CreateSymbolicLink(linkPath, "dummy_target", 0);
+            return CreateSymbolicLink(linkPath, "dummy_target", SymlinkFlagFile);
         }
         catch
         {
@@ -304,10 +306,10 @@ public class SymlinkLauncher
 
     private static void CreateFileSymlink(string linkPath, string targetPath)
     {
-        // Try Developer Mode first (flag 2), then privilege-based (flag 0).
-        if (CreateSymbolicLink(linkPath, targetPath, 2))
+        // Try Developer Mode first, then privilege-based creation.
+        if (CreateSymbolicLink(linkPath, targetPath, SymlinkFlagAllowUnprivilegedCreate))
             return;
-        if (CreateSymbolicLink(linkPath, targetPath, 0))
+        if (CreateSymbolicLink(linkPath, targetPath, SymlinkFlagFile))
             return;
 
         var error = Marshal.GetLastWin32Error();

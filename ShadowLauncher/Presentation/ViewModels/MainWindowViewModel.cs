@@ -7,7 +7,6 @@ using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Application;
 using ShadowLauncher.Infrastructure;
 using ShadowLauncher.Infrastructure.Native;
-using ShadowLauncher.Infrastructure.Persistence;
 using ShadowLauncher.Infrastructure.Updates;
 using ShadowLauncher.Infrastructure.WebServices;
 using ShadowLauncher.Services.Accounts;
@@ -31,8 +30,6 @@ public class MainWindowViewModel : ViewModelBase
     private readonly UpdateChecker _updateChecker;
     private readonly ThemeService _themeService;
     private readonly IDatSetService _datSetService;
-    private readonly AccountFileRepository _accountFileRepo;
-    private readonly ServerFileRepository _serverFileRepo;
     private readonly ServerListDownloader _serverListDownloader;
     private readonly BetaServerListDownloader _betaServerListDownloader;
     private readonly ProfileService _profileService;
@@ -61,8 +58,6 @@ public class MainWindowViewModel : ViewModelBase
         IGameLauncher gameLauncher,
         IGameSessionService sessionService,
         IConfigurationProvider config,
-        AccountFileRepository accountFileRepo,
-        ServerFileRepository serverFileRepo,
         ServerListDownloader serverListDownloader,
         BetaServerListDownloader betaServerListDownloader,
         ProfileService profileService,
@@ -82,8 +77,6 @@ public class MainWindowViewModel : ViewModelBase
         _updateChecker = updateChecker;
         _themeService = themeService;
         _datSetService = datSetService;
-        _accountFileRepo = accountFileRepo;
-        _serverFileRepo = serverFileRepo;
         _serverListDownloader = serverListDownloader;
         _betaServerListDownloader = betaServerListDownloader;
         _profileService = profileService;
@@ -97,9 +90,9 @@ public class MainWindowViewModel : ViewModelBase
 
         _logger.LogInformation("MainWindowViewModel initializing");
 
-        _accountFileRepo.AccountsChanged += (_, _) =>
+        _accountService.AccountsChanged += (_, _) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(ReloadAccountsAsync);
-        _serverFileRepo.ServersChanged += (_, _) =>
+        _serverService.ServersChanged += (_, _) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(ReloadServersAsync);
         appCoordinator.ServerStatusRefreshed += (_, _) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(ReloadServersAsync);

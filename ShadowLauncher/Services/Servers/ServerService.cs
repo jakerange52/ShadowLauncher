@@ -9,12 +9,19 @@ public class ServerService : IServerService
     private readonly IRepository<Server> _repository;
     private readonly ILogger<ServerService> _logger;
 
+    public event EventHandler? ServersChanged;
+
     public ServerService(
         IRepository<Server> repository,
         ILogger<ServerService> logger)
     {
         _repository = repository;
         _logger = logger;
+
+        // Forward file-change notifications from the repository through the service interface
+        // so consumers don't need to depend on the concrete repository type.
+        if (repository is Infrastructure.Persistence.ServerFileRepository repo)
+            repo.ServersChanged += (s, e) => ServersChanged?.Invoke(s, e);
     }
 
     public Task<Server?> GetServerAsync(string serverId) => _repository.GetByIdAsync(serverId);

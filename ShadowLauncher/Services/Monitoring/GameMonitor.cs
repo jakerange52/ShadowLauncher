@@ -144,20 +144,7 @@ public class GameMonitor : IGameMonitor
                             var timeout = _config.KillHeartbeatTimeoutSeconds;
                             if (elapsed > timeout)
                             {
-                                _logger.LogWarning(
-                                    "Killing PID {Pid} — no heartbeat for {Elapsed}s (timeout: {Timeout}s)",
-                                    session.ProcessId, (int)elapsed, timeout);
-                                var wasMinimizedBeforeKill = _minimizedStates.TryGetValue(session.ProcessId, out var m) && m;
-                                _minimizedStates.Remove(session.ProcessId);
-                                _watchedPids.Remove(session.ProcessId);
-                                try
-                                {
-                                    using var proc = System.Diagnostics.Process.GetProcessById(session.ProcessId);
-                                    proc.Kill(entireProcessTree: true);
-                                }
-                                catch { }
-                                await _sessionService.CloseSessionAsync(session.Id);
-                                GameExited?.Invoke(this, new GameExitedEventArgs(session.ProcessId, wasMinimizedBeforeKill));
+                                await KillSessionAsync(session, (int)elapsed, timeout);
                                 continue;
                             }
                         }
@@ -185,6 +172,27 @@ public class GameMonitor : IGameMonitor
                 await Task.Delay(TimeSpan.FromSeconds(10), token);
             }
         }
+    }
+
+    private async Task KillSessionAsync(GameSession session, int elapsedSeconds, int timeoutSeconds)
+    {
+        _logger.LogWarning(
+            "Killing PID {Pid} — no heartbeat for {Elapsed}s (timeout: {Timeout}s)",
+            session.ProcessId, elapsedSeconds, timeoutSeconds);
+
+        var wasMinimized = _minimizedStates.TryGetValue(session.ProcessId, out var m) && m;
+        _minimizedStates.Remove(session.ProcessId);
+        _watchedPids.Remove(session.ProcessId);
+
+        try
+        {
+            using var proc = System.Diagnostics.Process.GetProcessById(session.ProcessId);
+            proc.Kill(entireProcessTree: true);
+        }
+        catch { }
+
+        await _sessionService.CloseSessionAsync(session.Id);
+        GameExited?.Invoke(this, new GameExitedEventArgs(session.ProcessId, wasMinimized));
     }
 
     /// <summary>
