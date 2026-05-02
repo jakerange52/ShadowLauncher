@@ -103,7 +103,7 @@ public class ServerService : IServerService
         var servers = await _repository.GetAllAsync();
         var tasks = servers.Select(s => CheckServerStatusAsync(s.Id));
         await Task.WhenAll(tasks);
-        _logger.LogInformation("Refreshed status for all servers");
+        _logger.LogDebug("Refreshed status for all servers");
     }
 
     }

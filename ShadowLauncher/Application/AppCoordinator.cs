@@ -92,14 +92,14 @@ public class AppCoordinator
         {
             try
             {
-                await _datSetService.RefreshRegistryAsync();
+                await _datSetService.RefreshRegistryAsync(_appCts.Token);
                 _logger.LogInformation("DatRegistry refreshed successfully");
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "DatRegistry refresh failed, using cached copy");
             }
-        });
+        }, _appCts.Token);
 
         // Start background monitoring
         await _gameMonitor.StartMonitoringAsync(_appCts.Token);

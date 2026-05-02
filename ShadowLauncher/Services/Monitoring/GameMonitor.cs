@@ -109,7 +109,7 @@ public class GameMonitor : IGameMonitor
                 var sessions = await _sessionService.GetActiveSessionsAsync();
                 var sessionList = sessions.ToList();
                 if (sessionList.Count > 0)
-                    _logger.LogInformation("Monitor loop: checking {Count} active session(s)", sessionList.Count);
+                    _logger.LogDebug("Monitor loop: checking {Count} active session(s)", sessionList.Count);
 
                 foreach (var session in sessionList)
                 {

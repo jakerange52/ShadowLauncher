@@ -65,8 +65,9 @@ public class DatSetService : IDatSetService
     }
 
     /// <inheritdoc/>
-    public async Task RefreshRegistryAsync()
+    public async Task RefreshRegistryAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _cachedSets = null; // bust in-memory cache
         _cachedSets = await _downloader.FetchDatSetsAsync();
     }

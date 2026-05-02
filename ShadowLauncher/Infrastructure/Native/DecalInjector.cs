@@ -58,7 +58,15 @@ internal static class DecalInjector
             false, CREATE_SUSPENDED, IntPtr.Zero,
             string.IsNullOrEmpty(workingDirectory) ? null : workingDirectory,
             ref si, out var pi))
+        {
+            var err = Marshal.GetLastWin32Error();
+            System.Diagnostics.Debug.WriteLine(
+                $"[DecalInjector] CreateProcess failed. " +
+                $"Win32Error={err} (0x{err:X8}), " +
+                $"Exe={exePath}, " +
+                $"WorkingDir={workingDirectory}");
             return -1;
+        }
 
         try
         {

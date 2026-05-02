@@ -14,6 +14,7 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
     private readonly FileSystemWatcher _watcher;
     private List<Account> _cache = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private Timer? _debounceTimer;
 
     private const string HeaderComment = "# Name=xxx,Password=xxx,LaunchPath=c:\\xxx,PreferencePath=c:\\xxx,Alias=xxx";
 
@@ -43,9 +44,12 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
 
     private void OnFileChanged(object sender, FileSystemEventArgs e)
     {
-        Thread.Sleep(100);
-        LoadFromFile();
-        AccountsChanged?.Invoke(this, EventArgs.Empty);
+        _debounceTimer?.Dispose();
+        _debounceTimer = new Timer(_ =>
+        {
+            LoadFromFile();
+            AccountsChanged?.Invoke(this, EventArgs.Empty);
+        }, null, 100, Timeout.Infinite);
     }
 
     private void LoadFromFile()
@@ -82,7 +86,6 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
                     Name = name,
                     PasswordHash = password,
                     IsActive = true,
-                    CreatedDate = DateTime.UtcNow
                 };
 
                 // Store optional Thwarg properties in Notes for round-tripping
@@ -199,6 +202,7 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
 
     public void Dispose()
     {
+        _debounceTimer?.Dispose();
         _watcher.EnableRaisingEvents = false;
         _watcher.Dispose();
     }

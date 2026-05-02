@@ -176,7 +176,12 @@ public class GameLauncher : IGameLauncher
                 if (processId <= 0 || process is null)
                 {
                     result.ErrorMessage = "Failed to launch game process from symlink instance. Check the log for details.";
-                    _logger.LogError("Symlink launch returned PID {Pid} for server '{Server}'", processId, server.Name);
+                    _logger.LogError(
+                        "Symlink launch returned PID {Pid} for server '{Server}'. " +
+                        "CanCreateSymlinks={CanSymlink}, InstanceExeExists={ExeExists}",
+                        processId, server.Name,
+                        SymlinkLauncher.CanCreateSymlinks(),
+                        File.Exists(instanceExe));
                     return result;
                 }
 

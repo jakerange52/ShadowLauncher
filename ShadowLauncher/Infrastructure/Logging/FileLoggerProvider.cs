@@ -71,11 +71,19 @@ public sealed class FileLoggerProvider : ILoggerProvider
     {
         try
         {
-            var cutoff = DateTime.Now.AddDays(-_retentionDays);
+            var cutoff = DateTime.Now.Date.AddDays(-_retentionDays);
             foreach (var file in Directory.GetFiles(_logDirectory, "ShadowLauncher_*.log"))
             {
-                if (File.GetLastWriteTime(file) < cutoff)
+                // Parse the date from the filename (ShadowLauncher_yyyy-MM-dd.log) so that
+                // external file touches (antivirus, indexing, etc.) don't extend retention.
+                var name = Path.GetFileNameWithoutExtension(file);
+                var datePart = name["ShadowLauncher_".Length..];
+                if (DateTime.TryParseExact(datePart, "yyyy-MM-dd", null,
+                        System.Globalization.DateTimeStyles.None, out var fileDate)
+                    && fileDate < cutoff)
+                {
                     File.Delete(file);
+                }
             }
         }
         catch
