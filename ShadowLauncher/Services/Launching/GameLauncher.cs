@@ -46,6 +46,9 @@ public class GameLauncher : IGameLauncher
         _logger = logger;
     }
 
+    /// <summary>Carries the resolved exe path, working directory, and optional instance dir for a launch.</summary>
+    private record LaunchEnvironment(string ExePath, string WorkingDir, string? InstanceDir);
+
     public async Task<LaunchResult> LaunchGameAsync(Account account, Character character, Server server)
     {
         var result = new LaunchResult { StartTime = DateTime.UtcNow };
@@ -59,8 +62,6 @@ public class GameLauncher : IGameLauncher
                 return result;
             }
 
-            // Build command-line args for this account/server combo.
-            // Format varies by emulator type and secure-logon flag; see BuildLaunchArguments.
             var arguments = BuildLaunchArguments(account, server);
 
             // Resolve Decal's Inject.dll — user config takes priority, then registry auto-detect.
@@ -71,12 +72,9 @@ public class GameLauncher : IGameLauncher
             else
                 _logger.LogInformation("Decal not found — single client launch");
 
-            // Resolve the saved default character
             // "any" or null means stay at character select instead of auto-logging in.
             var defaultChar = _loginCommandsService.GetDefaultCharacter(account.Name, server.Name);
-            var launchCharacter = (string.IsNullOrEmpty(defaultChar) || defaultChar == "any")
-                ? "None"
-                : defaultChar;
+            var launchCharacter = (string.IsNullOrEmpty(defaultChar) || defaultChar == "any") ? "None" : defaultChar;
 
             _logger.LogInformation("Launching game for {Account} on {Server} (character: {Character})",
                 account.Name, server.Name, launchCharacter);
@@ -86,94 +84,16 @@ public class GameLauncher : IGameLauncher
             // before stopping permanently. The file must exist by then.
             WriteThwargFilterLaunchFile(account.Name, server.Name, launchCharacter);
 
-            int processId;
+            // ── Resolve which exe/directory to launch from ──────────────────────
+            var env = await ResolveInstancePathAsync(server, clientPath, result);
+            if (env is null) return result;
 
-            // ── Path selection ─────────────────────────────────────────────────────
-            // Priority:
-            //   1. Custom DAT source (local path or zip URL) — Dat Developer Mode.
-            //      EnsureCustomDatSourceReadyAsync downloads the zip if needed, then
-            //      SymlinkLauncher uses whatever local directory it resolved to.
-            //   2. DatSetId registered in DatRegistry.xml — community server with custom DATs.
-            //   3. Neither — launch directly from the configured client path.
-            var datSetId = server.DatSetId;
-            bool useSymlink = false;
+            // ── Start the process ───────────────────────────────────────────────
+            var processId = LaunchWithDecal(env.ExePath, arguments, env.WorkingDir, decalInjectPath);
 
-            bool hasCustomSource = !string.IsNullOrWhiteSpace(server.CustomDatRegistryPath)
-                                || !string.IsNullOrWhiteSpace(server.CustomDatZipUrl);
-
-            if (hasCustomSource)
+            if (processId <= 0)
             {
-                if (!SymlinkLauncher.CanCreateSymlinks())
-                {
-                    result.ErrorMessage = "Symbolic link creation failed. Sign out and back in to activate the privilege granted during install, then try again.";
-                    _logger.LogError("CanCreateSymlinks() returned false for server '{Server}'", server.Name);
-                    return result;
-                }
-
-                try
-                {
-                    await _datSetService.EnsureCustomDatSourceReadyAsync(server);
-                }
-                catch (Exception ex)
-                {
-                    result.ErrorMessage = $"Failed to prepare custom DAT source for '{server.Name}': {ex.Message}";
-                    _logger.LogError(ex, "EnsureCustomDatSourceReadyAsync failed for '{Server}'", server.Name);
-                    return result;
-                }
-
-                useSymlink = true;
-            }
-            else if (!string.IsNullOrWhiteSpace(datSetId))
-            {
-                var datSet = await _datSetService.GetDatSetAsync(datSetId);
-                if (datSet is null)
-                {
-                    result.ErrorMessage = $"DAT set '{datSetId}' required by server '{server.Name}' was not found in the DAT registry. " +
-                        "Check your internet connection or verify the DatRegistry.xml is reachable.";
-                    _logger.LogError("DAT set '{DatSetId}' not found in registry for server '{Server}'", datSetId, server.Name);
-                    return result;
-                }
-
-                if (!SymlinkLauncher.CanCreateSymlinks())
-                {
-                    result.ErrorMessage = "Symbolic link creation failed. Sign out and back in to activate the privilege granted during install, then try again.";
-                    _logger.LogError("CanCreateSymlinks() returned false for server '{Server}'", server.Name);
-                    return result;
-                }
-
-                useSymlink = true;
-            }
-
-            if (useSymlink)
-            {
-                // Custom-source servers (local path or zip URL) were already verified by
-                // EnsureCustomDatSourceReadyAsync above — skip the registry-based readiness check.
-                // For registry servers, confirm the DAT set files are fully downloaded first.
-                if (!hasCustomSource && !await _datSetService.IsDatSetReadyAsync(datSetId!))
-                {
-                    result.ErrorMessage = $"DAT files for '{server.Name}' are not ready. " +
-                        $"Expected in: {_datSetService.GetLocalDatSetPath(datSetId!)}\n\nOpen the DAT Manager to download them.";
-                    return result;
-                }
-                _logger.LogInformation(
-                    "Server '{Server}' requires DAT set '{DatSetId}' — using SymlinkLauncher",
-                    server.Name, datSetId);
-
-                var instanceDir = await _symlinkLauncher.PrepareInstanceAsync(server);
-                if (instanceDir is null)
-                {
-                    result.ErrorMessage = "SymlinkLauncher failed to prepare the instance directory. Check the log for details.";
-                    return result;
-                }
-
-                var instanceExe = Path.Combine(instanceDir, "acclient.exe");
-
-                System.Diagnostics.Process? process = null;
-                processId = LaunchWithDecal(instanceExe, arguments, instanceDir, decalInjectPath);
-                if (processId > 0)
-                    try { process = System.Diagnostics.Process.GetProcessById(processId); } catch { }
-
-                if (processId <= 0 || process is null)
+                if (env.InstanceDir is not null)
                 {
                     result.ErrorMessage = "Failed to launch game process from symlink instance. Check the log for details.";
                     _logger.LogError(
@@ -181,28 +101,28 @@ public class GameLauncher : IGameLauncher
                         "CanCreateSymlinks={CanSymlink}, InstanceExeExists={ExeExists}",
                         processId, server.Name,
                         SymlinkLauncher.CanCreateSymlinks(),
-                        File.Exists(instanceExe));
-                    return result;
+                        File.Exists(env.ExePath));
                 }
-
-                _ = _symlinkLauncher.WatchAndCleanupAsync(process, instanceDir);
-            }
-            else
-            {
-                processId = LaunchWithDecal(clientPath, arguments, Path.GetDirectoryName(clientPath) ?? string.Empty, decalInjectPath);
-                if (processId <= 0)
+                else
                 {
                     result.ErrorMessage = "Failed to launch game process.";
-                    return result;
                 }
+                return result;
             }
 
-            // Send click events to the game window to dismiss intro movie screens.
-            // Only triggered when a specific character was chosen (not "stay at select").
-            if (launchCharacter != "None")
+            // Hand the instance directory to the cleanup watcher if this was a symlink launch.
+            if (env.InstanceDir is not null)
             {
-                MovieSkipper.StartSkipping(processId);
+                System.Diagnostics.Process? process = null;
+                try { process = System.Diagnostics.Process.GetProcessById(processId); } catch { }
+                if (process is not null)
+                    _ = _symlinkLauncher.WatchAndCleanupAsync(process, env.InstanceDir);
             }
+
+            // ── Post-launch ─────────────────────────────────────────────────────
+            // Send click events to dismiss intro movie screens (only when auto-logging in).
+            if (launchCharacter != "None")
+                MovieSkipper.StartSkipping(processId);
 
             // Rename the window title so instances are identifiable in the taskbar.
             WindowTitleSetter.SetTitleAsync(processId, account.Name, server.Name);
@@ -221,13 +141,9 @@ public class GameLauncher : IGameLauncher
             result.ProcessId = processId;
 
             if (result.Success)
-            {
                 _logger.LogInformation("Game launched successfully, PID: {Pid}", processId);
-            }
             else
-            {
                 result.ErrorMessage = "Game process exited immediately after launch.";
-            }
         }
         catch (Exception ex)
         {
@@ -237,6 +153,97 @@ public class GameLauncher : IGameLauncher
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Determines which exe and working directory to use for this launch.
+    /// Priority:
+    ///   1. Custom DAT source (local path or zip URL) — ensures the source is ready, then uses SymlinkLauncher.
+    ///   2. DatSetId registered in DatRegistry.xml  — validates the set is downloaded, then uses SymlinkLauncher.
+    ///   3. Neither                                  — returns the configured client path directly.
+    /// Returns null and populates <paramref name="result"/> on any failure.
+    /// </summary>
+    private async Task<LaunchEnvironment?> ResolveInstancePathAsync(Server server, string clientPath, LaunchResult result)
+    {
+        var datSetId = server.DatSetId;
+        var hasCustomSource = !string.IsNullOrWhiteSpace(server.CustomDatRegistryPath)
+                           || !string.IsNullOrWhiteSpace(server.CustomDatZipUrl);
+
+        if (hasCustomSource)
+        {
+            if (!SymlinkLauncher.CanCreateSymlinks())
+            {
+                result.ErrorMessage = "Symbolic link creation failed. Sign out and back in to activate the privilege granted during install, then try again.";
+                _logger.LogError("CanCreateSymlinks() returned false for server '{Server}'", server.Name);
+                return null;
+            }
+
+            try
+            {
+                await _datSetService.EnsureCustomDatSourceReadyAsync(server);
+            }
+            catch (Exception ex)
+            {
+                result.ErrorMessage = $"Failed to prepare custom DAT source for '{server.Name}': {ex.Message}";
+                _logger.LogError(ex, "EnsureCustomDatSourceReadyAsync failed for '{Server}'", server.Name);
+                return null;
+            }
+
+            return await PrepareSymlinkEnvironmentAsync(server, datSetId, result);
+        }
+
+        if (!string.IsNullOrWhiteSpace(datSetId))
+        {
+            var datSet = await _datSetService.GetDatSetAsync(datSetId);
+            if (datSet is null)
+            {
+                result.ErrorMessage = $"DAT set '{datSetId}' required by server '{server.Name}' was not found in the DAT registry. " +
+                    "Check your internet connection or verify the DatRegistry.xml is reachable.";
+                _logger.LogError("DAT set '{DatSetId}' not found in registry for server '{Server}'", datSetId, server.Name);
+                return null;
+            }
+
+            if (!SymlinkLauncher.CanCreateSymlinks())
+            {
+                result.ErrorMessage = "Symbolic link creation failed. Sign out and back in to activate the privilege granted during install, then try again.";
+                _logger.LogError("CanCreateSymlinks() returned false for server '{Server}'", server.Name);
+                return null;
+            }
+
+            if (!await _datSetService.IsDatSetReadyAsync(datSetId))
+            {
+                result.ErrorMessage = $"DAT files for '{server.Name}' are not ready. " +
+                    $"Expected in: {_datSetService.GetLocalDatSetPath(datSetId)}\n\nOpen the DAT Manager to download them.";
+                return null;
+            }
+
+            return await PrepareSymlinkEnvironmentAsync(server, datSetId, result);
+        }
+
+        // No custom DAT source — launch directly from the configured client path.
+        return new LaunchEnvironment(clientPath, Path.GetDirectoryName(clientPath) ?? string.Empty, InstanceDir: null);
+    }
+
+    /// <summary>
+    /// Calls <see cref="SymlinkLauncher.PrepareInstanceAsync"/> and wraps the result
+    /// in a <see cref="LaunchEnvironment"/>. Populates <paramref name="result"/> on failure.
+    /// </summary>
+    private async Task<LaunchEnvironment?> PrepareSymlinkEnvironmentAsync(Server server, string? datSetId, LaunchResult result)
+    {
+        _logger.LogInformation("Server '{Server}' requires DAT set '{DatSetId}' — using SymlinkLauncher",
+            server.Name, datSetId);
+
+        var instanceDir = await _symlinkLauncher.PrepareInstanceAsync(server);
+        if (instanceDir is null)
+        {
+            result.ErrorMessage = "SymlinkLauncher failed to prepare the instance directory. Check the log for details.";
+            return null;
+        }
+
+        return new LaunchEnvironment(
+            ExePath: Path.Combine(instanceDir, "acclient.exe"),
+            WorkingDir: instanceDir,
+            InstanceDir: instanceDir);
     }
 
     public Task TerminateGameAsync(int processId)
