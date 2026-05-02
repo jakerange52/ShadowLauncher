@@ -29,11 +29,11 @@ public static class SymlinkPrivilegeHelper
     {
         if (SymlinkLauncher.CanCreateSymlinks())
         {
-            logger?.LogInformation("SymlinkPrivilegeHelper: symlinks already working");
+            logger?.LogDebug("SymlinkPrivilegeHelper: symlinks already working");
             return PrivilegeStatus.AlreadyActive;
         }
 
-        logger?.LogInformation("SymlinkPrivilegeHelper: symlinks not working — attempting to grant SeCreateSymbolicLinkPrivilege");
+        logger?.LogWarning("SymlinkPrivilegeHelper: symlinks not working — attempting to grant SeCreateSymbolicLinkPrivilege");
 
         try
         {

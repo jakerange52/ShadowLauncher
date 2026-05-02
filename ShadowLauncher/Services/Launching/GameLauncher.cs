@@ -141,9 +141,14 @@ public class GameLauncher : IGameLauncher
             result.ProcessId = processId;
 
             if (result.Success)
-                _logger.LogInformation("Game launched successfully, PID: {Pid}", processId);
+                _logger.LogInformation("Game launched successfully — PID {Pid} ({Account} on {Server})",
+                    processId, account.Name, server.Name);
             else
+            {
+                _logger.LogWarning("Game process PID {Pid} exited immediately after launch ({Account} on {Server})",
+                    processId, account.Name, server.Name);
                 result.ErrorMessage = "Game process exited immediately after launch.";
+            }
         }
         catch (Exception ex)
         {
@@ -303,9 +308,12 @@ public class GameLauncher : IGameLauncher
     {
         if (decalInjectPath is not null)
         {
-            var processId = DecalInjector.LaunchSuspendedAndInject(exePath, arguments, workingDir, decalInjectPath);
+            var processId = DecalInjector.LaunchSuspendedAndInject(exePath, arguments, workingDir, decalInjectPath, out var win32Error);
             if (processId > 0)
-                _logger.LogInformation("Launched acclient with Decal injection, PID {Pid}", processId);
+                _logger.LogDebug("Launched acclient with Decal injection, PID {Pid}", processId);
+            else
+                _logger.LogError("CreateProcess failed for '{Exe}' — Win32Error={Error} (0x{ErrorHex}), WorkingDir='{WorkingDir}'",
+                    exePath, win32Error, win32Error.ToString("X8"), workingDir);
             return processId;
         }
         else
@@ -318,8 +326,12 @@ public class GameLauncher : IGameLauncher
                 WorkingDirectory = workingDir,
                 UseShellExecute = false,
             });
-            if (process is null) return -1;
-            _logger.LogInformation("Launched acclient without Decal, PID {Pid}", process.Id);
+            if (process is null)
+            {
+                _logger.LogError("Process.Start returned null for '{Exe}'.", exePath);
+                return -1;
+            }
+            _logger.LogDebug("Launched acclient without Decal, PID {Pid}", process.Id);
             return process.Id;
         }
     }
@@ -339,7 +351,7 @@ public class GameLauncher : IGameLauncher
             if (File.Exists(filePath))
             {
                 File.Delete(filePath);
-                _logger.LogInformation("Removed ThwargFilter launch file for {Account} on {Server}", accountName, serverName);
+                _logger.LogDebug("Removed ThwargFilter launch file for {Account} on {Server}", accountName, serverName);
             }
         }
         catch (Exception ex)
@@ -370,7 +382,7 @@ public class GameLauncher : IGameLauncher
             writer.WriteLine($"AccountName:{accountName}");
             writer.WriteLine($"CharacterName:{characterName}");
 
-            _logger.LogInformation("Wrote ThwargFilter launch file for {Account} on {Server}", accountName, serverName);
+            _logger.LogDebug("Wrote ThwargFilter launch file for {Account} on {Server}", accountName, serverName);
         }
         catch (Exception ex)
         {
