@@ -179,7 +179,10 @@ public class GameLauncher : IGameLauncher
             if (!SymlinkLauncher.CanCreateSymlinks())
             {
                 result.ErrorMessage = "Symbolic link creation failed. Sign out and back in to activate the privilege granted during install, then try again.";
-                _logger.LogError("CanCreateSymlinks() returned false for server '{Server}'", server.Name);
+                _logger.LogError(
+                    "Symlink creation failed for server '{Server}' (custom DAT source). " +
+                    "Multi-client launch is not possible until this is resolved.\n{Diagnosis}",
+                    server.Name, SymlinkLauncher.DiagnoseSymlinkCapability());
                 return null;
             }
 
@@ -211,7 +214,10 @@ public class GameLauncher : IGameLauncher
             if (!SymlinkLauncher.CanCreateSymlinks())
             {
                 result.ErrorMessage = "Symbolic link creation failed. Sign out and back in to activate the privilege granted during install, then try again.";
-                _logger.LogError("CanCreateSymlinks() returned false for server '{Server}'", server.Name);
+                _logger.LogError(
+                    "Symlink creation failed for server '{Server}' (DAT set '{DatSetId}'). " +
+                    "Multi-client launch is not possible until this is resolved.\n{Diagnosis}",
+                    server.Name, datSetId, SymlinkLauncher.DiagnoseSymlinkCapability());
                 return null;
             }
 

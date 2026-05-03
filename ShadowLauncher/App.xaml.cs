@@ -59,7 +59,11 @@ public partial class App : System.Windows.Application
         {
             MessageBox.Show(
                 "ShadowLauncher has granted the symbolic link permission required for multi-client launching.\n\n" +
-                "Please sign out and back in to activate it, then relaunch ShadowLauncher.",
+                "To activate it you must do a full sign-out:\n" +
+                "  Start menu → click your name → Sign out\n\n" +
+                "⚠️ Locking your screen (Win+L) and unlocking does NOT work — " +
+                "Windows only updates your session token on a true sign-out.\n\n" +
+                "After signing back in, relaunch ShadowLauncher normally.",
                 "Sign Out Required",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -68,7 +72,12 @@ public partial class App : System.Windows.Application
         {
             MessageBox.Show(
                 "ShadowLauncher could not set the symbolic link permission required for multi-client launching.\n\n" +
-                "Please right-click ShadowLauncher and choose 'Run as administrator' once to apply it, then relaunch normally.",
+                "Steps to fix:\n" +
+                "  1. Right-click ShadowLauncher → Run as administrator\n" +
+                "  2. Let it start (it will grant the permission automatically)\n" +
+                "  3. Close it, then do a full sign-out: Start menu → your name → Sign out\n" +
+                "  4. Sign back in and relaunch ShadowLauncher normally\n\n" +
+                "⚠️ Locking your screen and unlocking is NOT the same as signing out.",
                 "Permission Required",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);

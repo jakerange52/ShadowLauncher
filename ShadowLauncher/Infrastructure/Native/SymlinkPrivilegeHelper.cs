@@ -33,7 +33,9 @@ public static class SymlinkPrivilegeHelper
             return PrivilegeStatus.AlreadyActive;
         }
 
-        logger?.LogWarning("SymlinkPrivilegeHelper: symlinks not working — attempting to grant SeCreateSymbolicLinkPrivilege");
+        logger?.LogWarning(
+            "SymlinkPrivilegeHelper: symlinks not working — attempting to grant SeCreateSymbolicLinkPrivilege.\n{Diagnosis}",
+            SymlinkLauncher.DiagnoseSymlinkCapability());
 
         try
         {
@@ -82,7 +84,11 @@ public static class SymlinkPrivilegeHelper
                 LsaClose(policyHandle);
             }
 
-            logger?.LogInformation("SymlinkPrivilegeHelper: SeCreateSymbolicLinkPrivilege granted — logoff required");
+            logger?.LogInformation(
+                "SymlinkPrivilegeHelper: SeCreateSymbolicLinkPrivilege granted to BUILTIN\\Users via LSA. " +
+                "A full sign-out (Start → your name → Sign out) and sign-back-in is required — " +
+                "locking the screen does NOT activate the new token.\\n{Diagnosis}",
+                SymlinkLauncher.DiagnoseSymlinkCapability());
             return PrivilegeStatus.GrantedNeedsLogoff;
         }
         catch (Exception ex)

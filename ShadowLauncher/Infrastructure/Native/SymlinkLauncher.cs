@@ -93,6 +93,71 @@ public class SymlinkLauncher
     }
 
     /// <summary>
+    /// Returns a multi-line diagnostic string describing exactly why symlink creation
+    /// is working or failing in the current session. Intended for log output when
+    /// <see cref="CanCreateSymlinks"/> returns false so support has full context.
+    /// </summary>
+    public static string DiagnoseSymlinkCapability()
+    {
+        var lines = new System.Text.StringBuilder();
+
+        // ── Who is running ────────────────────────────────────────────────────
+        try
+        {
+            lines.AppendLine($"  User            : {Environment.UserDomainName}\\{Environment.UserName}");
+        }
+        catch { lines.AppendLine("  User            : (unavailable)"); }
+
+        // ── Is the process elevated? ──────────────────────────────────────────
+        try
+        {
+            using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            var principal = new System.Security.Principal.WindowsPrincipal(identity);
+            var isAdmin = principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            lines.AppendLine($"  Elevated        : {isAdmin}");
+        }
+        catch { lines.AppendLine("  Elevated        : (unavailable)"); }
+
+        // ── Developer Mode path ───────────────────────────────────────────────
+        var testDir = Path.Combine(Path.GetTempPath(), $"sl_diagtest_{Guid.NewGuid():N}");
+        var linkPath = Path.Combine(testDir, "test.lnk");
+        try
+        {
+            Directory.CreateDirectory(testDir);
+
+            bool devMode = CreateSymbolicLink(linkPath, "dummy_target", SymlinkFlagAllowUnprivilegedCreate);
+            int devErr = Marshal.GetLastWin32Error();
+            lines.AppendLine($"  DevMode symlink : {(devMode ? "OK" : $"FAILED (Win32={devErr} / 0x{devErr:X8})")}");
+            if (File.Exists(linkPath)) File.Delete(linkPath);
+
+            bool privMode = CreateSymbolicLink(linkPath, "dummy_target", SymlinkFlagFile);
+            int privErr = Marshal.GetLastWin32Error();
+            lines.AppendLine($"  Priv symlink    : {(privMode ? "OK" : $"FAILED (Win32={privErr} / 0x{privErr:X8})")}");
+
+            // Win32 error 1314 = ERROR_PRIVILEGE_NOT_HELD — the most common case.
+            // This means the privilege was granted (policy) but the current logon
+            // session token does not yet contain it. A true sign-out (not lock/unlock)
+            // and sign-back-in is required.
+            if (!devMode && !privMode && privErr == 1314)
+                lines.AppendLine("  Diagnosis       : ERROR_PRIVILEGE_NOT_HELD (1314) — privilege was granted but this " +
+                                  "session's token predates it. A full sign-out (Start → your name → Sign out) and " +
+                                  "sign-back-in is required. Locking the screen does NOT create a new token.");
+            else if (!devMode && !privMode)
+                lines.AppendLine($"  Diagnosis       : Unexpected failure — Win32={privErr}. May need to run as administrator once.");
+        }
+        catch (Exception ex)
+        {
+            lines.AppendLine($"  Diagnosis       : Exception during test — {ex.Message}");
+        }
+        finally
+        {
+            try { Directory.Delete(testDir, recursive: true); } catch { /* best-effort */ }
+        }
+
+        return lines.ToString().TrimEnd();
+    }
+
+    /// <summary>
     /// Ensures the required DAT set is fully downloaded and creates the per-instance
     /// directory with symlinks. Returns the instance directory path ready for launch,
     /// or null on failure. The caller launches the process from this directory via
