@@ -24,6 +24,12 @@ public class GameMonitor : IGameMonitor
 
     private readonly Dictionary<int, bool> _minimizedStates = [];
 
+    // Tracks the first time a session was observed at the login screen *after* having
+    // been in-game. Used to treat "Connection to the server has been lost" (which the
+    // ThwargFilter reports as IsOnline=false / LoginScreen, indistinguishable from the
+    // real login screen) as a disconnect for the Kill-disconnected-client setting.
+    private readonly Dictionary<string, (DateTime Since, bool WasEverInGame)> _disconnectTracking = [];
+
     // Tracks PIDs that already have a WaitForExitAsync watcher running so we
     // don't spin up duplicates each time the monitor loop iterates.
     private readonly HashSet<int> _watchedPids = [];
@@ -121,8 +127,11 @@ public class GameMonitor : IGameMonitor
                     if (_watchedPids.Add(session.ProcessId))
                         _ = WatchForExitAsync(session.ProcessId, session.Id, token);
 
-                    // Update minimized state while process is alive
-                    _minimizedStates[session.ProcessId] = WindowFocusHelper.IsMinimized(session.ProcessId);
+                    // Update minimized state while process is alive.
+                    // Only overwrite when a window currently exists — otherwise a window that
+                    // vanishes during shutdown would clobber a previously-captured "true".
+                    if (WindowFocusHelper.TryGetMinimizedState(session.ProcessId, out var minNow))
+                        _minimizedStates[session.ProcessId] = minNow;
 
                     // Try to read heartbeat from ThwargFilter/ShadowFilter
                     var heartbeat = await _heartbeatReader.ReadHeartbeatAsync(session.ProcessId);
@@ -131,6 +140,37 @@ public class GameMonitor : IGameMonitor
                     {
                         await _sessionService.RecordHeartbeatAsync(session.Id, heartbeat);
                         HeartbeatReceived?.Invoke(this, new HeartbeatReceivedEventArgs(session.Id, heartbeat));
+
+                        // Track in-game → login-screen transition as a disconnect signal.
+                        // ThwargFilter cannot distinguish the post-disconnect "Connection lost"
+                        // dialog from the real login screen, so we infer it: if a session was
+                        // ever in-game and is now back on the login screen, treat continued time
+                        // there as a missing heartbeat for the kill timer.
+                        var sticky = _disconnectTracking.GetValueOrDefault(session.Id);
+                        if (heartbeat.Status == GameSessionStatus.InGame)
+                        {
+                            _disconnectTracking[session.Id] = (DateTime.MinValue, true);
+                        }
+                        else if (heartbeat.Status == GameSessionStatus.LoginScreen && sticky.WasEverInGame)
+                        {
+                            if (sticky.Since == DateTime.MinValue)
+                                _disconnectTracking[session.Id] = (DateTime.UtcNow, true);
+
+                            if (_config.KillOnMissingHeartbeat)
+                            {
+                                var since = _disconnectTracking[session.Id].Since;
+                                var disconnectedFor = (DateTime.UtcNow - since).TotalSeconds;
+                                var timeout = _config.KillHeartbeatTimeoutSeconds;
+                                if (disconnectedFor > timeout)
+                                {
+                                    _logger.LogWarning(
+                                        "PID {Pid} appears disconnected (login screen for {Elapsed}s after being in-game).",
+                                        session.ProcessId, (int)disconnectedFor);
+                                    await KillSessionAsync(session, (int)disconnectedFor, timeout);
+                                    continue;
+                                }
+                            }
+                        }
                     }
                     else
                     {
@@ -183,6 +223,7 @@ public class GameMonitor : IGameMonitor
         var wasMinimized = _minimizedStates.TryGetValue(session.ProcessId, out var m) && m;
         _minimizedStates.Remove(session.ProcessId);
         _watchedPids.Remove(session.ProcessId);
+        _disconnectTracking.Remove(session.Id);
 
         try
         {
@@ -229,6 +270,7 @@ public class GameMonitor : IGameMonitor
         var session = await _sessionService.GetSessionByProcessIdAsync(processId);
         if (session is not null)
         {
+            _disconnectTracking.Remove(session.Id);
             _gameLauncher.CleanupThwargFilterLaunchFile(session.AccountName, session.ServerName);
             await _sessionService.CloseSessionAsync(sessionId);
             GameExited?.Invoke(this, new GameExitedEventArgs(processId, wasMinimized));

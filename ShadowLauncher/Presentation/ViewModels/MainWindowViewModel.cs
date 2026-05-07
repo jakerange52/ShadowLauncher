@@ -97,7 +97,7 @@ public class MainWindowViewModel : ViewModelBase
         appCoordinator.ServerStatusRefreshed += (_, _) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(ReloadServersAsync);
         _gameMonitor.GameExited += (_, e) =>
-            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnGameExited(e.ProcessId));
+            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnGameExited(e.ProcessId, e.WasMinimized));
         _gameMonitor.HeartbeatReceived += (_, e) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnHeartbeatReceived(e));
 
@@ -402,9 +402,9 @@ public class MainWindowViewModel : ViewModelBase
             ServerSelectionRestoreRequested?.Invoke(selectedIds);
     }
 
-    private async void OnGameExited(int processId)
+    private async void OnGameExited(int processId, bool wasMinimized)
     {
-        _logger.LogInformation("Game process exited: PID {Pid}", processId);
+        _logger.LogInformation("Game process exited: PID {Pid} (wasMinimized: {WasMinimized})", processId, wasMinimized);
         var session = ActiveSessions.FirstOrDefault(s => s.ProcessId == processId);
         if (session is not null)
         {
@@ -460,6 +460,40 @@ public class MainWindowViewModel : ViewModelBase
         {
             _launchedSessions.Remove(processId);
         }
+    }
+
+    /// <summary>
+    /// Keeps every visible top-level window of a relaunched process minimized
+    /// for a settling period. AC clients show a sequence of windows (splash,
+    /// patcher, then the game window), each created un-minimized — minimizing
+    /// only the first one is not enough.
+    /// </summary>
+    private async Task MinimizeWhenReadyAsync(int processId)
+    {
+        const int totalMs = 30_000;   // keep watching for 30s after relaunch
+        const int intervalMs = 500;
+        int elapsed = 0;
+        bool everMinimized = false;
+        while (elapsed < totalMs)
+        {
+            await Task.Delay(intervalMs);
+            elapsed += intervalMs;
+            try
+            {
+                using var p = System.Diagnostics.Process.GetProcessById(processId);
+                if (p.HasExited) return;
+            }
+            catch (ArgumentException) { return; }
+
+            var n = WindowFocusHelper.MinimizeAllWindows(processId);
+            if (n > 0 && !everMinimized)
+            {
+                everMinimized = true;
+                _logger.LogInformation("Restored minimized state for relaunched PID {Pid}", processId);
+            }
+        }
+        if (!everMinimized)
+            _logger.LogWarning("Gave up minimizing PID {Pid}: no visible window appeared within {Ms}ms", processId, totalMs);
     }
 
     private void OnHeartbeatReceived(HeartbeatReceivedEventArgs e)
