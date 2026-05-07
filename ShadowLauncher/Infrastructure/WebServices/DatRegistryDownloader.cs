@@ -58,8 +58,13 @@ public class DatRegistryDownloader
             xml = await _http.GetStringAsync(_registryUrl);
 
             Directory.CreateDirectory(Path.GetDirectoryName(_cachePath)!);
-            await File.WriteAllTextAsync(_cachePath, xml);
+            // Atomic write: stage to a temp file then move into place so a crash mid-write
+            // can't leave DatRegistry.xml corrupted.
+            var tempPath = _cachePath + ".tmp";
+            await File.WriteAllTextAsync(tempPath, xml);
+            File.Move(tempPath, _cachePath, overwrite: true);
         }
+        catch (OperationCanceledException) { throw; }
         catch
         {
             // Try the AppData cache written by a previous successful download.

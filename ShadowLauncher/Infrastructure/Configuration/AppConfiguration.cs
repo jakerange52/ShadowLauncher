@@ -49,40 +49,46 @@ public class AppConfiguration : IConfigurationProvider
 
     public bool AutoRelaunch
     {
-        get => bool.TryParse(GetSetting(nameof(AutoRelaunch), "false"), out var v) && v;
+        get => GetBool(nameof(AutoRelaunch));
         set => SetSetting(nameof(AutoRelaunch), value.ToString());
     }
 
     public int AutoRelaunchDelaySeconds
     {
-        get => int.TryParse(GetSetting(nameof(AutoRelaunchDelaySeconds), "10"), out var v) && v > 0 ? v : 10;
+        get => GetInt(nameof(AutoRelaunchDelaySeconds), 10, min: 1);
         set => SetSetting(nameof(AutoRelaunchDelaySeconds), Math.Max(1, value).ToString());
     }
 
     public bool KillOnMissingHeartbeat
     {
-        get => bool.TryParse(GetSetting(nameof(KillOnMissingHeartbeat), "false"), out var v) && v;
+        get => GetBool(nameof(KillOnMissingHeartbeat));
         set => SetSetting(nameof(KillOnMissingHeartbeat), value.ToString());
     }
 
     public int KillHeartbeatTimeoutSeconds
     {
-        get => int.TryParse(GetSetting(nameof(KillHeartbeatTimeoutSeconds), "60"), out var v) && v > 0 ? v : 60;
+        get => GetInt(nameof(KillHeartbeatTimeoutSeconds), 60, min: 5);
         set => SetSetting(nameof(KillHeartbeatTimeoutSeconds), Math.Max(5, value).ToString());
     }
 
     public bool DatDeveloperMode
     {
-        get => bool.TryParse(GetSetting(nameof(DatDeveloperMode), "false"), out var v) && v;
+        get => GetBool(nameof(DatDeveloperMode));
         set => SetSetting(nameof(DatDeveloperMode), value.ToString());
     }
 
     public void Load()
     {
-        if (File.Exists(_settingsFilePath))
+        if (!File.Exists(_settingsFilePath)) return;
+        try
         {
             var json = File.ReadAllText(_settingsFilePath);
             _settings = JsonSerializer.Deserialize<Dictionary<string, string>>(json, JsonOptions) ?? [];
+        }
+        catch
+        {
+            // Corrupt or unreadable settings file — start fresh rather than block startup.
+            _settings = [];
         }
     }
 
@@ -90,7 +96,11 @@ public class AppConfiguration : IConfigurationProvider
     {
         Directory.CreateDirectory(DataDirectory);
         var json = JsonSerializer.Serialize(_settings, JsonOptions);
-        File.WriteAllText(_settingsFilePath, json);
+        // Atomic write: stage to a temp file then move into place so a crash mid-write
+        // can't leave settings.json corrupted.
+        var tempPath = _settingsFilePath + ".tmp";
+        File.WriteAllText(tempPath, json);
+        File.Move(tempPath, _settingsFilePath, overwrite: true);
     }
 
     public string GetSetting(string key, string defaultValue = "")
@@ -98,4 +108,10 @@ public class AppConfiguration : IConfigurationProvider
 
     public void SetSetting(string key, string value)
         => _settings[key] = value;
+
+    private bool GetBool(string key, bool defaultValue = false)
+        => bool.TryParse(GetSetting(key, defaultValue.ToString()), out var v) ? v : defaultValue;
+
+    private int GetInt(string key, int defaultValue, int min = int.MinValue)
+        => int.TryParse(GetSetting(key, defaultValue.ToString()), out var v) && v >= min ? v : defaultValue;
 }

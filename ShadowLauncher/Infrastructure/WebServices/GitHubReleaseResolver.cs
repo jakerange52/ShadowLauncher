@@ -13,6 +13,9 @@ namespace ShadowLauncher.Infrastructure.WebServices;
 ///   https://github.com/{owner}/{repo}/releases/tag/{tag}/      - resolves that specific tag
 ///   https://github.com/{owner}/{repo}/releases/download/...    - treated as latest
 /// </summary>
+// TODO: Anonymous GitHub API calls are rate-limited to ~60/hour. With many DAT sets we can hit
+// HTTP 403 (X-RateLimit-Remaining: 0). Consider caching ResolveLatestAsync results in-memory for
+// a short window, honouring the X-RateLimit-Reset header, and/or accepting an optional GitHub PAT.
 public class GitHubReleaseResolver
 {
     private static readonly HttpClient _http = CreateHttpClient();

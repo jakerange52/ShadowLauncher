@@ -18,6 +18,7 @@ public sealed class ServerFileRepository : IRepository<Server>, IDisposable
     private readonly FileSystemWatcher _watcher;
     private List<Server> _cache = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private Timer? _debounceTimer;
     // Survives server remove/re-add — keyed by lowercase server name.
     private Dictionary<string, string> _datSetOverrides = [];
 
@@ -51,9 +52,13 @@ public sealed class ServerFileRepository : IRepository<Server>, IDisposable
 
     private void OnFileChanged(object sender, FileSystemEventArgs e)
     {
-        Thread.Sleep(100);
-        LoadFromFile();
-        ServersChanged?.Invoke(this, EventArgs.Empty);
+        // Coalesce bursts of FSW events into a single reload after 100 ms of quiet.
+        _debounceTimer ??= new Timer(_ =>
+        {
+            LoadFromFile();
+            ServersChanged?.Invoke(this, EventArgs.Empty);
+        }, null, Timeout.Infinite, Timeout.Infinite);
+        _debounceTimer.Change(100, Timeout.Infinite);
     }
 
     private void LoadFromFile()
@@ -68,6 +73,8 @@ public sealed class ServerFileRepository : IRepository<Server>, IDisposable
             }
 
             var servers = new List<Server>();
+            // Build a one-shot lookup for live status fields preserved across reloads.
+            var live = _cache.ToDictionary(c => c.Id, StringComparer.OrdinalIgnoreCase);
             try
             {
                 var doc = XDocument.Load(_filePath);
@@ -139,10 +146,8 @@ public sealed class ServerFileRepository : IRepository<Server>, IDisposable
                             || !string.IsNullOrWhiteSpace(item.Element("custom_dat_zip_url")?.Value),
                         // Preserve live status from the existing cache so the watcher
                         // reloading the file doesn't reset indicators that were just updated.
-                        IsOnline = _cache.FirstOrDefault(c =>
-                            c.Id.Equals(key, StringComparison.OrdinalIgnoreCase))?.IsOnline ?? false,
-                        LastStatusCheck = _cache.FirstOrDefault(c =>
-                            c.Id.Equals(key, StringComparison.OrdinalIgnoreCase))?.LastStatusCheck ?? default,
+                        IsOnline = live.TryGetValue(key, out var prev) && prev.IsOnline,
+                        LastStatusCheck = live.TryGetValue(key, out var prev2) ? prev2.LastStatusCheck : default,
                     });
                 }
             }
@@ -190,7 +195,11 @@ public sealed class ServerFileRepository : IRepository<Server>, IDisposable
                     ))
                 )
             );
-            doc.Save(_filePath);
+            // Atomic write: stage to a temp file then move into place so a crash mid-write
+            // can't leave UserServerList.xml corrupted.
+            var tempPath = _filePath + ".tmp";
+            doc.Save(tempPath);
+            File.Move(tempPath, _filePath, overwrite: true);
         }
         finally
         {
@@ -305,12 +314,16 @@ public sealed class ServerFileRepository : IRepository<Server>, IDisposable
                 new XElement("Override",
                     new XAttribute("server", kv.Key),
                     new XAttribute("datSetId", kv.Value)))));
-        doc.Save(_overridesPath);
+        var tempPath = _overridesPath + ".tmp";
+        doc.Save(tempPath);
+        File.Move(tempPath, _overridesPath, overwrite: true);
     }
 
     public void Dispose()
     {
+        _debounceTimer?.Dispose();
         _watcher.EnableRaisingEvents = false;
         _watcher.Dispose();
+        _lock.Dispose();
     }
 }

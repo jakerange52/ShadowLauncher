@@ -9,17 +9,21 @@ public sealed class FileLoggerProvider : ILoggerProvider
 {
     private readonly string _logDirectory;
     private readonly int _retentionDays;
+    private readonly LogLevel _minLevel;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private StreamWriter? _writer;
     private string _currentDate = string.Empty;
 
-    public FileLoggerProvider(string logDirectory, int retentionDays = 7)
+    public FileLoggerProvider(string logDirectory, int retentionDays = 7, LogLevel minLevel = LogLevel.Information)
     {
         _logDirectory = logDirectory;
         _retentionDays = retentionDays;
+        _minLevel = minLevel;
         Directory.CreateDirectory(logDirectory);
         CleanOldLogs();
     }
+
+    internal LogLevel MinLevel => _minLevel;
 
     public ILogger CreateLogger(string categoryName) => new FileLogger(this, categoryName);
 
@@ -103,7 +107,7 @@ internal sealed class FileLogger(FileLoggerProvider provider, string categoryNam
 {
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
-    public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+    public bool IsEnabled(LogLevel logLevel) => logLevel >= provider.MinLevel;
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
         Exception? exception, Func<TState, Exception?, string> formatter)

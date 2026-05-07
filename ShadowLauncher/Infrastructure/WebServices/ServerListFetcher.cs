@@ -3,6 +3,9 @@ using ShadowLauncher.Core.Models;
 
 namespace ShadowLauncher.Infrastructure.WebServices;
 
+// TODO: All web-service classes use private static HttpClient instances. Consider migrating to
+// IHttpClientFactory (with named clients + Polly) to centralise headers, retries, logging, and
+// socket reuse instead of maintaining ~5 separate clients across the WebServices folder.
 internal static class ServerListFetcher
 {
     private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(15) };
@@ -13,9 +16,14 @@ internal static class ServerListFetcher
         {
             var xml = await _http.GetStringAsync(url);
             Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
-            await File.WriteAllTextAsync(cachePath, xml);
+            // Atomic write: stage to a temp file then move into place so a crash mid-write
+            // can't leave the cache file corrupted.
+            var tempPath = cachePath + ".tmp";
+            await File.WriteAllTextAsync(tempPath, xml);
+            File.Move(tempPath, cachePath, overwrite: true);
             return xml;
         }
+        catch (OperationCanceledException) { throw; }
         catch
         {
             return File.Exists(cachePath) ? await File.ReadAllTextAsync(cachePath) : null;

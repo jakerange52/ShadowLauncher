@@ -44,12 +44,13 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
 
     private void OnFileChanged(object sender, FileSystemEventArgs e)
     {
-        _debounceTimer?.Dispose();
-        _debounceTimer = new Timer(_ =>
+        // Coalesce bursts of FSW events into a single reload after 100 ms of quiet.
+        _debounceTimer ??= new Timer(_ =>
         {
             LoadFromFile();
             AccountsChanged?.Invoke(this, EventArgs.Empty);
-        }, null, 100, Timeout.Infinite);
+        }, null, Timeout.Infinite, Timeout.Infinite);
+        _debounceTimer.Change(100, Timeout.Infinite);
     }
 
     private void LoadFromFile()
@@ -125,7 +126,11 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
 
                 lines.Add(string.Join(",", parts));
             }
-            File.WriteAllLines(_filePath, lines);
+            // Atomic write: stage to a temp file then move into place so a crash mid-write
+            // can't leave Accounts.txt corrupted.
+            var tempPath = _filePath + ".tmp";
+            File.WriteAllLines(tempPath, lines);
+            File.Move(tempPath, _filePath, overwrite: true);
         }
         finally
         {
@@ -205,5 +210,6 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
         _debounceTimer?.Dispose();
         _watcher.EnableRaisingEvents = false;
         _watcher.Dispose();
+        _lock.Dispose();
     }
 }

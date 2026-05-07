@@ -39,7 +39,12 @@ public class SessionJournal
     {
         try
         {
-            File.WriteAllText(EntryPath(session.Id), JsonSerializer.Serialize(session, JsonOptions));
+            // Atomic write: stage to a temp file then move into place so a crash mid-write
+            // can't leave a corrupt journal entry on disk.
+            var path = EntryPath(session.Id);
+            var tempPath = path + ".tmp";
+            File.WriteAllText(tempPath, JsonSerializer.Serialize(session, JsonOptions));
+            File.Move(tempPath, path, overwrite: true);
         }
         catch (Exception ex)
         {
