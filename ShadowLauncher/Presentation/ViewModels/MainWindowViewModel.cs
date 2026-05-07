@@ -692,9 +692,31 @@ public class MainWindowViewModel : ViewModelBase
         var vm = new SettingsViewModel(_config, _updateChecker, _themeService);
         var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService, _loginCommandsService, _profileService);
         window.Owner = System.Windows.Application.Current.MainWindow;
+        window.ProfilesEdited += (_, _) => RefreshProfiles();
         if (window.ShowDialog() == true)
         {
             StatusText = "Settings saved.";
+        }
+    }
+
+    private void RefreshProfiles()
+    {
+        var previousId = _currentProfile?.Id;
+        Profiles.Clear();
+        foreach (var p in _profileService.Profiles)
+            Profiles.Add(p);
+
+        var match = Profiles.FirstOrDefault(p => p.Id == previousId);
+        if (match is not null)
+        {
+            // Same profile still exists — keep it active without re-applying.
+            _currentProfile = match;
+            OnPropertyChanged(nameof(CurrentProfile));
+        }
+        else
+        {
+            // Active profile was deleted — fall back to the service's active profile.
+            CurrentProfile = _profileService.ActiveProfile;
         }
     }
 
