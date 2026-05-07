@@ -54,7 +54,6 @@ public class HeartbeatReader : IHeartbeatReader
                 CharacterName = dict.GetValueOrDefault("ActualCharacterName",
                     dict.GetValueOrDefault("CharacterName", string.Empty)),
                 UptimeSeconds = int.TryParse(dict.GetValueOrDefault("UptimeSeconds", "0"), out var up) ? up : 0,
-                TeamList = dict.GetValueOrDefault("TeamList", string.Empty),
                 Timestamp = DateTime.UtcNow
             };
 

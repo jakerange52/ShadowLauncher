@@ -129,7 +129,6 @@ public class FirstRunService
                     Id = name.ToLowerInvariant(),
                     Name = name,
                     PasswordHash = password ?? string.Empty,
-                    CreatedDate = DateTime.UtcNow,
                     Notes = string.IsNullOrWhiteSpace(alias) ? string.Empty : alias,
                 };
 

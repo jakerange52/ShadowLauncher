@@ -15,5 +15,4 @@ public class LaunchResult
     public bool Success { get; set; }
     public int ProcessId { get; set; }
     public string ErrorMessage { get; set; } = string.Empty;
-    public DateTime StartTime { get; set; }
 }

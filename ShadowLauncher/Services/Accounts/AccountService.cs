@@ -37,7 +37,6 @@ public class AccountService : IAccountService
             Id = name.ToLowerInvariant(),
             Name = name,
             PasswordHash = password,
-            CreatedDate = DateTime.UtcNow,
         };
 
         await _repository.AddAsync(account);

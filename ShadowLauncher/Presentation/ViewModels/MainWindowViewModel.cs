@@ -479,9 +479,7 @@ public class MainWindowViewModel : ViewModelBase
                 ServerName = session.ServerName,
                 CharacterName = e.Data.CharacterName,
                 ProcessId = session.ProcessId,
-                ServerMonitorPort = session.ServerMonitorPort,
                 Status = e.Data.Status,
-                StartTime = session.StartTime,
                 LastHeartbeatTime = e.Data.Timestamp,
                 UptimeSeconds = e.Data.UptimeSeconds
             };
@@ -600,9 +598,6 @@ public class MainWindowViewModel : ViewModelBase
                         var session = await _sessionService.CreateSessionAsync(account, server, result.ProcessId);
                         ActiveSessions.Add(session);
                         _launchedSessions[result.ProcessId] = (account, server);
-                        account.LaunchCount++;
-                        account.LastUsedDate = DateTime.UtcNow;
-                        await _accountService.UpdateAccountAsync(account);
                         launched++;
                     }
                     else

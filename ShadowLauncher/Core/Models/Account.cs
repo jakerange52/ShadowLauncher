@@ -5,10 +5,7 @@ public class Account : IEquatable<Account>
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
-    public DateTime LastUsedDate { get; set; }
     public string Notes { get; set; } = string.Empty;
-    public int LaunchCount { get; set; }
 
     public bool Equals(Account? other) => other is not null && Id == other.Id;
     public override bool Equals(object? obj) => Equals(obj as Account);

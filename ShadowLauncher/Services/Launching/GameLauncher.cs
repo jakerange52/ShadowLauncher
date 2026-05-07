@@ -51,7 +51,7 @@ public class GameLauncher : IGameLauncher
 
     public async Task<LaunchResult> LaunchGameAsync(Account account, Server server)
     {
-        var result = new LaunchResult { StartTime = DateTime.UtcNow };
+        var result = new LaunchResult();
 
         try
         {
