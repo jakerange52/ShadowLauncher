@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Interfaces;
+using ShadowLauncher.Core.Models;
 using ShadowLauncher.Infrastructure.FileSystem;
 using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Services.Dats;
@@ -24,6 +25,7 @@ public class AppCoordinator
     private readonly ILogger<AppCoordinator> _logger;
     private CancellationTokenSource? _appCts;
     private Task? _serverMonitorTask;
+    private Task? _datRefreshTask;
 
     public event EventHandler? ServerStatusRefreshed;
     public event EventHandler<SymlinkPrivilegeHelper.PrivilegeStatus>? SymlinkPrivilegeChecked;
@@ -88,13 +90,14 @@ public class AppCoordinator
         // Fetch a fresh DatRegistry.xml in the background so checksums and server
         // mappings are always up to date. Failures are non-fatal — the bundled or
         // cached copy will be used instead.
-        _ = Task.Run(async () =>
+        _datRefreshTask = Task.Run(async () =>
         {
             try
             {
                 await _datSetService.RefreshRegistryAsync(_appCts.Token);
                 _logger.LogInformation("DatRegistry refreshed successfully");
             }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "DatRegistry refresh failed, using cached copy");
@@ -150,7 +153,7 @@ public class AppCoordinator
             {
                 // Process is still running — restore the session so the monitor loop
                 // picks it up and starts tracking heartbeat / exit as normal.
-                session.Status = ShadowLauncher.Core.Models.GameSessionStatus.InGame;
+                session.Status = GameSessionStatus.InGame;
                 session.LastHeartbeatTime = DateTime.UtcNow;
                 await _sessionService.RestoreSessionAsync(session);
                 _logger.LogInformation(
@@ -197,6 +200,8 @@ public class AppCoordinator
             await _appCts.CancelAsync();
             if (_serverMonitorTask is not null)
                 try { await _serverMonitorTask; } catch (OperationCanceledException) { }
+            if (_datRefreshTask is not null)
+                try { await _datRefreshTask; } catch (OperationCanceledException) { }
             _appCts.Dispose();
         }
 

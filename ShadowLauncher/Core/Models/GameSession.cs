@@ -16,13 +16,3 @@ public class GameSession
     public int UptimeSeconds { get; set; }
 }
 
-public enum GameSessionStatus
-{
-    Launching,
-    LoginScreen,
-    CharacterSelection,
-    InGame,
-    Hanging,
-    Exiting,
-    Offline
-}

@@ -5,6 +5,7 @@ using ShadowLauncher.Core.Models;
 using ShadowLauncher.Infrastructure.Configuration;
 using ShadowLauncher.Infrastructure.FileSystem;
 using ShadowLauncher.Infrastructure.Logging;
+using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Infrastructure.Persistence;
 using ShadowLauncher.Infrastructure.Updates;
 using ShadowLauncher.Infrastructure.WebServices;
@@ -42,8 +43,8 @@ public static class ServiceBootstrapper
         services.AddSingleton<ThemeService>();
         services.AddSingleton<DatRegistryDownloader>();
         services.AddSingleton<IDatSetService, DatSetService>();
-        services.AddSingleton<ShadowLauncher.Infrastructure.Native.SymlinkLauncher>();
-        services.AddSingleton<ShadowLauncher.Infrastructure.FileSystem.SessionJournal>();
+        services.AddSingleton<SymlinkLauncher>();
+        services.AddSingleton<SessionJournal>();
 
         // Repositories
         services.AddSingleton<AccountFileRepository>(sp =>

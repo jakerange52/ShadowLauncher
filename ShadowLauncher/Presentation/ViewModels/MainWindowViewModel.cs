@@ -307,8 +307,10 @@ public class MainWindowViewModel : ViewModelBase
     private void SaveCurrentProfile()
     {
         if (_currentProfile is null || _applyingProfile) return;
-        _currentProfile.SelectedAccountIds = SelectedAccounts.Select(a => a.Id).ToList();
-        _currentProfile.SelectedServerIds  = SelectedServers.Select(s => s.Id).ToList();
+        _currentProfile.SelectedAccountIds.Clear();
+        _currentProfile.SelectedAccountIds.AddRange(SelectedAccounts.Select(a => a.Id));
+        _currentProfile.SelectedServerIds.Clear();
+        _currentProfile.SelectedServerIds.AddRange(SelectedServers.Select(s => s.Id));
         _currentProfile.KillOnMissingHeartbeat = _config.KillOnMissingHeartbeat;
         _currentProfile.KillHeartbeatTimeoutSeconds = _config.KillHeartbeatTimeoutSeconds;
         _currentProfile.AutoRelaunch = _config.AutoRelaunch;

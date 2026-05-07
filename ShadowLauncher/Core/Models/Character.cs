@@ -10,13 +10,12 @@ public class Character : IEquatable<Character>
     public DateTime LastPlayedDate { get; set; }
     public string Class { get; set; } = string.Empty;
     public string Race { get; set; } = string.Empty;
-    public Dictionary<string, string> Settings { get; set; } = [];
+    public Dictionary<string, string> Settings { get; init; } = [];
     public long TotalPlaytimeSeconds { get; set; }
 
     public bool IsValid()
         => !string.IsNullOrWhiteSpace(Name)
-        && !string.IsNullOrWhiteSpace(AccountId)
-        && Level >= 1 && Level <= 275;
+        && !string.IsNullOrWhiteSpace(AccountId);
 
     public void RecordPlaySession(TimeSpan duration)
     {
@@ -26,5 +25,5 @@ public class Character : IEquatable<Character>
 
     public bool Equals(Character? other) => other is not null && Id == other.Id;
     public override bool Equals(object? obj) => Equals(obj as Character);
-    public override int GetHashCode() => Id?.GetHashCode() ?? 0;
+    public override int GetHashCode() => Id.GetHashCode();
 }

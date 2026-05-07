@@ -82,17 +82,15 @@ public class DatRegistryDownloader
             var id = setEl.Attribute("id")?.Value?.Trim() ?? string.Empty;
             if (string.IsNullOrEmpty(id)) continue;
 
+            var zipEl = setEl.Element("Zip");
             var set = new DatSet
             {
                 Id = id,
                 Name = setEl.Attribute("name")?.Value?.Trim() ?? id,
                 Version = setEl.Attribute("version")?.Value?.Trim() ?? string.Empty,
                 Description = setEl.Element("Description")?.Value?.Trim() ?? string.Empty,
+                ZipUrl = zipEl?.Attribute("url")?.Value?.Trim() ?? string.Empty,
             };
-
-            var zipEl = setEl.Element("Zip");
-            if (zipEl is not null)
-                set.ZipUrl = zipEl.Attribute("url")?.Value?.Trim() ?? string.Empty;
 
             foreach (var fileEl in setEl.Elements("File"))
             {

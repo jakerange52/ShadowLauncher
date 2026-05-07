@@ -80,11 +80,5 @@ public class Server : IEquatable<Server>, INotifyPropertyChanged
 
     public bool Equals(Server? other) => other is not null && Id == other.Id;
     public override bool Equals(object? obj) => Equals(obj as Server);
-    public override int GetHashCode() => Id?.GetHashCode() ?? 0;
-}
-
-public enum EmulatorType
-{
-    ACE = 0,
-    GDLE = 1
+    public override int GetHashCode() => Id.GetHashCode();
 }

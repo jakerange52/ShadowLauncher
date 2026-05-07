@@ -182,7 +182,7 @@ public class DatSetService : IDatSetService
             return false;
         }
 
-        var ready = set.IsFullyDownloaded(_config.DatSetsDirectory);
+        var ready = IsFullyDownloaded(set);
 
         if (!ready)
             _logger.LogWarning("DAT set '{Id}' is not fully downloaded", datSetId);
@@ -213,7 +213,7 @@ public class DatSetService : IDatSetService
             }
 
             var isNewRelease = IsNewRelease(localDir, releaseTag);
-            if (set.IsFullyDownloaded(_config.DatSetsDirectory) && !isNewRelease)
+            if (IsFullyDownloaded(set) && !isNewRelease)
             {
                 _logger.LogInformation("DAT set '{Id}' is current (tag: {Tag}) - skipping download", datSetId, releaseTag ?? "n/a");
                 return;
@@ -295,6 +295,25 @@ public class DatSetService : IDatSetService
     {
         if (releaseTag is null) return;
         File.WriteAllText(Path.Combine(localDir, ".version"), releaseTag);
+    }
+
+    /// <summary>
+    /// Returns true if all expected files for <paramref name="set"/> are present on disk.
+    /// Zip-delivered sets are checked by scanning for any known AC filename;
+    /// sets with explicit <see cref="DatSet.Files"/> entries are checked by exact name.
+    /// </summary>
+    private bool IsFullyDownloaded(DatSet set)
+    {
+        var localDir = Path.Combine(_config.DatSetsDirectory, set.Id);
+        if (!Directory.Exists(localDir)) return false;
+
+        if (!string.IsNullOrWhiteSpace(set.ZipUrl))
+            return KnownAcFileNames.Any(name => File.Exists(Path.Combine(localDir, name)));
+
+        if (set.Files.Count > 0)
+            return set.Files.All(f => File.Exists(Path.Combine(localDir, f.FileName)));
+
+        return false;
     }
 
     private static bool IsRetailSet(string? id)

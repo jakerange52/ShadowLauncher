@@ -1,5 +1,9 @@
 namespace ShadowLauncher.Core.Interfaces;
 
+// TODO: Re-evaluate this interface. Only one implementation exists (AppConfiguration), and
+// every new setting forces an interface change. Load()/Save() also leak persistence details
+// to consumers. Consider deleting the interface and depending on AppConfiguration directly,
+// or splitting into focused role-based interfaces (e.g. IPathProvider, IGameOptions).
 public interface IConfigurationProvider
 {
     string DataDirectory { get; }
