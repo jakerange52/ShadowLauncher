@@ -49,7 +49,7 @@ public class GameLauncher : IGameLauncher
     /// <summary>Carries the resolved exe path, working directory, and optional instance dir for a launch.</summary>
     private record LaunchEnvironment(string ExePath, string WorkingDir, string? InstanceDir);
 
-    public async Task<LaunchResult> LaunchGameAsync(Account account, Character character, Server server)
+    public async Task<LaunchResult> LaunchGameAsync(Account account, Server server)
     {
         var result = new LaunchResult { StartTime = DateTime.UtcNow };
 

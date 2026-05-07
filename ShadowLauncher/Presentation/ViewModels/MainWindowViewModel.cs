@@ -434,13 +434,10 @@ public class MainWindowViewModel : ViewModelBase
 
             try
             {
-                var character = info.Account.Characters.FirstOrDefault()
-                    ?? new Core.Models.Character { Id = Guid.NewGuid().ToString(), Name = "Default", AccountId = info.Account.Id, Level = 1 };
-
                 // Delay before relaunch
                 await Task.Delay(AutoRelaunchDelaySeconds * 1000);
 
-                var result = await _gameLauncher.LaunchGameAsync(info.Account, character, info.Server);
+                var result = await _gameLauncher.LaunchGameAsync(info.Account, info.Server);
                 if (result.Success)
                 {
                     var newSession = await _sessionService.CreateSessionAsync(info.Account, info.Server, result.ProcessId);
@@ -594,13 +591,10 @@ public class MainWindowViewModel : ViewModelBase
                     continue;
                 }
 
-                var character = account.Characters.FirstOrDefault()
-                    ?? new Core.Models.Character { Id = Guid.NewGuid().ToString(), Name = "Default", AccountId = account.Id, Level = 1 };
-
                 StatusText = $"Launching {account.Name} on {server.Name}...";
                 try
                 {
-                    var result = await _gameLauncher.LaunchGameAsync(account, character, server);
+                    var result = await _gameLauncher.LaunchGameAsync(account, server);
                     if (result.Success)
                     {
                         var session = await _sessionService.CreateSessionAsync(account, server, result.ProcessId);

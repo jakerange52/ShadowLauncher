@@ -27,9 +27,6 @@ public class ServerService : IServerService
     public Task<Server?> GetServerAsync(string serverId) => _repository.GetByIdAsync(serverId);
     public Task<IEnumerable<Server>> GetAllServersAsync() => _repository.GetAllAsync();
 
-    public async Task<IEnumerable<Server>> GetActiveServersAsync()
-        => await _repository.FindAsync(s => s.IsOnline);
-
     public async Task<Server> CreateServerAsync(Server server)
     {
         server.Id = server.Name.ToLowerInvariant();

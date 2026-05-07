@@ -22,9 +22,6 @@ public class AccountService : IAccountService
             repo.AccountsChanged += (s, e) => AccountsChanged?.Invoke(s, e);
     }
 
-    public Task<Account?> GetAccountAsync(string accountId)
-        => _repository.GetByIdAsync(accountId);
-
     public Task<IEnumerable<Account>> GetAllAccountsAsync()
         => _repository.GetAllAsync();
 
@@ -41,7 +38,6 @@ public class AccountService : IAccountService
             Name = name,
             PasswordHash = password,
             CreatedDate = DateTime.UtcNow,
-            IsActive = true
         };
 
         await _repository.AddAsync(account);

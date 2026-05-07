@@ -86,13 +86,6 @@ public partial class PerCharacterLoginCommandsWindow : Window
                 // Get known characters from ThwargFilter's character files
                 var knownChars = _loginService.GetKnownCharacters(server.Name, account.Name);
 
-                // Also include characters from ShadowLauncher's account model
-                foreach (var c in account.Characters)
-                {
-                    if (!knownChars.Contains(c.Name, StringComparer.OrdinalIgnoreCase))
-                        knownChars.Add(c.Name);
-                }
-
                 // Build the available list: "any" first, then known characters
                 var available = new List<string> { "any" };
                 available.AddRange(knownChars.OrderBy(n => n));

@@ -86,7 +86,6 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
                     Id = name.ToLowerInvariant(),
                     Name = name,
                     PasswordHash = password,
-                    IsActive = true,
                 };
 
                 // Store optional Thwarg properties in Notes for round-tripping
@@ -202,8 +201,6 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
             _lock.Release();
         }
     }
-
-    public Task<int> CountAsync() => Task.FromResult(_cache.Count);
 
     public void Dispose()
     {

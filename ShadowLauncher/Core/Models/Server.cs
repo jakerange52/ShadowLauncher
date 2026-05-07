@@ -73,11 +73,6 @@ public class Server : IEquatable<Server>, INotifyPropertyChanged
 
     public DateTime LastStatusCheck { get; set; }
 
-    public bool IsValid()
-        => !string.IsNullOrWhiteSpace(Name)
-        && !string.IsNullOrWhiteSpace(Hostname)
-        && Port > 0 && Port <= 65535;
-
     public bool Equals(Server? other) => other is not null && Id == other.Id;
     public override bool Equals(object? obj) => Equals(obj as Server);
     public override int GetHashCode() => Id.GetHashCode();

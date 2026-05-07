@@ -290,8 +290,6 @@ public sealed class ServerFileRepository : IRepository<Server>, IDisposable
         }
     }
 
-    public Task<int> CountAsync() => Task.FromResult(_cache.Count);
-
     private void LoadOverrides()
     {
         if (!File.Exists(_overridesPath)) return;
