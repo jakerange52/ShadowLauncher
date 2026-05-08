@@ -367,7 +367,32 @@ public class MainWindowViewModel : ViewModelBase
 
             ActiveSessions.Clear();
             foreach (var session in await _sessionService.GetActiveSessionsAsync())
+            {
                 ActiveSessions.Add(session);
+
+                // Adopted (journaled) sessions weren't launched by this process, so
+                // _launchedSessions is empty for them. Seed it by ID lookup so that
+                // auto-relaunch still fires when these PIDs eventually exit.
+                if (!_launchedSessions.ContainsKey(session.ProcessId))
+                {
+                    var account = Accounts.FirstOrDefault(a =>
+                        string.Equals(a.Id, session.AccountId, StringComparison.OrdinalIgnoreCase));
+                    var server = Servers.FirstOrDefault(s =>
+                        string.Equals(s.Id, session.ServerId, StringComparison.OrdinalIgnoreCase));
+                    if (account is not null && server is not null)
+                    {
+                        _launchedSessions[session.ProcessId] = (account, server);
+                        _logger.LogDebug("Adopted session PID {Pid} registered for auto-relaunch ({Account} on {Server})",
+                            session.ProcessId, account.Name, server.Name);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Adopted session PID {Pid} could not be registered for auto-relaunch — account '{AccountId}' or server '{ServerId}' not found",
+                            session.ProcessId, session.AccountId, session.ServerId);
+                    }
+                }
+            }
 
             StatusText = $"Loaded {Accounts.Count} accounts, {Servers.Count} servers";
 

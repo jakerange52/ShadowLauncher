@@ -10,7 +10,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>SLicon.ico</ApplicationIcon>
-    <Version>0.2.2</Version>
+    <Version>0.2.4</Version>
   </PropertyGroup>
 
   <ItemGroup>
