@@ -127,11 +127,9 @@ public class GameMonitor : IGameMonitor
                     if (_watchedPids.Add(session.ProcessId))
                         _ = WatchForExitAsync(session.ProcessId, session.Id, token);
 
-                    // Update minimized state while process is alive.
-                    // Only overwrite when a window currently exists — otherwise a window that
-                    // vanishes during shutdown would clobber a previously-captured "true".
-                    if (WindowFocusHelper.TryGetMinimizedState(session.ProcessId, out var minNow))
-                        _minimizedStates[session.ProcessId] = minNow;
+                    // Sample minimized state only based on the just-read heartbeat (below).
+                    // Sampling unconditionally here loses the value the moment the AC window
+                    // is replaced by the un-minimized "Connection lost" dialog.
 
                     // Try to read heartbeat from ThwargFilter/ShadowFilter
                     var heartbeat = await _heartbeatReader.ReadHeartbeatAsync(session.ProcessId);
@@ -140,6 +138,14 @@ public class GameMonitor : IGameMonitor
                     {
                         await _sessionService.RecordHeartbeatAsync(session.Id, heartbeat);
                         HeartbeatReceived?.Invoke(this, new HeartbeatReceivedEventArgs(session.Id, heartbeat));
+
+                        // Only refresh the minimized snapshot while the client is healthily in-game.
+                        // Once the heartbeat reports anything else (LoginScreen / CharacterSelection /
+                        // Hanging) the window we'd be reading is no longer the game window, so the
+                        // last in-game value must stick across disconnect → kill → relaunch.
+                        if (heartbeat.Status == GameSessionStatus.InGame
+                            && WindowFocusHelper.TryGetMinimizedState(session.ProcessId, out var minNow))
+                            _minimizedStates[session.ProcessId] = minNow;
 
                         // Track in-game → login-screen transition as a disconnect signal.
                         // ThwargFilter cannot distinguish the post-disconnect "Connection lost"

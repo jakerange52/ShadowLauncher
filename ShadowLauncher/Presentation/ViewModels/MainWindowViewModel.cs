@@ -48,6 +48,13 @@ public class MainWindowViewModel : ViewModelBase
     private readonly Dictionary<int, (Account Account, Server Server)> _launchedSessions = [];
 
     /// <summary>
+    /// PIDs of relaunched clients that should be minimized once their character
+    /// reaches <see cref="GameSessionStatus.InGame"/> (so we don't resize a
+    /// window that's still on the login/character-select screen).
+    /// </summary>
+    private readonly HashSet<int> _pendingMinimizeOnInGame = [];
+
+    /// <summary>
     /// Raised when the VM needs the view to show a file-browse dialog.
     /// </summary>
     public event EventHandler? BrowseGameClientRequested;
@@ -405,6 +412,7 @@ public class MainWindowViewModel : ViewModelBase
     private async void OnGameExited(int processId, bool wasMinimized)
     {
         _logger.LogInformation("Game process exited: PID {Pid} (wasMinimized: {WasMinimized})", processId, wasMinimized);
+        _pendingMinimizeOnInGame.Remove(processId);
         var session = ActiveSessions.FirstOrDefault(s => s.ProcessId == processId);
         if (session is not null)
         {
@@ -444,6 +452,25 @@ public class MainWindowViewModel : ViewModelBase
                     ActiveSessions.Add(newSession);
                     _launchedSessions[result.ProcessId] = info;
                     StatusText = $"Auto-relaunched {info.Account.Name} (PID {result.ProcessId})";
+
+                    if (wasMinimized)
+                    {
+                        var character = _loginCommandsService.GetDefaultCharacter(info.Account.Name, info.Server.Name);
+                        var hasAutoLoginCharacter = !string.IsNullOrWhiteSpace(character)
+                            && !string.Equals(character, "any", StringComparison.OrdinalIgnoreCase);
+
+                        if (hasAutoLoginCharacter)
+                        {
+                            _logger.LogInformation("Will re-minimize PID {Pid} after character '{Char}' reaches in-game",
+                                result.ProcessId, character);
+                            _pendingMinimizeOnInGame.Add(result.ProcessId);
+                        }
+                        else
+                        {
+                            _logger.LogInformation("Previous client was minimized — will re-minimize relaunched PID {Pid}", result.ProcessId);
+                            _ = MinimizeWhenReadyAsync(result.ProcessId);
+                        }
+                    }
                 }
                 else
                 {
@@ -486,10 +513,11 @@ public class MainWindowViewModel : ViewModelBase
             catch (ArgumentException) { return; }
 
             var n = WindowFocusHelper.MinimizeAllWindows(processId);
-            if (n > 0 && !everMinimized)
+            if (n > 0)
             {
                 everMinimized = true;
                 _logger.LogInformation("Restored minimized state for relaunched PID {Pid}", processId);
+                return;
             }
         }
         if (!everMinimized)
@@ -520,6 +548,14 @@ public class MainWindowViewModel : ViewModelBase
             ActiveSessions[idx] = updated;
             if (wasSelected)
                 SelectedSession = updated;
+
+            if (updated.Status == GameSessionStatus.InGame
+                && _pendingMinimizeOnInGame.Remove(updated.ProcessId))
+            {
+                _logger.LogInformation("Character '{Char}' reached in-game on PID {Pid} — minimizing now",
+                    updated.CharacterName, updated.ProcessId);
+                _ = MinimizeWhenReadyAsync(updated.ProcessId);
+            }
         }
     }
 
