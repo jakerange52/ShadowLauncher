@@ -6,6 +6,21 @@
     <Binary Id="CustomActionsDll"
             SourceFile="$(var.CustomActionsDir)ShadowLauncher.Installer.CustomActions.dll" />
 
+    <!--
+      SHOWLOGOFFMESSAGE is set to "1" by CheckSymlinkPrivilege when the symlink
+      privilege is not yet present, so the ExitDialog can surface a sign-out hint.
+      Secure="yes" is required for the property to be passed from the execute
+      sequence into the UI.
+    -->
+    <Property Id="SHOWLOGOFFMESSAGE" Secure="yes" />
+
+    <!-- Detects whether SeCreateSymbolicLinkPrivilege is already granted to BUILTIN\Users -->
+    <CustomAction Id="CheckSymlinkPrivilege"
+                  BinaryRef="CustomActionsDll"
+                  DllEntry="CheckSymlinkPrivilege"
+                  Execute="immediate"
+                  Return="ignore" />
+
     <!-- Grants SeCreateSymbolicLinkPrivilege to BUILTIN\Users on install -->
     <CustomAction Id="GrantSymlinkPrivilege"
                   BinaryRef="CustomActionsDll"
@@ -26,7 +41,19 @@
                   Impersonate="yes"
                   Return="ignore" />
 
+    <InstallUISequence>
+      <!-- Run the check during the UI sequence so SHOWLOGOFFMESSAGE is available
+           to the ExitDialog text control. -->
+      <Custom Action="CheckSymlinkPrivilege"
+              After="CostFinalize"
+              Condition="NOT REMOVE~=&quot;ALL&quot;" />
+    </InstallUISequence>
+
     <InstallExecuteSequence>
+      <!-- Also run during silent/unattended installs so the property is consistent. -->
+      <Custom Action="CheckSymlinkPrivilege"
+              Before="GrantSymlinkPrivilege"
+              Condition="NOT REMOVE~=&quot;ALL&quot;" />
       <!-- GrantSymlinkPrivilege runs on every install and upgrade — symlinks are
            core to how ShadowLauncher launches multiple clients. Skipped only on
            pure remove. -->

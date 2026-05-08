@@ -39,6 +39,93 @@ public static class PrivilegeActions
     }
 
 
+    /// <summary>
+    /// Immediate (non-elevated) check that runs before <see cref="GrantSymlinkPrivilege"/>.
+    /// If BUILTIN\Users does not already hold SeCreateSymbolicLinkPrivilege, sets MSI
+    /// property SHOWLOGOFFMESSAGE=1 so the ExitDialog can tell the user they need to
+    /// sign out and back in for the new privilege to take effect.
+    /// </summary>
+    [CustomAction]
+    public static ActionResult CheckSymlinkPrivilege(Session session)
+    {
+        try
+        {
+            var usersSid = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+            byte[] sidBytes = new byte[usersSid.BinaryLength];
+            usersSid.GetBinaryForm(sidBytes, 0);
+
+            var objectAttributes = new LsaObjectAttributes { Length = (uint)Marshal.SizeOf<LsaObjectAttributes>() };
+            uint status = LsaOpenPolicy(IntPtr.Zero, ref objectAttributes, PolicyAccess.LookupNames, out var policyHandle);
+            if (status != 0)
+            {
+                session.Log($"CheckSymlinkPrivilege: LsaOpenPolicy failed NTSTATUS=0x{status:X8} — assuming privilege not present");
+                session["SHOWLOGOFFMESSAGE"] = "1";
+                return ActionResult.Success;
+            }
+
+            try
+            {
+                var sidHandle = GCHandle.Alloc(sidBytes, GCHandleType.Pinned);
+                try
+                {
+                    status = LsaEnumerateAccountRights(policyHandle, sidHandle.AddrOfPinnedObject(), out var rightsPtr, out var rightsCount);
+                    if (status != 0 || rightsPtr == IntPtr.Zero)
+                    {
+                        // STATUS_OBJECT_NAME_NOT_FOUND (0xC0000034) means no rights are assigned to the SID.
+                        session.Log($"CheckSymlinkPrivilege: account has no rights yet (NTSTATUS=0x{status:X8}) — will need logoff");
+                        session["SHOWLOGOFFMESSAGE"] = "1";
+                        return ActionResult.Success;
+                    }
+
+                    try
+                    {
+                        bool found = false;
+                        int structSize = Marshal.SizeOf<LsaUnicodeString>();
+                        for (int i = 0; i < rightsCount; i++)
+                        {
+                            var entry = Marshal.PtrToStructure<LsaUnicodeString>(IntPtr.Add(rightsPtr, i * structSize));
+                            if (string.Equals(entry.Buffer, "SeCreateSymbolicLinkPrivilege", StringComparison.Ordinal))
+                            {
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if (!found)
+                        {
+                            session.Log("CheckSymlinkPrivilege: SeCreateSymbolicLinkPrivilege not currently granted — will show logoff message");
+                            session["SHOWLOGOFFMESSAGE"] = "1";
+                        }
+                        else
+                        {
+                            session.Log("CheckSymlinkPrivilege: SeCreateSymbolicLinkPrivilege already granted — no logoff message needed");
+                        }
+                    }
+                    finally
+                    {
+                        LsaFreeMemory(rightsPtr);
+                    }
+                }
+                finally
+                {
+                    sidHandle.Free();
+                }
+            }
+            finally
+            {
+                LsaClose(policyHandle);
+            }
+
+            return ActionResult.Success;
+        }
+        catch (Exception ex)
+        {
+            session.Log($"CheckSymlinkPrivilege: exception — {ex.Message}; defaulting to show logoff message");
+            session["SHOWLOGOFFMESSAGE"] = "1";
+            return ActionResult.Success;
+        }
+    }
+
     [CustomAction]
     public static ActionResult GrantSymlinkPrivilege(Session session)
     {
@@ -147,6 +234,16 @@ public static class PrivilegeActions
         IntPtr             accountSid,
         LsaUnicodeString[] userRights,
         uint               countOfRights);
+
+    [DllImport("advapi32.dll", SetLastError = false)]
+    private static extern uint LsaEnumerateAccountRights(
+        IntPtr     policyHandle,
+        IntPtr     accountSid,
+        out IntPtr userRights,
+        out uint   countOfRights);
+
+    [DllImport("advapi32.dll", SetLastError = false)]
+    private static extern uint LsaFreeMemory(IntPtr buffer);
 
     [DllImport("advapi32.dll", SetLastError = false)]
     private static extern uint LsaClose(IntPtr objectHandle);
