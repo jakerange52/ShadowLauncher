@@ -118,22 +118,19 @@ public class FirstRunService
                 if (trimmed.StartsWith("Version=", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-var props = ThwargLineParser.Parse(trimmed);
+                var props = ThwargLineParser.Parse(trimmed);
                 if (!props.TryGetValue("Name", out var name) || string.IsNullOrWhiteSpace(name))
                     continue;
                 props.TryGetValue("Password", out var password);
+                props.TryGetValue("Alias", out var alias);
 
                 var account = new Core.Models.Account
                 {
                     Id = name.ToLowerInvariant(),
                     Name = name,
                     PasswordHash = password ?? string.Empty,
-                    IsActive = true,
-                    CreatedDate = DateTime.UtcNow,
+                    Notes = string.IsNullOrWhiteSpace(alias) ? string.Empty : alias,
                 };
-
-                if (props.TryGetValue("Alias", out var alias) && !string.IsNullOrWhiteSpace(alias))
-                    account.Notes = alias;
 
                 await _accountRepo.AddAsync(account);
                 imported++;

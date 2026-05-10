@@ -114,4 +114,44 @@ internal static partial class WindowFocusHelper
         }
         catch (ArgumentException) { return false; }
     }
+
+    /// <summary>
+    /// Tries to read the minimized state of the process's main window.
+    /// Returns false (out param undefined) when the process has no main window
+    /// — callers should treat that as "unknown" and not overwrite a previously
+    /// captured value.
+    /// </summary>
+    public static bool TryGetMinimizedState(int processId, out bool isMinimized)
+    {
+        isMinimized = false;
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            var hWnd = process.MainWindowHandle;
+            if (hWnd == IntPtr.Zero) return false;
+            isMinimized = IsIconic(hWnd);
+            return true;
+        }
+        catch (ArgumentException) { return false; }
+    }
+
+    /// <summary>
+    /// Minimizes every visible top-level window owned by the given process.
+    /// Returns the number of windows minimized.
+    /// </summary>
+    public static int MinimizeAllWindows(int processId)
+    {
+        int count = 0;
+        EnumWindows((hWnd, _) =>
+        {
+            GetWindowThreadProcessId(hWnd, out uint pid);
+            if (pid == (uint)processId && IsWindowVisible(hWnd) && !IsIconic(hWnd))
+            {
+                ShowWindow(hWnd, SW_MINIMIZE);
+                count++;
+            }
+            return true;
+        }, nint.Zero);
+        return count;
+    }
 }

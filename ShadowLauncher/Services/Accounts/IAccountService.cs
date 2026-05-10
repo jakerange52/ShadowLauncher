@@ -4,7 +4,8 @@ namespace ShadowLauncher.Services.Accounts;
 
 public interface IAccountService
 {
-    Task<Account?> GetAccountAsync(string accountId);
+    event EventHandler? AccountsChanged;
+
     Task<IEnumerable<Account>> GetAllAccountsAsync();
     Task<Account> CreateAccountAsync(string name, string password);
     Task UpdateAccountAsync(Account account);

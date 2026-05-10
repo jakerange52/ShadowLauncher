@@ -14,6 +14,7 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
     private readonly FileSystemWatcher _watcher;
     private List<Account> _cache = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private Timer? _debounceTimer;
 
     private const string HeaderComment = "# Name=xxx,Password=xxx,LaunchPath=c:\\xxx,PreferencePath=c:\\xxx,Alias=xxx";
 
@@ -43,9 +44,13 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
 
     private void OnFileChanged(object sender, FileSystemEventArgs e)
     {
-        Thread.Sleep(100);
-        LoadFromFile();
-        AccountsChanged?.Invoke(this, EventArgs.Empty);
+        // Coalesce bursts of FSW events into a single reload after 100 ms of quiet.
+        _debounceTimer ??= new Timer(_ =>
+        {
+            LoadFromFile();
+            AccountsChanged?.Invoke(this, EventArgs.Empty);
+        }, null, Timeout.Infinite, Timeout.Infinite);
+        _debounceTimer.Change(100, Timeout.Infinite);
     }
 
     private void LoadFromFile()
@@ -81,8 +86,6 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
                     Id = name.ToLowerInvariant(),
                     Name = name,
                     PasswordHash = password,
-                    IsActive = true,
-                    CreatedDate = DateTime.UtcNow
                 };
 
                 // Store optional Thwarg properties in Notes for round-tripping
@@ -122,7 +125,11 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
 
                 lines.Add(string.Join(",", parts));
             }
-            File.WriteAllLines(_filePath, lines);
+            // Atomic write: stage to a temp file then move into place so a crash mid-write
+            // can't leave Accounts.txt corrupted.
+            var tempPath = _filePath + ".tmp";
+            File.WriteAllLines(tempPath, lines);
+            File.Move(tempPath, _filePath, overwrite: true);
         }
         finally
         {
@@ -195,11 +202,11 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
         }
     }
 
-    public Task<int> CountAsync() => Task.FromResult(_cache.Count);
-
     public void Dispose()
     {
+        _debounceTimer?.Dispose();
         _watcher.EnableRaisingEvents = false;
         _watcher.Dispose();
+        _lock.Dispose();
     }
 }

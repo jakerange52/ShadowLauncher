@@ -58,8 +58,13 @@ public class DatRegistryDownloader
             xml = await _http.GetStringAsync(_registryUrl);
 
             Directory.CreateDirectory(Path.GetDirectoryName(_cachePath)!);
-            await File.WriteAllTextAsync(_cachePath, xml);
+            // Atomic write: stage to a temp file then move into place so a crash mid-write
+            // can't leave DatRegistry.xml corrupted.
+            var tempPath = _cachePath + ".tmp";
+            await File.WriteAllTextAsync(tempPath, xml);
+            File.Move(tempPath, _cachePath, overwrite: true);
         }
+        catch (OperationCanceledException) { throw; }
         catch
         {
             // Try the AppData cache written by a previous successful download.
@@ -82,17 +87,15 @@ public class DatRegistryDownloader
             var id = setEl.Attribute("id")?.Value?.Trim() ?? string.Empty;
             if (string.IsNullOrEmpty(id)) continue;
 
+            var zipEl = setEl.Element("Zip");
             var set = new DatSet
             {
                 Id = id,
                 Name = setEl.Attribute("name")?.Value?.Trim() ?? id,
                 Version = setEl.Attribute("version")?.Value?.Trim() ?? string.Empty,
                 Description = setEl.Element("Description")?.Value?.Trim() ?? string.Empty,
+                ZipUrl = zipEl?.Attribute("url")?.Value?.Trim() ?? string.Empty,
             };
-
-            var zipEl = setEl.Element("Zip");
-            if (zipEl is not null)
-                set.ZipUrl = zipEl.Attribute("url")?.Value?.Trim() ?? string.Empty;
 
             foreach (var fileEl in setEl.Elements("File"))
             {

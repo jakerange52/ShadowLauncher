@@ -7,7 +7,6 @@ using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Application;
 using ShadowLauncher.Infrastructure;
 using ShadowLauncher.Infrastructure.Native;
-using ShadowLauncher.Infrastructure.Persistence;
 using ShadowLauncher.Infrastructure.Updates;
 using ShadowLauncher.Infrastructure.WebServices;
 using ShadowLauncher.Services.Accounts;
@@ -31,8 +30,6 @@ public class MainWindowViewModel : ViewModelBase
     private readonly UpdateChecker _updateChecker;
     private readonly ThemeService _themeService;
     private readonly IDatSetService _datSetService;
-    private readonly AccountFileRepository _accountFileRepo;
-    private readonly ServerFileRepository _serverFileRepo;
     private readonly ServerListDownloader _serverListDownloader;
     private readonly BetaServerListDownloader _betaServerListDownloader;
     private readonly ProfileService _profileService;
@@ -51,6 +48,13 @@ public class MainWindowViewModel : ViewModelBase
     private readonly Dictionary<int, (Account Account, Server Server)> _launchedSessions = [];
 
     /// <summary>
+    /// PIDs of relaunched clients that should be minimized once their character
+    /// reaches <see cref="GameSessionStatus.InGame"/> (so we don't resize a
+    /// window that's still on the login/character-select screen).
+    /// </summary>
+    private readonly HashSet<int> _pendingMinimizeOnInGame = [];
+
+    /// <summary>
     /// Raised when the VM needs the view to show a file-browse dialog.
     /// </summary>
     public event EventHandler? BrowseGameClientRequested;
@@ -61,8 +65,6 @@ public class MainWindowViewModel : ViewModelBase
         IGameLauncher gameLauncher,
         IGameSessionService sessionService,
         IConfigurationProvider config,
-        AccountFileRepository accountFileRepo,
-        ServerFileRepository serverFileRepo,
         ServerListDownloader serverListDownloader,
         BetaServerListDownloader betaServerListDownloader,
         ProfileService profileService,
@@ -82,8 +84,6 @@ public class MainWindowViewModel : ViewModelBase
         _updateChecker = updateChecker;
         _themeService = themeService;
         _datSetService = datSetService;
-        _accountFileRepo = accountFileRepo;
-        _serverFileRepo = serverFileRepo;
         _serverListDownloader = serverListDownloader;
         _betaServerListDownloader = betaServerListDownloader;
         _profileService = profileService;
@@ -97,9 +97,9 @@ public class MainWindowViewModel : ViewModelBase
 
         _logger.LogInformation("MainWindowViewModel initializing");
 
-        _accountFileRepo.AccountsChanged += (_, _) =>
+        _accountService.AccountsChanged += (_, _) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(ReloadAccountsAsync);
-        _serverFileRepo.ServersChanged += (_, _) =>
+        _serverService.ServersChanged += (_, _) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(ReloadServersAsync);
         appCoordinator.ServerStatusRefreshed += (_, _) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(ReloadServersAsync);
@@ -314,8 +314,10 @@ public class MainWindowViewModel : ViewModelBase
     private void SaveCurrentProfile()
     {
         if (_currentProfile is null || _applyingProfile) return;
-        _currentProfile.SelectedAccountIds = SelectedAccounts.Select(a => a.Id).ToList();
-        _currentProfile.SelectedServerIds  = SelectedServers.Select(s => s.Id).ToList();
+        _currentProfile.SelectedAccountIds.Clear();
+        _currentProfile.SelectedAccountIds.AddRange(SelectedAccounts.Select(a => a.Id));
+        _currentProfile.SelectedServerIds.Clear();
+        _currentProfile.SelectedServerIds.AddRange(SelectedServers.Select(s => s.Id));
         _currentProfile.KillOnMissingHeartbeat = _config.KillOnMissingHeartbeat;
         _currentProfile.KillHeartbeatTimeoutSeconds = _config.KillHeartbeatTimeoutSeconds;
         _currentProfile.AutoRelaunch = _config.AutoRelaunch;
@@ -365,7 +367,32 @@ public class MainWindowViewModel : ViewModelBase
 
             ActiveSessions.Clear();
             foreach (var session in await _sessionService.GetActiveSessionsAsync())
+            {
                 ActiveSessions.Add(session);
+
+                // Adopted (journaled) sessions weren't launched by this process, so
+                // _launchedSessions is empty for them. Seed it by ID lookup so that
+                // auto-relaunch still fires when these PIDs eventually exit.
+                if (!_launchedSessions.ContainsKey(session.ProcessId))
+                {
+                    var account = Accounts.FirstOrDefault(a =>
+                        string.Equals(a.Id, session.AccountId, StringComparison.OrdinalIgnoreCase));
+                    var server = Servers.FirstOrDefault(s =>
+                        string.Equals(s.Id, session.ServerId, StringComparison.OrdinalIgnoreCase));
+                    if (account is not null && server is not null)
+                    {
+                        _launchedSessions[session.ProcessId] = (account, server);
+                        _logger.LogDebug("Adopted session PID {Pid} registered for auto-relaunch ({Account} on {Server})",
+                            session.ProcessId, account.Name, server.Name);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Adopted session PID {Pid} could not be registered for auto-relaunch — account '{AccountId}' or server '{ServerId}' not found",
+                            session.ProcessId, session.AccountId, session.ServerId);
+                    }
+                }
+            }
 
             StatusText = $"Loaded {Accounts.Count} accounts, {Servers.Count} servers";
 
@@ -409,7 +436,8 @@ public class MainWindowViewModel : ViewModelBase
 
     private async void OnGameExited(int processId)
     {
-        _logger.LogInformation("Game process exited: PID {Pid}", processId);
+        _logger.LogInformation("Game process exited: PID {Pid} (wasMinimized: {WasMinimized})", processId, wasMinimized);
+        _pendingMinimizeOnInGame.Remove(processId);
         var session = ActiveSessions.FirstOrDefault(s => s.ProcessId == processId);
         if (session is not null)
         {
@@ -439,19 +467,35 @@ public class MainWindowViewModel : ViewModelBase
 
             try
             {
-                var character = info.Account.Characters.FirstOrDefault()
-                    ?? new Core.Models.Character { Id = Guid.NewGuid().ToString(), Name = "Default", AccountId = info.Account.Id, Level = 1 };
-
                 // Delay before relaunch
                 await Task.Delay(AutoRelaunchDelaySeconds * 1000);
 
-                var result = await _gameLauncher.LaunchGameAsync(info.Account, character, info.Server);
+                var result = await _gameLauncher.LaunchGameAsync(info.Account, info.Server);
                 if (result.Success)
                 {
                     var newSession = await _sessionService.CreateSessionAsync(info.Account, info.Server, result.ProcessId);
                     ActiveSessions.Add(newSession);
                     _launchedSessions[result.ProcessId] = info;
                     StatusText = $"Auto-relaunched {info.Account.Name} (PID {result.ProcessId})";
+
+                    if (wasMinimized)
+                    {
+                        var character = _loginCommandsService.GetDefaultCharacter(info.Account.Name, info.Server.Name);
+                        var hasAutoLoginCharacter = !string.IsNullOrWhiteSpace(character)
+                            && !string.Equals(character, "any", StringComparison.OrdinalIgnoreCase);
+
+                        if (hasAutoLoginCharacter)
+                        {
+                            _logger.LogInformation("Will re-minimize PID {Pid} after character '{Char}' reaches in-game",
+                                result.ProcessId, character);
+                            _pendingMinimizeOnInGame.Add(result.ProcessId);
+                        }
+                        else
+                        {
+                            _logger.LogInformation("Previous client was minimized — will re-minimize relaunched PID {Pid}", result.ProcessId);
+                            _ = MinimizeWhenReadyAsync(result.ProcessId);
+                        }
+                    }
                 }
                 else
                 {
@@ -468,6 +512,41 @@ public class MainWindowViewModel : ViewModelBase
         {
             _launchedSessions.Remove(processId);
         }
+    }
+
+    /// <summary>
+    /// Keeps every visible top-level window of a relaunched process minimized
+    /// for a settling period. AC clients show a sequence of windows (splash,
+    /// patcher, then the game window), each created un-minimized — minimizing
+    /// only the first one is not enough.
+    /// </summary>
+    private async Task MinimizeWhenReadyAsync(int processId)
+    {
+        const int totalMs = 30_000;   // keep watching for 30s after relaunch
+        const int intervalMs = 500;
+        int elapsed = 0;
+        bool everMinimized = false;
+        while (elapsed < totalMs)
+        {
+            await Task.Delay(intervalMs);
+            elapsed += intervalMs;
+            try
+            {
+                using var p = System.Diagnostics.Process.GetProcessById(processId);
+                if (p.HasExited) return;
+            }
+            catch (ArgumentException) { return; }
+
+            var n = WindowFocusHelper.MinimizeAllWindows(processId);
+            if (n > 0)
+            {
+                everMinimized = true;
+                _logger.LogInformation("Restored minimized state for relaunched PID {Pid}", processId);
+                return;
+            }
+        }
+        if (!everMinimized)
+            _logger.LogWarning("Gave up minimizing PID {Pid}: no visible window appeared within {Ms}ms", processId, totalMs);
     }
 
     private void OnHeartbeatReceived(HeartbeatReceivedEventArgs e)
@@ -487,15 +566,21 @@ public class MainWindowViewModel : ViewModelBase
                 ServerName = session.ServerName,
                 CharacterName = e.Data.CharacterName,
                 ProcessId = session.ProcessId,
-                ServerMonitorPort = session.ServerMonitorPort,
                 Status = e.Data.Status,
-                StartTime = session.StartTime,
                 LastHeartbeatTime = e.Data.Timestamp,
                 UptimeSeconds = e.Data.UptimeSeconds
             };
             ActiveSessions[idx] = updated;
             if (wasSelected)
                 SelectedSession = updated;
+
+            if (updated.Status == GameSessionStatus.InGame
+                && _pendingMinimizeOnInGame.Remove(updated.ProcessId))
+            {
+                _logger.LogInformation("Character '{Char}' reached in-game on PID {Pid} — minimizing now",
+                    updated.CharacterName, updated.ProcessId);
+                _ = MinimizeWhenReadyAsync(updated.ProcessId);
+            }
         }
     }
 
@@ -599,21 +684,15 @@ public class MainWindowViewModel : ViewModelBase
                     continue;
                 }
 
-                var character = account.Characters.FirstOrDefault()
-                    ?? new Core.Models.Character { Id = Guid.NewGuid().ToString(), Name = "Default", AccountId = account.Id, Level = 1 };
-
                 StatusText = $"Launching {account.Name} on {server.Name}...";
                 try
                 {
-                    var result = await _gameLauncher.LaunchGameAsync(account, character, server);
+                    var result = await _gameLauncher.LaunchGameAsync(account, server);
                     if (result.Success)
                     {
                         var session = await _sessionService.CreateSessionAsync(account, server, result.ProcessId);
                         ActiveSessions.Add(session);
                         _launchedSessions[result.ProcessId] = (account, server);
-                        account.LaunchCount++;
-                        account.LastUsedDate = DateTime.UtcNow;
-                        await _accountService.UpdateAccountAsync(account);
                         launched++;
                     }
                     else
@@ -699,9 +778,31 @@ public class MainWindowViewModel : ViewModelBase
         var vm = new SettingsViewModel(_config, _updateChecker, _themeService);
         var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService);
         window.Owner = System.Windows.Application.Current.MainWindow;
+        window.ProfilesEdited += (_, _) => RefreshProfiles();
         if (window.ShowDialog() == true)
         {
             StatusText = "Settings saved.";
+        }
+    }
+
+    private void RefreshProfiles()
+    {
+        var previousId = _currentProfile?.Id;
+        Profiles.Clear();
+        foreach (var p in _profileService.Profiles)
+            Profiles.Add(p);
+
+        var match = Profiles.FirstOrDefault(p => p.Id == previousId);
+        if (match is not null)
+        {
+            // Same profile still exists — keep it active without re-applying.
+            _currentProfile = match;
+            OnPropertyChanged(nameof(CurrentProfile));
+        }
+        else
+        {
+            // Active profile was deleted — fall back to the service's active profile.
+            CurrentProfile = _profileService.ActiveProfile;
         }
     }
 

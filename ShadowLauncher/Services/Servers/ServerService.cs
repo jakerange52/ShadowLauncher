@@ -9,19 +9,23 @@ public class ServerService : IServerService
     private readonly IRepository<Server> _repository;
     private readonly ILogger<ServerService> _logger;
 
+    public event EventHandler? ServersChanged;
+
     public ServerService(
         IRepository<Server> repository,
         ILogger<ServerService> logger)
     {
         _repository = repository;
         _logger = logger;
+
+        // Forward file-change notifications from the repository through the service interface
+        // so consumers don't need to depend on the concrete repository type.
+        if (repository is Infrastructure.Persistence.ServerFileRepository repo)
+            repo.ServersChanged += (s, e) => ServersChanged?.Invoke(s, e);
     }
 
     public Task<Server?> GetServerAsync(string serverId) => _repository.GetByIdAsync(serverId);
     public Task<IEnumerable<Server>> GetAllServersAsync() => _repository.GetAllAsync();
-
-    public async Task<IEnumerable<Server>> GetActiveServersAsync()
-        => await _repository.FindAsync(s => s.IsOnline);
 
     public async Task<Server> CreateServerAsync(Server server)
     {
@@ -103,7 +107,7 @@ public class ServerService : IServerService
         var servers = await _repository.GetAllAsync();
         var tasks = servers.Select(s => CheckServerStatusAsync(s.Id));
         await Task.WhenAll(tasks);
-        _logger.LogInformation("Refreshed status for all servers");
+        _logger.LogDebug("Refreshed status for all servers");
     }
 
     }

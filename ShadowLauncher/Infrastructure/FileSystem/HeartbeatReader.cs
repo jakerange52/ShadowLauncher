@@ -6,7 +6,7 @@ namespace ShadowLauncher.Infrastructure.FileSystem;
 
 /// <summary>
 /// Reads heartbeat status files written by ThwargFilter (Decal plugin).
-/// ThwargFilter writes to: %AppData%\ThwargLauncher\Running\gameToLauncher_{pid}.txt
+/// ThwargFilter writes to: %AppData%\ThwargLauncher\Running\game_{pid}.txt
 /// Format is line-based Key:Value pairs.
 /// </summary>
 public class HeartbeatReader : IHeartbeatReader
@@ -45,8 +45,8 @@ public class HeartbeatReader : IHeartbeatReader
                 dict[key] = value;
             }
 
-            // Verify file version compatibility
-            if (dict.TryGetValue("FileVersion", out var version) && !version.StartsWith("1"))
+            // Verify file version compatibility (accept 1.x heartbeat schema only).
+            if (dict.TryGetValue("FileVersion", out var version) && !version.StartsWith("1."))
                 return null;
 
             var heartbeat = new HeartbeatData
@@ -54,7 +54,6 @@ public class HeartbeatReader : IHeartbeatReader
                 CharacterName = dict.GetValueOrDefault("ActualCharacterName",
                     dict.GetValueOrDefault("CharacterName", string.Empty)),
                 UptimeSeconds = int.TryParse(dict.GetValueOrDefault("UptimeSeconds", "0"), out var up) ? up : 0,
-                TeamList = dict.GetValueOrDefault("TeamList", string.Empty),
                 Timestamp = DateTime.UtcNow
             };
 

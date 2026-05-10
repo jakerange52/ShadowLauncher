@@ -27,7 +27,6 @@ public class GameSessionService : IGameSessionService
             ServerName = server.Name,
             ProcessId = processId,
             Status = GameSessionStatus.Launching,
-            StartTime = DateTime.UtcNow,
             LastHeartbeatTime = DateTime.UtcNow
         };
 
@@ -38,7 +37,7 @@ public class GameSessionService : IGameSessionService
         return Task.FromResult(session);
     }
 
-    public Task<GameSession?> GetSessionAsync(string sessionId)
+    private Task<GameSession?> GetSessionAsync(string sessionId)
     {
         _sessions.TryGetValue(sessionId, out var session);
         return Task.FromResult(session);

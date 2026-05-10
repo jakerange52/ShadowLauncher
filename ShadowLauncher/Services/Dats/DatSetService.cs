@@ -23,6 +23,16 @@ public class DatSetService : IDatSetService
     // Shared HttpClient — reused across all downloads to avoid socket exhaustion.
     private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromHours(2) };
 
+    // AC file names recognised for extraction and cache-completeness checks.
+    private static readonly HashSet<string> KnownAcFileNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "client_portal.dat",
+        "client_cell_1.dat",
+        "client_local_English.dat",
+        "client_highres.dat",
+        "acclient.exe",
+    };
+
     public DatSetService(
         DatRegistryDownloader downloader,
         IConfigurationProvider config,
@@ -65,8 +75,9 @@ public class DatSetService : IDatSetService
     }
 
     /// <inheritdoc/>
-    public async Task RefreshRegistryAsync()
+    public async Task RefreshRegistryAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _cachedSets = null; // bust in-memory cache
         _cachedSets = await _downloader.FetchDatSetsAsync();
     }
@@ -147,25 +158,8 @@ public class DatSetService : IDatSetService
                 _logger.LogInformation("New GitHub release ({Tag}) detected for '{Server}' - re-downloading DATs",
                     releaseTag, server.Name);
 
-            _logger.LogInformation("Downloading custom DAT zip for '{Server}' from {Url}",
-                server.Name, resolvedUrl);
-            Directory.CreateDirectory(localDir);
-
-            var tempZip = Path.Combine(localDir, "__custom_download.zip");
-
-            try
-            {
-await DownloadRawAsync(_httpClient, resolvedUrl, tempZip, progress);
-_logger.LogInformation("Extracting custom DAT zip for '{Server}'", server.Name);
-                ExtractDatZip(tempZip, localDir, new DatSet(), overwrite: isNewRelease);
-                WriteVersionSidecar(localDir, releaseTag);
-            }
-            finally
-            {
-                if (File.Exists(tempZip))
-                    File.Delete(tempZip);
-            }
-
+            _logger.LogInformation("Downloading custom DAT zip for '{Server}' from {Url}", server.Name, resolvedUrl);
+            await DownloadAndExtractZipAsync(resolvedUrl, localDir, new DatSet(), releaseTag, isNewRelease, progress);
             _logger.LogInformation("Custom DAT zip for '{Server}' ready at {Dir}", server.Name, localDir);
             return;
         }
@@ -188,7 +182,7 @@ _logger.LogInformation("Extracting custom DAT zip for '{Server}'", server.Name);
             return false;
         }
 
-        var ready = set.IsFullyDownloaded(_config.DatSetsDirectory);
+        var ready = IsFullyDownloaded(set);
 
         if (!ready)
             _logger.LogWarning("DAT set '{Id}' is not fully downloaded", datSetId);
@@ -218,9 +212,8 @@ _logger.LogInformation("Extracting custom DAT zip for '{Server}'", server.Name);
                 return;
             }
 
-            // Skip download if already fully cached AND the release tag hasn't changed.
             var isNewRelease = IsNewRelease(localDir, releaseTag);
-            if (set.IsFullyDownloaded(_config.DatSetsDirectory) && !isNewRelease)
+            if (IsFullyDownloaded(set) && !isNewRelease)
             {
                 _logger.LogInformation("DAT set '{Id}' is current (tag: {Tag}) - skipping download", datSetId, releaseTag ?? "n/a");
                 return;
@@ -230,23 +223,7 @@ _logger.LogInformation("Extracting custom DAT zip for '{Server}'", server.Name);
                 _logger.LogInformation("New release detected for DAT set '{Id}' (tag: {Tag}) - re-downloading", datSetId, releaseTag);
 
             _logger.LogInformation("Downloading DAT zip for '{Id}' from {Url}", set.Id, resolvedUrl);
-            Directory.CreateDirectory(localDir);
-
-            var tempZip = Path.Combine(localDir, "__download.zip");
-
-            try
-            {
-await DownloadRawAsync(_httpClient, resolvedUrl, tempZip, progress);
-_logger.LogInformation("Extracting DAT zip for '{Id}'", set.Id);
-                ExtractDatZip(tempZip, localDir, set, overwrite: isNewRelease);
-                WriteVersionSidecar(localDir, releaseTag);
-            }
-            finally
-            {
-                if (File.Exists(tempZip))
-                    File.Delete(tempZip);
-            }
-
+            await DownloadAndExtractZipAsync(resolvedUrl, localDir, set, releaseTag, isNewRelease, progress);
             _logger.LogInformation("DAT set '{Id}' zip extraction complete", set.Id);
             return;
         }
@@ -320,6 +297,25 @@ _logger.LogInformation("Extracting DAT zip for '{Id}'", set.Id);
         File.WriteAllText(Path.Combine(localDir, ".version"), releaseTag);
     }
 
+    /// <summary>
+    /// Returns true if all expected files for <paramref name="set"/> are present on disk.
+    /// Zip-delivered sets are checked by scanning for any known AC filename;
+    /// sets with explicit <see cref="DatSet.Files"/> entries are checked by exact name.
+    /// </summary>
+    private bool IsFullyDownloaded(DatSet set)
+    {
+        var localDir = Path.Combine(_config.DatSetsDirectory, set.Id);
+        if (!Directory.Exists(localDir)) return false;
+
+        if (!string.IsNullOrWhiteSpace(set.ZipUrl))
+            return KnownAcFileNames.Any(name => File.Exists(Path.Combine(localDir, name)));
+
+        if (set.Files.Count > 0)
+            return set.Files.All(f => File.Exists(Path.Combine(localDir, f.FileName)));
+
+        return false;
+    }
+
     private static bool IsRetailSet(string? id)
         => string.IsNullOrWhiteSpace(id)
         || string.Equals(id, "retail", StringComparison.OrdinalIgnoreCase);
@@ -333,6 +329,34 @@ _logger.LogInformation("Extracting DAT zip for '{Id}'", set.Id);
         return new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray())
             .ToLowerInvariant()
             .Trim('_', ' ');
+    }
+
+    /// <summary>
+    /// Downloads a zip from <paramref name="url"/> into a temp file, extracts the recognised
+    /// DAT files into <paramref name="localDir"/>, writes the version sidecar, and cleans up.
+    /// Shared by <see cref="EnsureCustomDatSourceReadyAsync"/> and <see cref="DownloadMissingFilesAsync"/>.
+    /// </summary>
+    private async Task DownloadAndExtractZipAsync(
+        string url,
+        string localDir,
+        DatSet set,
+        string? releaseTag,
+        bool overwrite,
+        IProgress<DatDownloadProgress>? progress)
+    {
+        Directory.CreateDirectory(localDir);
+        var tempZip = Path.Combine(localDir, "__download.zip");
+        try
+        {
+            await DownloadRawAsync(_httpClient, url, tempZip, progress);
+            ExtractDatZip(tempZip, localDir, set, overwrite);
+            WriteVersionSidecar(localDir, releaseTag);
+        }
+        finally
+        {
+            if (File.Exists(tempZip))
+                File.Delete(tempZip);
+        }
     }
 
     /// <summary>
@@ -375,20 +399,6 @@ _logger.LogInformation("Extracting DAT zip for '{Id}'", set.Id);
             throw;
         }
     }
-
-    /// <summary>
-    /// Extracts only the recognised DAT filenames from a zip into <paramref name="destDir"/>.
-    /// Files in the zip not matching the set's known filenames are ignored.
-    /// The zip may contain files in subdirectories — only the filename is matched.
-    /// </summary>
-    private static readonly HashSet<string> KnownAcFileNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "client_portal.dat",
-        "client_cell_1.dat",
-        "client_local_English.dat",
-        "client_highres.dat",
-        "acclient.exe",
-    };
 
     /// <summary>
     /// Extracts only the recognised DAT filenames from a zip into <paramref name="destDir"/>.

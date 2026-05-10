@@ -9,14 +9,18 @@ public class AccountService : IAccountService
     private readonly IRepository<Account> _repository;
     private readonly ILogger<AccountService> _logger;
 
+    public event EventHandler? AccountsChanged;
+
     public AccountService(IRepository<Account> repository, ILogger<AccountService> logger)
     {
         _repository = repository;
         _logger = logger;
-    }
 
-    public Task<Account?> GetAccountAsync(string accountId)
-        => _repository.GetByIdAsync(accountId);
+        // Forward file-change notifications from the repository through the service interface
+        // so consumers don't need to depend on the concrete repository type.
+        if (repository is Infrastructure.Persistence.AccountFileRepository repo)
+            repo.AccountsChanged += (s, e) => AccountsChanged?.Invoke(s, e);
+    }
 
     public Task<IEnumerable<Account>> GetAllAccountsAsync()
         => _repository.GetAllAsync();
@@ -33,8 +37,6 @@ public class AccountService : IAccountService
             Id = name.ToLowerInvariant(),
             Name = name,
             PasswordHash = password,
-            CreatedDate = DateTime.UtcNow,
-            IsActive = true
         };
 
         await _repository.AddAsync(account);

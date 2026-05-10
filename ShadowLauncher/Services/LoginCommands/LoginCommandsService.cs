@@ -230,7 +230,7 @@ public class LoginCommandsService
         profile.GlobalLoginCommandsWaitMs = ReadWaitMs(globalPath);
 
         // Per-character commands — scan all LoginCommands-*.txt files
-        profile.CharacterLoginCommands = [];
+        profile.CharacterLoginCommands.Clear();
         if (Directory.Exists(LoginCommandsFolder))
         {
             foreach (var file in Directory.GetFiles(LoginCommandsFolder, "LoginCommands-*-*-*.txt"))
@@ -249,7 +249,9 @@ public class LoginCommandsService
         }
 
         // Default character selections
-        profile.DefaultCharacters = LoadDefaultCharacters();
+        profile.DefaultCharacters.Clear();
+        foreach (var kvp in LoadDefaultCharacters())
+            profile.DefaultCharacters[kvp.Key] = kvp.Value;
     }
 
     /// <summary>

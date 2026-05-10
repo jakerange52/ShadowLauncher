@@ -10,7 +10,7 @@ namespace ShadowLauncher.Infrastructure;
 /// </summary>
 public class ThemeService
 {
-    private static readonly IReadOnlyList<ThemeDefinition> Themes =
+    private static readonly ThemeDefinition[] Themes =
     [
         new("Shadow",    "Presentation/Themes/ShadowTheme.xaml"),
         new("Shadowfire", "Presentation/Themes/ShadowfireTheme.xaml"),
@@ -19,39 +19,52 @@ public class ThemeService
     ];
 
     private int _currentIndex;
+    private ResourceDictionary? _activeThemeDict;
 
     public ThemeService(IConfigurationProvider config)
     {
-        // Restore saved theme, defaulting to Shadow.
         var saved = config.Theme;
-        var match = Themes.FirstOrDefault(t => t.Name == saved) ?? Themes[0];
-        _currentIndex = Themes.ToList().IndexOf(match);
+        var idx = Array.FindIndex(Themes, t => t.Name == saved);
+        _currentIndex = idx >= 0 ? idx : 0;
     }
 
     public string CurrentThemeName => Themes[_currentIndex].Name;
-    public int ThemeCount => Themes.Count;
+    public int ThemeCount => Themes.Length;
 
     public event Action<string>? ThemeChanged;
 
     /// <summary>Applies the theme that was loaded from config on construction.</summary>
     public void ApplySaved() => Apply(_currentIndex);
 
-    public void Next()    => Apply((_currentIndex + 1) % Themes.Count);
-    public void Previous() => Apply((_currentIndex - 1 + Themes.Count) % Themes.Count);
+    public void Next()    => Apply((_currentIndex + 1) % Themes.Length);
+    public void Previous() => Apply((_currentIndex - 1 + Themes.Length) % Themes.Length);
 
     private void Apply(int index)
     {
         _currentIndex = index;
         var def = Themes[_currentIndex];
 
-        var dict = new ResourceDictionary
+        var newDict = new ResourceDictionary
         {
             Source = new Uri(def.Uri, UriKind.Relative)
         };
 
+        // Replace only our own theme dictionary so other merged dictionaries (if any)
+        // are preserved across theme switches.
         var merged = System.Windows.Application.Current.Resources.MergedDictionaries;
-        merged.Clear();
-        merged.Add(dict);
+        if (_activeThemeDict is not null)
+        {
+            var existingIndex = merged.IndexOf(_activeThemeDict);
+            if (existingIndex >= 0)
+                merged[existingIndex] = newDict;
+            else
+                merged.Add(newDict);
+        }
+        else
+        {
+            merged.Add(newDict);
+        }
+        _activeThemeDict = newDict;
 
         ThemeChanged?.Invoke(def.Name);
     }

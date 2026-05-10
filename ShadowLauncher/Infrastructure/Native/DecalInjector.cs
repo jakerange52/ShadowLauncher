@@ -49,7 +49,8 @@ internal static class DecalInjector
     /// then resumes the process. Returns the process ID, or -1 on failure.
     /// </summary>
     public static int LaunchSuspendedAndInject(
-        string exePath, string arguments, string workingDirectory, string decalInjectPath)
+        string exePath, string arguments, string workingDirectory, string decalInjectPath,
+        out int win32Error)
     {
         var si = new STARTUPINFO { cb = Marshal.SizeOf<STARTUPINFO>() };
         var commandLine = $"\"{exePath}\" {arguments}";
@@ -58,7 +59,11 @@ internal static class DecalInjector
             false, CREATE_SUSPENDED, IntPtr.Zero,
             string.IsNullOrEmpty(workingDirectory) ? null : workingDirectory,
             ref si, out var pi))
+        {
+            win32Error = Marshal.GetLastWin32Error();
             return -1;
+        }
+        win32Error = 0;
 
         try
         {

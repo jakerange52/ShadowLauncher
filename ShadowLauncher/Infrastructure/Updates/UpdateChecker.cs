@@ -56,6 +56,8 @@ public class UpdateChecker
                 : string.Empty;
 
             // Find the ShadowLauncher-Setup.exe asset in the release.
+            // TODO: Tighten this match (e.g. EndsWith("-Setup.exe")) if we ever publish multiple
+            // .exe assets in a single release; today this picks the first .exe found.
             var downloadUrl = string.Empty;
             if (root.TryGetProperty("assets", out var assets))
             {

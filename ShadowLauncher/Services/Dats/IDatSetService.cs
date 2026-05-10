@@ -54,7 +54,7 @@ public interface IDatSetService
     /// Forces a fresh download of the DatRegistry.xml, busting the in-memory cache.
     /// Call on startup so checksums and server mappings are always current.
     /// </summary>
-    Task RefreshRegistryAsync();
+    Task RefreshRegistryAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Ensures the DAT source for a server in Dat Developer Mode is present locally.
