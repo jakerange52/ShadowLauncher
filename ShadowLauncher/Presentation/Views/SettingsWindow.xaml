@@ -64,14 +64,11 @@
                     ToolTip="Rename or delete launch profiles"/>
         </StackPanel>
 
-        <!-- Dat Developer Mode -->
+        <!-- Open DAT Cache -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,12">
             <Button Content="Open DAT Cache" Padding="12,4" Margin="0,0,12,0"
                     Click="OpenDatCache_Click"
                     ToolTip="Open the folder where downloaded DAT files are cached"/>
-            <CheckBox IsChecked="{Binding DatDeveloperMode}" VerticalAlignment="Center"
-                      Content="Dat Developer Mode" Foreground="#E8A838" FontWeight="SemiBold"
-                      ToolTip="Enables a Custom Dat Registry field when adding servers, bypassing the community DAT registry for that server."/>
         </StackPanel>
 
         <!-- Footer -->
@@ -79,10 +76,16 @@
             <StackPanel DockPanel.Dock="Left" Orientation="Vertical" Margin="0,0,8,0">
                 <TextBlock Text="{Binding StatusText}" Foreground="Gray"
                            VerticalAlignment="Center" FontSize="11" Margin="0,0,0,4"/>
-                <Button Content="Check for Updates" Padding="12,6"
-                        Command="{Binding CheckForUpdatesCommand}"
-                        Visibility="{Binding IsDownloading, Converter={StaticResource InverseBoolToVisibility}}"
-                        ToolTip="Check GitHub for a newer version of ShadowLauncher"/>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Check for Updates" Padding="12,6"
+                            Command="{Binding CheckForUpdatesCommand}"
+                            Visibility="{Binding IsDownloading, Converter={StaticResource InverseBoolToVisibility}}"
+                            ToolTip="Check GitHub for a newer version of ShadowLauncher"/>
+                    <CheckBox IsChecked="{Binding DatDeveloperMode}" VerticalAlignment="Center"
+                              Margin="12,0,0,0"
+                              Content="Dat Developer Mode" Foreground="#E8A838" FontWeight="SemiBold"
+                              ToolTip="Enables a Custom Dat Registry field when adding servers, bypassing the community DAT registry for that server."/>
+                </StackPanel>
                 <!-- Download progress (visible only while downloading) -->
                 <ProgressBar Minimum="0" Maximum="100"
                              Value="{Binding DownloadProgress}"
