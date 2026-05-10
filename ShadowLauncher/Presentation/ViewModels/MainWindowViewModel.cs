@@ -104,7 +104,7 @@ public class MainWindowViewModel : ViewModelBase
         appCoordinator.ServerStatusRefreshed += (_, _) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(ReloadServersAsync);
         _gameMonitor.GameExited += (_, e) =>
-            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnGameExited(e.ProcessId, e.WasMinimized));
+            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnGameExited(e.ProcessId));
         _gameMonitor.HeartbeatReceived += (_, e) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnHeartbeatReceived(e));
 
@@ -434,7 +434,7 @@ public class MainWindowViewModel : ViewModelBase
             ServerSelectionRestoreRequested?.Invoke(selectedIds);
     }
 
-    private async void OnGameExited(int processId, bool wasMinimized)
+    private async void OnGameExited(int processId)
     {
         _logger.LogInformation("Game process exited: PID {Pid} (wasMinimized: {WasMinimized})", processId, wasMinimized);
         _pendingMinimizeOnInGame.Remove(processId);
@@ -776,7 +776,7 @@ public class MainWindowViewModel : ViewModelBase
     private void OpenSettings()
     {
         var vm = new SettingsViewModel(_config, _updateChecker, _themeService);
-        var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService, _loginCommandsService, _profileService);
+        var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService);
         window.Owner = System.Windows.Application.Current.MainWindow;
         window.ProfilesEdited += (_, _) => RefreshProfiles();
         if (window.ShowDialog() == true)
