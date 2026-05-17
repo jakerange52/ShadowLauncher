@@ -32,6 +32,7 @@ public class MainWindowViewModel : ViewModelBase
     private readonly IDatSetService _datSetService;
     private readonly ServerListDownloader _serverListDownloader;
     private readonly BetaServerListDownloader _betaServerListDownloader;
+    private readonly TreeStatsService _treeStatsService;
     private readonly ProfileService _profileService;
     private readonly LoginCommandsService _loginCommandsService;
     private readonly IGameMonitor _gameMonitor;
@@ -67,6 +68,7 @@ public class MainWindowViewModel : ViewModelBase
         IConfigurationProvider config,
         ServerListDownloader serverListDownloader,
         BetaServerListDownloader betaServerListDownloader,
+        TreeStatsService treeStatsService,
         ProfileService profileService,
         LoginCommandsService loginCommandsService,
         AppCoordinator appCoordinator,
@@ -86,6 +88,7 @@ public class MainWindowViewModel : ViewModelBase
         _datSetService = datSetService;
         _serverListDownloader = serverListDownloader;
         _betaServerListDownloader = betaServerListDownloader;
+        _treeStatsService = treeStatsService;
         _profileService = profileService;
         _loginCommandsService = loginCommandsService;
         _gameMonitor = gameMonitor;
@@ -104,7 +107,7 @@ public class MainWindowViewModel : ViewModelBase
         appCoordinator.ServerStatusRefreshed += (_, _) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(ReloadServersAsync);
         _gameMonitor.GameExited += (_, e) =>
-            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnGameExited(e.ProcessId));
+            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnGameExited(e.ProcessId, e.WasMinimized));
         _gameMonitor.HeartbeatReceived += (_, e) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnHeartbeatReceived(e));
 
@@ -434,7 +437,7 @@ public class MainWindowViewModel : ViewModelBase
             ServerSelectionRestoreRequested?.Invoke(selectedIds);
     }
 
-    private async void OnGameExited(int processId)
+    private async void OnGameExited(int processId, bool wasMinimized)
     {
         _logger.LogInformation("Game process exited: PID {Pid} (wasMinimized: {WasMinimized})", processId, wasMinimized);
         _pendingMinimizeOnInGame.Remove(processId);
@@ -895,7 +898,7 @@ public class MainWindowViewModel : ViewModelBase
 
     private void BrowseServers()
     {
-        var vm = new BrowseServersViewModel(_serverListDownloader, _betaServerListDownloader);
+        var vm = new BrowseServersViewModel(_serverListDownloader, _betaServerListDownloader, _treeStatsService);
         vm.ServerAdded += async (_, server) =>
         {
             try

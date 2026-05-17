@@ -13,6 +13,12 @@
     <Version>0.2.4</Version>
   </PropertyGroup>
 
+  <!-- Project-wide implicit usings in addition to the SDK defaults. -->
+  <ItemGroup>
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
+  </ItemGroup>
+
   <ItemGroup>
     <Resource Include="SLicon.ico" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.6" />

@@ -38,6 +38,7 @@ public static class ServiceBootstrapper
         services.AddSingleton<IHeartbeatReader, HeartbeatReader>();
         services.AddSingleton<ServerListDownloader>();
         services.AddSingleton<BetaServerListDownloader>();
+        services.AddSingleton<TreeStatsService>();
         services.AddSingleton<GitHubReleaseResolver>();
         services.AddSingleton<UpdateChecker>();
         services.AddSingleton<ThemeService>();

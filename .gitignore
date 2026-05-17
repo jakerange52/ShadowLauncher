@@ -46,3 +46,4 @@ ShadowLauncher.Installer/ThirdParty/*.msi
 ShadowLauncher.Installer/ThirdParty/ThwargFilter/*.dll
 ShadowLauncher.Installer/ThirdParty/ThwargFilter/*.pdb
 .github/copilot-instructions.md
+HARDLINK_PILOT.md
