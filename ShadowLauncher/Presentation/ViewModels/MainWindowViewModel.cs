@@ -779,7 +779,7 @@ public class MainWindowViewModel : ViewModelBase
     private void OpenSettings()
     {
         var vm = new SettingsViewModel(_config, _updateChecker, _themeService);
-        var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService);
+        var window = new Presentation.Views.SettingsWindow(vm, _accountService, _serverService, _loginCommandsService, _profileService);
         window.Owner = System.Windows.Application.Current.MainWindow;
         window.ProfilesEdited += (_, _) => RefreshProfiles();
         if (window.ShowDialog() == true)

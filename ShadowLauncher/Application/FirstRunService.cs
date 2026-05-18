@@ -5,10 +5,14 @@ using ShadowLauncher.Infrastructure.Persistence;
 
 namespace ShadowLauncher.Application;
 
+public record AcBaseCopyProgress(int FilesCompleted, int FilesTotal, string CurrentFile);
+
 /// <summary>
 /// Runs silently on first launch to pre-populate sensible defaults:
 ///   1. Detects the AC client path from the registry or standard install locations.
 ///   2. Imports accounts from ThwargLauncher if they exist and none are configured yet.
+///   3. Copies the AC install to ACBase\ if it lives under a protected path (Program Files),
+///      so HardLinkLauncher can create hard links without elevation.
 ///
 /// Nothing is overwritten if data already exists. All failures are swallowed so a
 /// missing ThwargLauncher installation or unreadable files never block startup.
@@ -52,6 +56,101 @@ public class FirstRunService
         TryDetectGameClient();
         await TryImportThwargAccountsAsync();
     }
+
+    /// <summary>
+    /// Returns true if <see cref="PrepareHardLinkBaseAsync"/> would need to perform
+    /// a file copy (i.e. the AC install is in a protected path and ACBase doesn't exist yet).
+    /// Use this to decide whether to show a progress window before calling PrepareHardLinkBaseAsync.
+    /// </summary>
+    public bool HardLinkBaseNeedsCopy()
+    {
+        var clientPath = _config.GameClientPath;
+        if (string.IsNullOrWhiteSpace(clientPath)) return false;
+
+        var existing = _config.GetSetting("HardLinkBasePath");
+        if (!string.IsNullOrWhiteSpace(existing) && Directory.Exists(existing)) return false;
+
+        var clientDir = Path.GetDirectoryName(clientPath)!;
+        return IsProtectedPath(clientDir);
+    }
+
+    /// <summary>
+    /// Ensures the ACBase directory is ready for <c>HardLinkLauncher</c>.
+    /// If the configured client path is under a protected directory (Program Files),
+    /// copies the AC install to <c>%LocalAppData%\ShadowLauncher\ACBase\</c> once.
+    /// If the path is unprotected, just stores it as-is.
+    /// Progress is reported via <paramref name="progress"/>; pass null to run silently.
+    /// Returns the resolved base path, or null if the client path is not configured.
+    /// </summary>
+    public async Task<string?> PrepareHardLinkBaseAsync(
+        IProgress<AcBaseCopyProgress>? progress = null,
+        CancellationToken ct = default)
+    {
+        var clientPath = _config.GameClientPath;
+        if (string.IsNullOrWhiteSpace(clientPath) || !File.Exists(clientPath))
+        {
+            _logger.LogWarning("PrepareHardLinkBase: client path not configured or not found");
+            return null;
+        }
+
+        var clientDir = Path.GetDirectoryName(clientPath)!;
+
+        // Already resolved from a previous run — nothing to do.
+        var existing = _config.GetSetting("HardLinkBasePath");
+        if (!string.IsNullOrWhiteSpace(existing) && Directory.Exists(existing))
+        {
+            _logger.LogInformation("ACBase already prepared at {Path}", existing);
+            return existing;
+        }
+
+        if (!IsProtectedPath(clientDir))
+        {
+            // Custom install path — hard links work directly, no copy needed.
+            _config.SetSetting("HardLinkBasePath", clientDir);
+            _config.Save();
+            _logger.LogInformation("ACBase: using unprotected install dir directly: {Path}", clientDir);
+            return clientDir;
+        }
+
+        // Protected path — copy the install to LocalAppData\ShadowLauncher\ACBase\.
+        var acBaseDir = Path.Combine(_config.DataDirectory, "ACBase");
+        _logger.LogInformation("ACBase: protected install detected, copying to {Dest}", acBaseDir);
+
+        try
+        {
+            Directory.CreateDirectory(acBaseDir);
+            var files = Directory.GetFiles(clientDir);
+            for (var i = 0; i < files.Length; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var fileName = Path.GetFileName(files[i]);
+                progress?.Report(new AcBaseCopyProgress(i, files.Length, fileName));
+                File.Copy(files[i], Path.Combine(acBaseDir, fileName), overwrite: true);
+            }
+            progress?.Report(new AcBaseCopyProgress(files.Length, files.Length, string.Empty));
+        }
+        catch (OperationCanceledException)
+        {
+            // Clean up partial copy so we retry cleanly next time.
+            try { Directory.Delete(acBaseDir, recursive: true); } catch { /* best-effort */ }
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ACBase copy failed — cleaning up partial directory");
+            try { Directory.Delete(acBaseDir, recursive: true); } catch { /* best-effort */ }
+            return null;
+        }
+
+        _config.SetSetting("HardLinkBasePath", acBaseDir);
+        _config.Save();
+        _logger.LogInformation("ACBase copy complete: {Path}", acBaseDir);
+        return acBaseDir;
+    }
+
+    private static bool IsProtectedPath(string path) =>
+        path.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), StringComparison.OrdinalIgnoreCase);
 
     // ── Game client detection ──────────────────────────────────────────────────
 

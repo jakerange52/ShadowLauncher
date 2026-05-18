@@ -28,6 +28,10 @@ public partial class App : System.Windows.Application
 
     private async Task StartupCoreAsync()
     {
+        // Prevent WPF from shutting down if a pre-main-window dialog closes early
+        // (e.g. AcBaseCopyWindow). Restored to OnMainWindowClose after main window shows.
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
         AppUserModelId.Set(AppUserModelIdValue);
 
         var services = new ServiceCollection();
@@ -38,6 +42,12 @@ public partial class App : System.Windows.Application
 
         SymlinkPrivilegeHelper.PrivilegeStatus? symlinkStatus = null;
         _coordinator.SymlinkPrivilegeChecked += (_, status) => symlinkStatus = status;
+        _coordinator.AcBaseCopyRequired += (_, copyTask) =>
+        {
+            var copyWindow = new Presentation.Views.AcBaseCopyWindow();
+            copyWindow.Show();
+            _ = copyWindow.RunAsync(copyTask);
+        };
 
         await _coordinator.InitializeAsync();
 
@@ -50,6 +60,7 @@ public partial class App : System.Windows.Application
             ShowThwargRunningWarning();
 
         mainWindow.Show();
+        ShutdownMode = ShutdownMode.OnMainWindowClose;
 
         switch (symlinkStatus)
         {

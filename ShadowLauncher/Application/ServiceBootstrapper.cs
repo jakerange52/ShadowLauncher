@@ -45,6 +45,12 @@ public static class ServiceBootstrapper
         services.AddSingleton<DatRegistryDownloader>();
         services.AddSingleton<IDatSetService, DatSetService>();
         services.AddSingleton<SymlinkLauncher>();
+        services.AddSingleton<HardLinkLauncher>();
+        // Swap this one line to toggle the launch strategy:
+        //   SymlinkLauncher  = requires Developer Mode or SeCreateSymbolicLinkPrivilege
+        //   HardLinkLauncher = no privileges required; needs one-time ACBase copy for protected installs
+        // services.AddSingleton<IInstancePreparer>(sp => sp.GetRequiredService<SymlinkLauncher>());
+        services.AddSingleton<IInstancePreparer>(sp => sp.GetRequiredService<HardLinkLauncher>());
         services.AddSingleton<SessionJournal>();
 
         // Repositories

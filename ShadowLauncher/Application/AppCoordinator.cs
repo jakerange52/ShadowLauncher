@@ -18,7 +18,7 @@ public class AppCoordinator
     private readonly IServerService _serverService;
     private readonly IDatSetService _datSetService;
     private readonly FirstRunService _firstRunService;
-    private readonly SymlinkLauncher _symlinkLauncher;
+    private readonly IInstancePreparer _instancePreparer;
     private readonly IGameSessionService _sessionService;
     private readonly SessionJournal _sessionJournal;
     private readonly IGameLauncher _gameLauncher;
@@ -29,6 +29,11 @@ public class AppCoordinator
 
     public event EventHandler? ServerStatusRefreshed;
     public event EventHandler<SymlinkPrivilegeHelper.PrivilegeStatus>? SymlinkPrivilegeChecked;
+    /// <summary>
+    /// Raised when the ACBase directory needs to be populated before HardLinkLauncher can run.
+    /// Subscribers should show a progress window and await the copy task via the event args.
+    /// </summary>
+    public event EventHandler<Func<IProgress<AcBaseCopyProgress>, Task>>? AcBaseCopyRequired;
 
     public AppCoordinator(
         IConfigurationProvider config,
@@ -36,7 +41,7 @@ public class AppCoordinator
         IServerService serverService,
         IDatSetService datSetService,
         FirstRunService firstRunService,
-        SymlinkLauncher symlinkLauncher,
+        IInstancePreparer instancePreparer,
         IGameSessionService sessionService,
         SessionJournal sessionJournal,
         IGameLauncher gameLauncher,
@@ -47,7 +52,7 @@ public class AppCoordinator
         _serverService = serverService;
         _datSetService = datSetService;
         _firstRunService = firstRunService;
-        _symlinkLauncher = symlinkLauncher;
+        _instancePreparer = instancePreparer;
         _sessionService = sessionService;
         _sessionJournal = sessionJournal;
         _gameLauncher = gameLauncher;
@@ -70,7 +75,7 @@ public class AppCoordinator
 
         // Remove instance directories left over from a previous session.
         // Also sweeps the Instances\ root when it becomes empty (fix #5).
-        _symlinkLauncher.CleanupStaleInstances();
+        _instancePreparer.CleanupStaleInstances();
         var instancesRoot = Path.Combine(_config.DataDirectory, "Instances");
         if (Directory.Exists(instancesRoot) && !Directory.EnumerateFileSystemEntries(instancesRoot).Any())
         {
@@ -80,6 +85,26 @@ public class AppCoordinator
 
         // Silently detect AC client and import ThwargLauncher data on first launch.
         await _firstRunService.RunAsync();
+
+        // If HardLinkLauncher is active, ensure ACBase is ready before any launch is attempted.
+        if (_instancePreparer is HardLinkLauncher)
+        {
+            if (AcBaseCopyRequired is not null && _firstRunService.HardLinkBaseNeedsCopy())
+            {
+                var tcs = new TaskCompletionSource();
+                Func<IProgress<AcBaseCopyProgress>, Task> copyTask = async progress =>
+                {
+                    await _firstRunService.PrepareHardLinkBaseAsync(progress);
+                    tcs.SetResult();
+                };
+                AcBaseCopyRequired.Invoke(this, copyTask);
+                await tcs.Task;
+            }
+            else
+            {
+                await _firstRunService.PrepareHardLinkBaseAsync();
+            }
+        }
 
         // Ensure SeCreateSymbolicLinkPrivilege is active — covers users who installed
         // an older build before the installer granted it unconditionally.
