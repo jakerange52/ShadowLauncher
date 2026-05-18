@@ -112,7 +112,23 @@ public class SymlinkLauncher : InstanceLauncherBase
 
         var clientPath = _config.GameClientPath;
         var clientDir = Path.GetDirectoryName(clientPath)!;
-        var datSourceDir = ResolveDataSourceDir(server, clientDir);
+
+        // If the stored DatSetId is missing (server added before the registry had the mapping),
+        // do a live lookup so we don't silently fall back to retail DATs.
+        var effectiveServer = server; // mutating DatSetId on the local reference only
+        if (string.IsNullOrWhiteSpace(server.DatSetId)
+            && string.IsNullOrWhiteSpace(server.CustomDatRegistryPath)
+            && string.IsNullOrWhiteSpace(server.CustomDatZipUrl))
+        {
+            var resolvedId = await _datSetService.ResolveDatSetIdForServerAsync(server.Name);
+            if (!string.IsNullOrWhiteSpace(resolvedId))
+            {
+                _logger.LogInformation("Resolved DatSetId '{Id}' for server '{Server}' via live registry lookup", resolvedId, server.Name);
+                effectiveServer.DatSetId = resolvedId;
+            }
+        }
+
+        var datSourceDir = ResolveDataSourceDir(effectiveServer, clientDir);
 
         var instanceDir = CreateInstanceDirectory();
 
