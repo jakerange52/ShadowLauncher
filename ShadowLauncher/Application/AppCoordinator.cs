@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Infrastructure.FileSystem;
+// using ShadowLauncher.Infrastructure.Native; // symlink — re-enable with SymlinkLauncher
 using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Services.Dats;
 using ShadowLauncher.Services.GameSessions;
@@ -28,7 +29,7 @@ public class AppCoordinator
     private Task? _datRefreshTask;
 
     public event EventHandler? ServerStatusRefreshed;
-    public event EventHandler<SymlinkPrivilegeHelper.PrivilegeStatus>? SymlinkPrivilegeChecked;
+    // public event EventHandler<SymlinkPrivilegeHelper.PrivilegeStatus>? SymlinkPrivilegeChecked; // symlink
     /// <summary>
     /// Raised when the ACBase directory needs to be populated before HardLinkLauncher can run.
     /// Subscribers should show a progress window and await the copy task via the event args.
@@ -108,9 +109,9 @@ public class AppCoordinator
 
         // Ensure SeCreateSymbolicLinkPrivilege is active — covers users who installed
         // an older build before the installer granted it unconditionally.
-        var privilegeStatus = SymlinkPrivilegeHelper.EnsurePrivilege(_logger);
-        if (privilegeStatus != SymlinkPrivilegeHelper.PrivilegeStatus.AlreadyActive)
-            SymlinkPrivilegeChecked?.Invoke(this, privilegeStatus);
+        // var privilegeStatus = SymlinkPrivilegeHelper.EnsurePrivilege(_logger); // symlink
+        // if (privilegeStatus != SymlinkPrivilegeHelper.PrivilegeStatus.AlreadyActive) // symlink
+        //     SymlinkPrivilegeChecked?.Invoke(this, privilegeStatus); // symlink
 
         // Fetch a fresh DatRegistry.xml in the background so checksums and server
         // mappings are always up to date. Failures are non-fatal — the bundled or

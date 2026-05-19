@@ -7,27 +7,24 @@
             SourceFile="$(var.CustomActionsDir)ShadowLauncher.Installer.CustomActions.dll" />
 
     <!--
-      SHOWLOGOFFMESSAGE is set to "1" by CheckSymlinkPrivilege when the symlink
-      privilege is not yet present, so the ExitDialog can surface a sign-out hint.
-      Secure="yes" is required for the property to be passed from the execute
-      sequence into the UI.
-    -->
+      SHOWLOGOFFMESSAGE / symlink privilege actions commented out — hard links no longer
+      require SeCreateSymbolicLinkPrivilege. Re-enable if reverting to SymlinkLauncher.
+
     <Property Id="SHOWLOGOFFMESSAGE" Secure="yes" />
 
-    <!-- Detects whether SeCreateSymbolicLinkPrivilege is already granted to BUILTIN\Users -->
     <CustomAction Id="CheckSymlinkPrivilege"
                   BinaryRef="CustomActionsDll"
                   DllEntry="CheckSymlinkPrivilege"
                   Execute="immediate"
                   Return="ignore" />
 
-    <!-- Grants SeCreateSymbolicLinkPrivilege to BUILTIN\Users on install -->
     <CustomAction Id="GrantSymlinkPrivilege"
                   BinaryRef="CustomActionsDll"
                   DllEntry="GrantSymlinkPrivilege"
                   Execute="deferred"
                   Impersonate="no"
                   Return="check" />
+    -->
 
     <!--
       Deletes %LOCALAPPDATA%\ShadowLauncher on uninstall.
@@ -42,24 +39,22 @@
                   Return="ignore" />
 
     <InstallUISequence>
-      <!-- Run the check during the UI sequence so SHOWLOGOFFMESSAGE is available
-           to the ExitDialog text control. -->
+      <!--
       <Custom Action="CheckSymlinkPrivilege"
               After="CostFinalize"
               Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      --><!-- symlink -->
     </InstallUISequence>
 
     <InstallExecuteSequence>
-      <!-- Also run during silent/unattended installs so the property is consistent. -->
+      <!--
       <Custom Action="CheckSymlinkPrivilege"
               Before="GrantSymlinkPrivilege"
               Condition="NOT REMOVE~=&quot;ALL&quot;" />
-      <!-- GrantSymlinkPrivilege runs on every install and upgrade — symlinks are
-           core to how ShadowLauncher launches multiple clients. Skipped only on
-           pure remove. -->
       <Custom Action="GrantSymlinkPrivilege"
                After="InstallFiles"
                Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      --><!-- symlink -->
       <!-- CleanupAppData must NOT run during upgrades (MajorUpgrade sets REMOVE=ALL
            on the old product even though a new version is about to be installed).
            UPGRADINGPRODUCTCODE is set on the old product during an upgrade sequence,

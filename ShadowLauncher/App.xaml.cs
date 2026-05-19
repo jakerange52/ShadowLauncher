@@ -3,7 +3,7 @@ using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using ShadowLauncher.Application;
 using ShadowLauncher.Infrastructure;
-using ShadowLauncher.Infrastructure.Native;
+using ShadowLauncher.Infrastructure.Native; // AppUserModelId — also contains symlink types, re-enable SymlinkPrivilegeHelper usages with SymlinkLauncher
 
 namespace ShadowLauncher;
 
@@ -40,8 +40,8 @@ public partial class App : System.Windows.Application
 
         _coordinator = _serviceProvider.GetRequiredService<AppCoordinator>();
 
-        SymlinkPrivilegeHelper.PrivilegeStatus? symlinkStatus = null;
-        _coordinator.SymlinkPrivilegeChecked += (_, status) => symlinkStatus = status;
+        // SymlinkPrivilegeHelper.PrivilegeStatus? symlinkStatus = null; // symlink
+        // _coordinator.SymlinkPrivilegeChecked += (_, status) => symlinkStatus = status; // symlink
         _coordinator.AcBaseCopyRequired += (_, copyTask) =>
         {
             var copyWindow = new Presentation.Views.AcBaseCopyWindow();
@@ -62,11 +62,11 @@ public partial class App : System.Windows.Application
         mainWindow.Show();
         ShutdownMode = ShutdownMode.OnMainWindowClose;
 
-        switch (symlinkStatus)
-        {
-            case SymlinkPrivilegeHelper.PrivilegeStatus.GrantedNeedsLogoff: ShowSignOutPrompt(); break;
-            case SymlinkPrivilegeHelper.PrivilegeStatus.GrantFailed:        ShowGrantFailedPrompt(); break;
-        }
+        // switch (symlinkStatus) // symlink
+        // {
+        //     case SymlinkPrivilegeHelper.PrivilegeStatus.GrantedNeedsLogoff: ShowSignOutPrompt(); break;
+        //     case SymlinkPrivilegeHelper.PrivilegeStatus.GrantFailed:        ShowGrantFailedPrompt(); break;
+        // }
     }
 
     protected override async void OnExit(ExitEventArgs e)
@@ -100,22 +100,22 @@ public partial class App : System.Windows.Application
         "It is recommended to close ThwargLauncher before continuing.",
         "Compatibility Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
 
-    private static void ShowSignOutPrompt() => MessageBox.Show(
-        "ShadowLauncher has granted the symbolic link permission required for multi-client launching.\n\n" +
-        "To activate it you must do a full sign-out:\n" +
-        "  Start menu → click your name → Sign out\n\n" +
-        "⚠️ Locking your screen (Win+L) and unlocking does NOT work — " +
-        "Windows only updates your session token on a true sign-out.\n\n" +
-        "After signing back in, relaunch ShadowLauncher normally.",
-        "Sign Out Required", MessageBoxButton.OK, MessageBoxImage.Information);
+    // private static void ShowSignOutPrompt() => MessageBox.Show( // symlink
+    //     "ShadowLauncher has granted the symbolic link permission required for multi-client launching.\n\n" +
+    //     "To activate it you must do a full sign-out:\n" +
+    //     "  Start menu → click your name → Sign out\n\n" +
+    //     "⚠️ Locking your screen (Win+L) and unlocking does NOT work — " +
+    //     "Windows only updates your session token on a true sign-out.\n\n" +
+    //     "After signing back in, relaunch ShadowLauncher normally.",
+    //     "Sign Out Required", MessageBoxButton.OK, MessageBoxImage.Information);
 
-    private static void ShowGrantFailedPrompt() => MessageBox.Show(
-        "ShadowLauncher could not set the symbolic link permission required for multi-client launching.\n\n" +
-        "Steps to fix:\n" +
-        "  1. Right-click ShadowLauncher → Run as administrator\n" +
-        "  2. Let it start (it will grant the permission automatically)\n" +
-        "  3. Close it, then do a full sign-out: Start menu → your name → Sign out\n" +
-        "  4. Sign back in and relaunch ShadowLauncher normally\n\n" +
-        "⚠️ Locking your screen and unlocking is NOT the same as signing out.",
-        "Permission Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+    // private static void ShowGrantFailedPrompt() => MessageBox.Show( // symlink
+    //     "ShadowLauncher could not set the symbolic link permission required for multi-client launching.\n\n" +
+    //     "Steps to fix:\n" +
+    //     "  1. Right-click ShadowLauncher → Run as administrator\n" +
+    //     "  2. Let it start (it will grant the permission automatically)\n" +
+    //     "  3. Close it, then do a full sign-out: Start menu → your name → Sign out\n" +
+    //     "  4. Sign back in and relaunch ShadowLauncher normally\n\n" +
+    //     "⚠️ Locking your screen and unlocking is NOT the same as signing out.",
+    //     "Permission Required", MessageBoxButton.OK, MessageBoxImage.Warning);
 }

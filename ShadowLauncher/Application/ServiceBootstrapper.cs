@@ -44,7 +44,7 @@ public static class ServiceBootstrapper
         services.AddSingleton<ThemeService>();
         services.AddSingleton<DatRegistryDownloader>();
         services.AddSingleton<IDatSetService, DatSetService>();
-        services.AddSingleton<SymlinkLauncher>();
+        // services.AddSingleton<SymlinkLauncher>(); // symlink strategy (commented out — hard links active)
         services.AddSingleton<HardLinkLauncher>();
         // Swap this one line to toggle the launch strategy:
         //   SymlinkLauncher  = requires Developer Mode or SeCreateSymbolicLinkPrivilege
