@@ -291,20 +291,22 @@
                       ToolTip="Kill the game client if no heartbeat is received within the specified timeout"/>
             <TextBox DockPanel.Dock="Left" Text="{Binding KillHeartbeatTimeoutSeconds, UpdateSourceTrigger=LostFocus}"
                      Width="35" VerticalContentAlignment="Center" Padding="3,2"
-                     Margin="0,0,4,0" ToolTip="Seconds without heartbeat before killing client"
+                     Margin="0,0,16,0" ToolTip="Seconds without heartbeat before killing client"
                      KeyDown="TimeoutTextBox_KeyDown"/>
-            <TextBlock DockPanel.Dock="Left" Text="sec" VerticalAlignment="Center" Margin="0,0,16,0"
-                       Foreground="#666"/>
             <CheckBox DockPanel.Dock="Left" Content="Auto Relaunch"
                       IsChecked="{Binding AutoRelaunch}"
                       VerticalAlignment="Center" Margin="0,0,4,0"
                       ToolTip="Automatically relaunch sessions when the game process exits"/>
             <TextBox DockPanel.Dock="Left" Text="{Binding AutoRelaunchDelaySeconds, UpdateSourceTrigger=LostFocus}"
                      Width="35" VerticalContentAlignment="Center" Padding="3,2"
-                     Margin="0,0,4,0" ToolTip="Seconds to wait before relaunching"
+                     Margin="0,0,16,0" ToolTip="Seconds to wait before relaunching"
                      KeyDown="TimeoutTextBox_KeyDown"/>
-            <TextBlock DockPanel.Dock="Left" Text="sec" VerticalAlignment="Center" Margin="0,0,16,0"
-                       Foreground="#666"/>
+            <TextBlock DockPanel.Dock="Left" Text="Multi-Launch Delay" VerticalAlignment="Center" Margin="0,0,4,0"
+                       Foreground="{DynamicResource TextBrush}"/>
+            <TextBox DockPanel.Dock="Left" Text="{Binding MultiLaunchDelaySeconds, UpdateSourceTrigger=LostFocus}"
+                     Width="35" VerticalContentAlignment="Center" Padding="3,2"
+                     Margin="0,0,16,0" ToolTip="Seconds to wait between launching each client (helps avoid server full errors)"
+                     KeyDown="TimeoutTextBox_KeyDown"/>
             <TextBlock DockPanel.Dock="Left" Text="{Binding StatusText}"
                        VerticalAlignment="Center" Foreground="#666"/>
             <Button DockPanel.Dock="Right" Content="&#x1F300; Launch Game" Command="{Binding LaunchCommand}"

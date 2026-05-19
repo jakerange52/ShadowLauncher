@@ -250,6 +250,20 @@ public class MainWindowViewModel : ViewModelBase
         }
     }
 
+    public int MultiLaunchDelaySeconds
+    {
+        get => _config.MultiLaunchDelaySeconds;
+        set
+        {
+            if (value >= 0 && _config.MultiLaunchDelaySeconds != value)
+            {
+                _config.MultiLaunchDelaySeconds = value;
+                _config.Save();
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public bool CanLaunch => SelectedAccounts.Count > 0 && SelectedServers.Count > 0
         && !IsLoading && File.Exists(GameClientPath);
 
@@ -697,6 +711,12 @@ public class MainWindowViewModel : ViewModelBase
                         ActiveSessions.Add(session);
                         _launchedSessions[result.ProcessId] = (account, server);
                         launched++;
+
+                        // Stagger subsequent launches to avoid server-side IP rate limiting
+                        // ("server full" errors) when launching multiple clients at once.
+                        var delay = _config.MultiLaunchDelaySeconds;
+                        if (delay > 0 && (launched + failed + skipped) < accounts.Count * servers.Count)
+                            await Task.Delay(TimeSpan.FromSeconds(delay));
                     }
                     else
                     {

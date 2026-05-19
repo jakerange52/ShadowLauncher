@@ -13,7 +13,7 @@ namespace ShadowLauncher.Infrastructure.Native;
 public abstract class InstanceLauncherBase : IInstancePreparer
 {
     // DAT filenames acclient.exe looks for in its working directory.
-    internal static readonly string[] KnownDatFiles =
+    public static readonly string[] KnownDatFiles =
     [
         "client_portal.dat",
         "client_cell_1.dat",

@@ -19,6 +19,7 @@ public interface IConfigurationProvider
     int KillHeartbeatTimeoutSeconds { get; set; }
     bool AutoRelaunch { get; set; }
     int AutoRelaunchDelaySeconds { get; set; }
+    int MultiLaunchDelaySeconds { get; set; }
     bool DatDeveloperMode { get; set; }
     void Load();
     void Save();

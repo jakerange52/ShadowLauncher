@@ -18,8 +18,8 @@ namespace ShadowLauncher.Services.Launching;
 ///     main thread is resumed. Decal handles the single-instance mutex internally,
 ///     enabling multi-client without any mutex manipulation.
 ///
-///   Custom-DAT servers (DatSetId in DatRegistry.xml) — additionally use SymlinkLauncher
-///     to create a per-instance directory with symlinks to the correct DAT files before
+///   Custom-DAT servers (DatSetId in DatRegistry.xml) — additionally use the active IInstancePreparer
+///     to create a per-instance directory with hard links to the correct DAT files before
 ///     launching, so each client sees its own working directory and DAT set.
 ///
 ///   No Decal — single client only, launched directly via Process.Start.
@@ -108,7 +108,7 @@ public class GameLauncher : IGameLauncher
                 return result;
             }
 
-            // Hand the instance directory to the cleanup watcher if this was a symlink launch.
+            // Hand the instance directory to the cleanup watcher.
             if (env.InstanceDir is not null)
             {
                 System.Diagnostics.Process? process = null;
@@ -161,8 +161,8 @@ public class GameLauncher : IGameLauncher
     /// <summary>
     /// Determines which exe and working directory to use for this launch.
     /// Priority:
-    ///   1. Custom DAT source (local path or zip URL) — ensures the source is ready, then uses SymlinkLauncher.
-    ///   2. DatSetId registered in DatRegistry.xml  — validates the set is downloaded, then uses SymlinkLauncher.
+    ///   1. Custom DAT source (local path or zip URL) — ensures the source is ready, then uses IInstancePreparer.
+    ///   2. DatSetId registered in DatRegistry.xml  — validates the set is downloaded, then uses IInstancePreparer.
     ///   3. Neither                                  — returns the configured client path directly.
     /// Returns null and populates <paramref name="result"/> on any failure.
     /// </summary>
