@@ -6,10 +6,10 @@ A multi-boxing launcher for Asheron's Call private servers. Launch and manage mu
 
 ## Features
 
-- **Multi-boxing** — launch multiple AC clients at once via symlink junctions, each with its own isolated working directory
+- **Multi-boxing** — launch multiple AC clients at once using hard links, each with its own isolated working directory
 - **Account manager** — store accounts per server, auto-fill credentials on login
 - **Server browser** — fetch and browse community server listings, add servers in one click
-- **DAT management** — servers can require alternate DAT files (e.g. expansion content, custom worlds); ShadowLauncher fetches and caches them automatically from a community DAT registry, then uses symlinks to point each client at the correct set — no manual file swapping required
+- **DAT management** — servers can require alternate DAT files (e.g. expansion content, custom worlds); ShadowLauncher fetches and caches them automatically from a community DAT registry, then uses hard links to point each client at the correct set — no manual file swapping required
 - **Decal support** — inject [Decal](http://decaldev.com) into each client for plugin support
 - **Login commands** — send ThwargFilter login commands globally or per-character after login
 - **Auto-update** — checks GitHub Releases and installs updates in-app
@@ -30,7 +30,9 @@ A multi-boxing launcher for Asheron's Call private servers. Launch and manage mu
 
 ## Installation
 
-Download `ShadowLauncher-Setup.exe` from the [latest release](../../releases/latest) and run it. The setup wizard will install the .NET 10 runtime if needed and grant the symlink permission required for multi-boxing — no manual steps required.
+Download `ShadowLauncher-Setup.exe` from the [latest release](../../releases/latest) and run it. The setup wizard will install the .NET 10 runtime if needed — no manual steps or special permissions required.
+
+> **Note:** If your AC client is installed under `Program Files`, ShadowLauncher will automatically copy it to your local app data folder the first time it runs. This one-time copy (a few hundred MB) is required so hard links can be created without elevation.
 
 ---
 
@@ -60,7 +62,7 @@ To override the version:
 
 ## Releasing a new version
 
-1. Update `<Version>` in `ShadowLauncher\ShadowLauncher.csproj`
+1. Update `<Version>` in `ShadowLauncher\ShadowLauncher.csproj`, `ShadowLauncher.Installer\ShadowLauncher.Installer.wixproj`, and `ShadowLauncher.Installer.Bundle\ShadowLauncher.Installer.Bundle.wixproj`
 2. Run `.\Build-Installer.ps1 -Version x.y.z`
 3. Create a GitHub Release tagged `vx.y.z`
 4. Upload `ShadowLauncher-Setup.exe` as the release asset
@@ -80,7 +82,7 @@ ShadowLauncher/                         Main WPF application
 
 ShadowLauncher.Installer/               WiX MSI package
 ShadowLauncher.Installer.Bundle/        WiX bootstrapper bundle (.exe)
-ShadowLauncher.Installer.CustomActions/ Managed MSI custom actions (symlink privilege)
+ShadowLauncher.Installer.CustomActions/ Managed MSI custom actions (app data cleanup)
 Build-Installer.ps1                     One-command release build script
 ```
 

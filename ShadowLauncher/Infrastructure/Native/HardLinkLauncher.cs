@@ -76,16 +76,15 @@ public class HardLinkLauncher : InstanceLauncherBase
 
         try
         {
-            // Step 1: hard link every non-DAT, non-acclient file from the AC base directory.
-            // DAT files and acclient.exe are skipped here — steps 2 and 3 create the correct
-            // hard links directly from datSourceDir, avoiding a delete-and-recreate that would
-            // fail if a running acclient process has the shared inode open.
+            // Step 1: hard link only the runtime-necessary files from the AC base directory,
+            // including subdirectories (e.g. controls\Controls.dll).
+            // We skip files that acclient opens for exclusive write access (.log, .ini, .pdb,
+            // .bin, .avi, .txt, .rtf, .msi) — hard links share the same inode, so two instances
+            // linking the same acclient.log would contend on it, causing a misleading DirectX error.
+            // DAT files and acclient.exe are skipped here and handled in steps 2 and 3.
             var datFileSet = new HashSet<string>(KnownDatFiles, StringComparer.OrdinalIgnoreCase) { "acclient.exe" };
-            foreach (var file in Directory.GetFiles(clientDir))
-            {
-                if (datFileSet.Contains(Path.GetFileName(file))) continue;
-                CreateHardLinkOrThrow(Path.Combine(instanceDir, Path.GetFileName(file)), file);
-            }
+            var runtimeExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".dll", ".exe", ".dat", ".xsd" };
+            LinkRuntimeFiles(clientDir, instanceDir, datFileSet, runtimeExtensions);
 
             // Step 2: override DAT hard links with files from the DAT set cache.
             foreach (var datFile in KnownDatFiles)
@@ -126,6 +125,42 @@ public class HardLinkLauncher : InstanceLauncherBase
     }
 
     // ── Private helpers ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Recursively hard-links eligible runtime files from <paramref name="sourceDir"/> into
+    /// <paramref name="destDir"/>, mirroring the subdirectory structure.
+    /// Only files with extensions in <paramref name="runtimeExtensions"/> are linked;
+    /// files in <paramref name="skipNames"/> (at the root level) are also excluded.
+    /// Subdirectory contents are not filtered by <paramref name="skipNames"/> since DAT/exe
+    /// overrides only apply to the root.
+    /// </summary>
+    private void LinkRuntimeFiles(
+        string sourceDir,
+        string destDir,
+        HashSet<string> skipNames,
+        HashSet<string> runtimeExtensions)
+    {
+        foreach (var file in Directory.GetFiles(sourceDir))
+        {
+            var name = Path.GetFileName(file);
+            if (skipNames.Contains(name)) continue;
+            if (!runtimeExtensions.Contains(Path.GetExtension(file))) continue;
+            CreateHardLinkOrThrow(Path.Combine(destDir, name), file);
+        }
+
+        foreach (var subDir in Directory.GetDirectories(sourceDir))
+        {
+            var subName = Path.GetFileName(subDir);
+            // Skip backup dirs and plugin dirs — plugins are not instance-specific
+            // and the backup dir contains installer artefacts, not runtime files.
+            if (string.Equals(subName, "backup", StringComparison.OrdinalIgnoreCase)) continue;
+            if (string.Equals(subName, "plugins", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var destSub = Path.Combine(destDir, subName);
+            Directory.CreateDirectory(destSub);
+            LinkRuntimeFiles(subDir, destSub, [], runtimeExtensions);
+        }
+    }
 
     private string ResolveDataSourceDir(Server server, string clientDir)
     {
