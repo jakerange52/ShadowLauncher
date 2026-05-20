@@ -71,7 +71,8 @@ public class HardLinkLauncher : InstanceLauncherBase
         if (!string.Equals(datSourceDir, clientDir, StringComparison.OrdinalIgnoreCase))
             await _datSetService.CompleteDatCacheFromRetailAsync(datSourceDir, clientDir);
 
-        _logger.LogInformation("Creating hard-link instance directory: {Dir}", instanceDir);
+        _logger.LogInformation("Creating hard-link instance at {Dir} (base={Base}, datSource={DatSource})",
+            instanceDir, clientDir, datSourceDir);
 
         try
         {
@@ -113,6 +114,7 @@ public class HardLinkLauncher : InstanceLauncherBase
                 CreateHardLinkOrThrow(exeLink, baseClient);
             }
 
+            _logger.LogInformation("Hard-link instance ready: {Dir}", instanceDir);
             return instanceDir;
         }
         catch (Exception ex)
@@ -150,8 +152,9 @@ public class HardLinkLauncher : InstanceLauncherBase
         return setDir;
     }
 
-    private static void CreateHardLinkOrThrow(string linkPath, string existingFile)
+    private void CreateHardLinkOrThrow(string linkPath, string existingFile)
     {
+        _logger.LogDebug("Hard link: {Link} → {Source}", linkPath, existingFile);
         if (CreateHardLink(linkPath, existingFile, nint.Zero))
             return;
 

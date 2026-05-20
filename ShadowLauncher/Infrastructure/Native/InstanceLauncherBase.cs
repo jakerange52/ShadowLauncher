@@ -6,7 +6,7 @@ using ShadowLauncher.Services.Dats;
 namespace ShadowLauncher.Infrastructure.Native;
 
 /// <summary>
-/// Shared base for <see cref="SymlinkLauncher"/> and <see cref="HardLinkLauncher"/>.
+/// Shared base for <see cref="HardLinkLauncher"/> (and the dormant <c>SymlinkLauncher</c>).
 /// Provides common instance-directory management: cleanup, stale-instance detection,
 /// and the list of known DAT filenames acclient.exe looks for at runtime.
 /// </summary>
