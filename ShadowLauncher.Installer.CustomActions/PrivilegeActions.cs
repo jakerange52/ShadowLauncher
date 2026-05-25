@@ -39,6 +39,7 @@ public static class PrivilegeActions
     }
 
 
+    /* symlink — commented out; re-enable if reverting to SymlinkLauncher
     /// <summary>
     /// Immediate (non-elevated) check that runs before <see cref="GrantSymlinkPrivilege"/>.
     /// If BUILTIN\Users does not already hold SeCreateSymbolicLinkPrivilege, sets MSI
@@ -125,7 +126,9 @@ public static class PrivilegeActions
             return ActionResult.Success;
         }
     }
+    */ // end symlink CheckSymlinkPrivilege
 
+    /* symlink — commented out; re-enable if reverting to SymlinkLauncher
     [CustomAction]
     public static ActionResult GrantSymlinkPrivilege(Session session)
     {
@@ -184,6 +187,7 @@ public static class PrivilegeActions
             return ActionResult.Failure;
         }
     }
+    */ // end symlink GrantSymlinkPrivilege
 
     // ── P/Invoke ──────────────────────────────────────────────────────────────
 

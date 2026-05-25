@@ -10,12 +10,12 @@ namespace ShadowLauncher.Presentation.Views;
 
 public partial class SettingsWindow : Window
 {
-    private readonly IAccountService? _accountService;
-    private readonly IServerService? _serverService;
-    private readonly LoginCommandsService? _loginCommandsService;
-    private readonly ProfileService? _profileService;
+    private readonly IAccountService _accountService;
+    private readonly IServerService _serverService;
+    private readonly LoginCommandsService _loginCommandsService;
+    private readonly ProfileService _profileService;
 
-    public SettingsWindow(SettingsViewModel viewModel, IAccountService? accountService = null, IServerService? serverService = null, LoginCommandsService? loginCommandsService = null, ProfileService? profileService = null)
+    public SettingsWindow(SettingsViewModel viewModel, IAccountService accountService, IServerService serverService, LoginCommandsService loginCommandsService, ProfileService profileService)
     {
         InitializeComponent();
         DataContext = viewModel;
@@ -70,7 +70,6 @@ public partial class SettingsWindow : Window
 
     private void OpenLoginCommands_Click(object sender, RoutedEventArgs e)
     {
-        if (_loginCommandsService is null) return;
         var window = new LoginCommandsWindow(_loginCommandsService)
         {
             Owner = Owner ?? this
@@ -81,7 +80,6 @@ public partial class SettingsWindow : Window
 
     private void OpenPerCharacterLoginCommands_Click(object sender, RoutedEventArgs e)
     {
-        if (_accountService is null || _serverService is null || _loginCommandsService is null) return;
         var window = new PerCharacterLoginCommandsWindow(_loginCommandsService, _accountService, _serverService)
         {
             Owner = Owner ?? this
@@ -101,7 +99,6 @@ public partial class SettingsWindow : Window
 
     private void OpenEditProfiles_Click(object sender, RoutedEventArgs e)
     {
-        if (_profileService is null) return;
         var vm = new EditProfilesViewModel(_profileService);
         var window = new EditProfilesWindow(vm) { Owner = Owner ?? this };
         if (window.ShowDialog() == true)

@@ -7,31 +7,42 @@ using ShadowLauncher.Infrastructure.WebServices;
 
 namespace ShadowLauncher.Presentation.ViewModels;
 
+/// <summary>Row wrapper combining a <see cref="Server"/> with its live TreeStats player count.</summary>
+public sealed class ServerRow(Server server, PlayerCount? count)
+{
+    public Server Server { get; } = server;
+    public string PlayerCountDisplay { get; } = count is null ? "—" : count.Count.ToString();
+    public string? PlayerCountAge { get; } = count?.Age;
+    public int PlayerCountValue { get; } = count?.Count ?? -1;
+}
+
 public class BrowseServersViewModel : ViewModelBase
 {
     private readonly ServerListDownloader _downloader;
     private readonly BetaServerListDownloader _betaDownloader;
+    private readonly TreeStatsService _treeStats;
     private string _statusText = "Loading server list...";
     private bool _isLoading;
     private bool _showingBeta;
-    private Server? _selectedServer;
+    private ServerRow? _selectedRow;
     private string _searchText = string.Empty;
 
-    public BrowseServersViewModel(ServerListDownloader downloader, BetaServerListDownloader betaDownloader)
+    public BrowseServersViewModel(ServerListDownloader downloader, BetaServerListDownloader betaDownloader, TreeStatsService treeStats)
     {
         _downloader = downloader;
         _betaDownloader = betaDownloader;
-        AddSelectedCommand = new RelayCommand(AddSelected, () => SelectedServer is not null);
+        _treeStats = treeStats;
+        AddSelectedCommand = new RelayCommand(AddSelected, () => SelectedRow is not null);
         ClearSearchCommand = new RelayCommand(() => SearchText = string.Empty);
         ToggleListCommand = new RelayCommand(ToggleList);
 
-        FilteredServers = CollectionViewSource.GetDefaultView(Servers);
+        FilteredServers = CollectionViewSource.GetDefaultView(Rows);
         FilteredServers.Filter = FilterServer;
     }
 
     public event EventHandler<Server>? ServerAdded;
 
-    public ObservableCollection<Server> Servers { get; } = [];
+    public ObservableCollection<ServerRow> Rows { get; } = [];
     public ICollectionView FilteredServers { get; }
 
     public bool ShowingBeta
@@ -56,11 +67,18 @@ public class BrowseServersViewModel : ViewModelBase
         }
     }
 
-    public Server? SelectedServer
+    public ServerRow? SelectedRow
     {
-        get => _selectedServer;
-        set => SetProperty(ref _selectedServer, value);
+        get => _selectedRow;
+        set
+        {
+            if (SetProperty(ref _selectedRow, value))
+                OnPropertyChanged(nameof(SelectedServer));
+        }
     }
+
+    /// <summary>Convenience accessor for the selected underlying server.</summary>
+    public Server? SelectedServer => _selectedRow?.Server;
 
     public string StatusText
     {
@@ -87,17 +105,23 @@ public class BrowseServersViewModel : ViewModelBase
     {
         IsLoading = true;
         StatusText = _showingBeta ? "Downloading beta server list..." : "Downloading server list...";
-        SelectedServer = null;
+        SelectedRow = null;
         try
         {
-            var servers = _showingBeta
-                ? await _betaDownloader.FetchServersAsync()
-                : await _downloader.FetchServersAsync();
-            Servers.Clear();
-            foreach (var s in servers)
-                Servers.Add(s);
+            var serversTask = _showingBeta
+                ? _betaDownloader.FetchServersAsync()
+                : _downloader.FetchServersAsync();
+            var countsTask = _treeStats.GetPlayerCountsAsync();
+
+            await Task.WhenAll(serversTask, countsTask);
+
+            var counts = countsTask.Result;
+            Rows.Clear();
+            foreach (var s in serversTask.Result)
+                Rows.Add(new ServerRow(s, counts.TryGetValue(s.Name, out var c) ? c : null));
+
             var label = _showingBeta ? "beta server" : "server";
-            StatusText = $"Found {Servers.Count} {label}{(Servers.Count == 1 ? "" : "s")}";
+            StatusText = $"Found {Rows.Count} {label}{(Rows.Count == 1 ? "" : "s")}";
         }
         catch (Exception ex)
         {
@@ -125,7 +149,8 @@ public class BrowseServersViewModel : ViewModelBase
     private bool FilterServer(object obj)
     {
         if (string.IsNullOrWhiteSpace(_searchText)) return true;
-        if (obj is not Server s) return false;
+        if (obj is not ServerRow row) return false;
+        var s = row.Server;
         var q = _searchText.Trim();
         return Contains(s.Name, q)
             || Contains(s.Description, q)

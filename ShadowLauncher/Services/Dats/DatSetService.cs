@@ -237,7 +237,7 @@ public class DatSetService : IDatSetService
     {
         Directory.CreateDirectory(datCacheDir);
 
-        foreach (var datFile in SymlinkLauncher.KnownDatFiles)
+        foreach (var datFile in InstanceLauncherBase.KnownDatFiles)
         {
             var dest = Path.Combine(datCacheDir, datFile);
             if (File.Exists(dest)) continue;

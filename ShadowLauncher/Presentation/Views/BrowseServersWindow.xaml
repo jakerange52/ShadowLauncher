@@ -84,58 +84,66 @@
 
         <!-- Server grid -->
         <DataGrid Grid.Row="1" ItemsSource="{Binding FilteredServers}" AutoGenerateColumns="False"
-                  IsReadOnly="True" SelectedItem="{Binding SelectedServer}"
+                  IsReadOnly="True" SelectedItem="{Binding SelectedRow}"
                   SelectionMode="Single" CanUserSortColumns="True">
             <DataGrid.Columns>
-                <DataGridTemplateColumn Header="Emu" Width="55" SortMemberPath="Emulator">
+                <DataGridTemplateColumn Header="Emu" Width="55" SortMemberPath="Server.Emulator">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <controls:HighlightTextBlock Text="{Binding Emulator}"
+                            <controls:HighlightTextBlock Text="{Binding Server.Emulator}"
                                 Query="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=Window}}"
                                 Margin="2,0"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Name" Width="140" SortMemberPath="Name">
+                <DataGridTemplateColumn Header="Name" Width="140" SortMemberPath="Server.Name">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <controls:HighlightTextBlock Text="{Binding Name}"
+                            <controls:HighlightTextBlock Text="{Binding Server.Name}"
                                 Query="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=Window}}"
                                 Margin="2,0"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Status" Width="80" SortMemberPath="PublishedStatus">
+                <DataGridTemplateColumn Header="Players" Width="60" SortMemberPath="PlayerCountValue">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <controls:HighlightTextBlock Text="{Binding PublishedStatus}"
+                            <TextBlock Text="{Binding PlayerCountDisplay}" Margin="2,0"
+                                       ToolTip="{Binding PlayerCountAge}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Status" Width="80" SortMemberPath="Server.PublishedStatus">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <controls:HighlightTextBlock Text="{Binding Server.PublishedStatus}"
                                 Query="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=Window}}"
                                 Margin="2,0"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Description" Width="*" SortMemberPath="Description">
+                <DataGridTemplateColumn Header="Description" Width="*" SortMemberPath="Server.Description">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <controls:HighlightTextBlock Text="{Binding Description}"
+                            <controls:HighlightTextBlock Text="{Binding Server.Description}"
                                 Query="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=Window}}"
                                 Margin="2,0"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Host" Width="140" SortMemberPath="Hostname">
+                <DataGridTemplateColumn Header="Host" Width="140" SortMemberPath="Server.Hostname">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <controls:HighlightTextBlock Text="{Binding Hostname}"
+                            <controls:HighlightTextBlock Text="{Binding Server.Hostname}"
                                 Query="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=Window}}"
                                 Margin="2,0"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Port" Width="50" SortMemberPath="Port">
+                <DataGridTemplateColumn Header="Port" Width="50" SortMemberPath="Server.Port">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <controls:HighlightTextBlock Text="{Binding Port}"
+                            <controls:HighlightTextBlock Text="{Binding Server.Port}"
                                 Query="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=Window}}"
                                 Margin="2,0"/>
                         </DataTemplate>

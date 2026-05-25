@@ -1,0 +1,87 @@
+<Window x:Class="ShadowLauncher.Presentation.Views.AcBaseCopyWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ShadowLauncher" Height="196" Width="480"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource BgBrush}" WindowStyle="None" AllowsTransparency="True"
+        ResizeMode="NoResize" ShowInTaskbar="True">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CornerRadius="12" GlassFrameThickness="0" CaptionHeight="28" ResizeBorderThickness="0"/>
+    </WindowChrome.WindowChrome>
+
+    <Border Background="{DynamicResource BgBrush}" CornerRadius="12"
+            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect Color="Black" BlurRadius="28" ShadowDepth="6" Opacity="0.7"/>
+        </Border.Effect>
+        <Grid Margin="24,20,24,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title -->
+            <DockPanel Grid.Row="0" Margin="0,0,0,10">
+                <TextBlock Text="⚔" FontFamily="Segoe UI Symbol" FontSize="16"
+                           Foreground="#661111" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBlock Text="Preparing Game Files" FontFamily="Gabriola, Palatino Linotype, Georgia, serif"
+                           FontSize="18" FontWeight="SemiBold" Foreground="#DDDDDD"
+                           VerticalAlignment="Center"/>
+            </DockPanel>
+
+            <!-- Separator -->
+            <Rectangle Grid.Row="1" Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,0,0,12"/>
+
+            <!-- Explanation -->
+            <TextBlock Grid.Row="2" Margin="0,0,0,6" TextWrapping="Wrap"
+                       Text="Your AC installation is in a protected folder. Creating a local copy so ShadowLauncher can manage game instances without requiring elevated permissions."
+                       FontFamily="Palatino Linotype, Book Antiqua, Georgia, serif"
+                       FontSize="11" Foreground="#AAAAAA"/>
+
+            <!-- Current file -->
+            <TextBlock Grid.Row="3" Margin="0,0,0,10"
+                       Text="{Binding CurrentFile}"
+                       FontFamily="Palatino Linotype, Book Antiqua, Georgia, serif"
+                       FontSize="11" Foreground="#666666"
+                       TextTrimming="CharacterEllipsis"/>
+
+            <!-- Progress bar -->
+            <ProgressBar Grid.Row="4" Height="10" Margin="0,0,0,6"
+                         Value="{Binding Progress, Mode=OneWay}" Maximum="100"
+                         Background="{DynamicResource SurfaceBrush}"
+                         BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                <ProgressBar.Foreground>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="{DynamicResource ShadowRed}" Offset="0"/>
+                        <GradientStop Color="{DynamicResource ShadowRedHover}" Offset="1"/>
+                    </LinearGradientBrush>
+                </ProgressBar.Foreground>
+                <ProgressBar.Template>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <Grid ClipToBounds="True">
+                                <Rectangle x:Name="PART_Track"/>
+                                <Decorator x:Name="PART_Indicator" HorizontalAlignment="Left">
+                                    <Border Background="{TemplateBinding Foreground}" CornerRadius="5"/>
+                                </Decorator>
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </ProgressBar.Template>
+            </ProgressBar>
+
+            <!-- File count -->
+            <TextBlock Grid.Row="5"
+                       Text="{Binding CountText}"
+                       FontFamily="Palatino Linotype, Book Antiqua, Georgia, serif"
+                       FontSize="10" Foreground="#555555" HorizontalAlignment="Right"/>
+        </Grid>
+    </Border>
+</Window>

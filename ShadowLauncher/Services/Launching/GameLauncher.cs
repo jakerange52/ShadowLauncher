@@ -18,8 +18,8 @@ namespace ShadowLauncher.Services.Launching;
 ///     main thread is resumed. Decal handles the single-instance mutex internally,
 ///     enabling multi-client without any mutex manipulation.
 ///
-///   Custom-DAT servers (DatSetId in DatRegistry.xml) — additionally use SymlinkLauncher
-///     to create a per-instance directory with symlinks to the correct DAT files before
+///   Custom-DAT servers (DatSetId in DatRegistry.xml) — additionally use the active IInstancePreparer
+///     to create a per-instance directory with hard links to the correct DAT files before
 ///     launching, so each client sees its own working directory and DAT set.
 ///
 ///   No Decal — single client only, launched directly via Process.Start.
@@ -29,18 +29,18 @@ public class GameLauncher : IGameLauncher
     private readonly IConfigurationProvider _config;
     private readonly ILogger<GameLauncher> _logger;
     private readonly LoginCommandsService _loginCommandsService;
-    private readonly SymlinkLauncher _symlinkLauncher;
+    private readonly IInstancePreparer _instancePreparer;
     private readonly IDatSetService _datSetService;
 
     public GameLauncher(
         IConfigurationProvider config,
-        SymlinkLauncher symlinkLauncher,
+        IInstancePreparer instancePreparer,
         IDatSetService datSetService,
         LoginCommandsService loginCommandsService,
         ILogger<GameLauncher> logger)
     {
         _config = config;
-        _symlinkLauncher = symlinkLauncher;
+        _instancePreparer = instancePreparer;
         _datSetService = datSetService;
         _loginCommandsService = loginCommandsService;
         _logger = logger;
@@ -95,12 +95,10 @@ public class GameLauncher : IGameLauncher
             {
                 if (env.InstanceDir is not null)
                 {
-                    result.ErrorMessage = "Failed to launch game process from symlink instance. Check the log for details.";
+                    result.ErrorMessage = "Failed to launch game process from instance directory. Check the log for details.";
                     _logger.LogError(
-                        "Symlink launch returned PID {Pid} for server '{Server}'. " +
-                        "CanCreateSymlinks={CanSymlink}, InstanceExeExists={ExeExists}",
+                        "Instance launch returned PID {Pid} for server '{Server}'. InstanceExeExists={ExeExists}",
                         processId, server.Name,
-                        SymlinkLauncher.CanCreateSymlinks(),
                         File.Exists(env.ExePath));
                 }
                 else
@@ -110,13 +108,13 @@ public class GameLauncher : IGameLauncher
                 return result;
             }
 
-            // Hand the instance directory to the cleanup watcher if this was a symlink launch.
+            // Hand the instance directory to the cleanup watcher.
             if (env.InstanceDir is not null)
             {
                 System.Diagnostics.Process? process = null;
                 try { process = System.Diagnostics.Process.GetProcessById(processId); } catch { }
                 if (process is not null)
-                    _ = _symlinkLauncher.WatchAndCleanupAsync(process, env.InstanceDir);
+                    _ = _instancePreparer.WatchAndCleanupAsync(process, env.InstanceDir);
             }
 
             // ── Post-launch ─────────────────────────────────────────────────────
@@ -163,8 +161,8 @@ public class GameLauncher : IGameLauncher
     /// <summary>
     /// Determines which exe and working directory to use for this launch.
     /// Priority:
-    ///   1. Custom DAT source (local path or zip URL) — ensures the source is ready, then uses SymlinkLauncher.
-    ///   2. DatSetId registered in DatRegistry.xml  — validates the set is downloaded, then uses SymlinkLauncher.
+    ///   1. Custom DAT source (local path or zip URL) — ensures the source is ready, then uses IInstancePreparer.
+    ///   2. DatSetId registered in DatRegistry.xml  — validates the set is downloaded, then uses IInstancePreparer.
     ///   3. Neither                                  — returns the configured client path directly.
     /// Returns null and populates <paramref name="result"/> on any failure.
     /// </summary>
@@ -176,16 +174,6 @@ public class GameLauncher : IGameLauncher
 
         if (hasCustomSource)
         {
-            if (!SymlinkLauncher.CanCreateSymlinks())
-            {
-                result.ErrorMessage = "Symbolic link creation failed. Sign out and back in to activate the privilege granted during install, then try again.";
-                _logger.LogError(
-                    "Symlink creation failed for server '{Server}' (custom DAT source). " +
-                    "Multi-client launch is not possible until this is resolved.\n{Diagnosis}",
-                    server.Name, SymlinkLauncher.DiagnoseSymlinkCapability());
-                return null;
-            }
-
             try
             {
                 await _datSetService.EnsureCustomDatSourceReadyAsync(server);
@@ -197,7 +185,7 @@ public class GameLauncher : IGameLauncher
                 return null;
             }
 
-            return await PrepareSymlinkEnvironmentAsync(server, datSetId, result);
+            return await PrepareInstanceEnvironmentAsync(server, datSetId, result);
         }
 
         if (!string.IsNullOrWhiteSpace(datSetId))
@@ -211,16 +199,6 @@ public class GameLauncher : IGameLauncher
                 return null;
             }
 
-            if (!SymlinkLauncher.CanCreateSymlinks())
-            {
-                result.ErrorMessage = "Symbolic link creation failed. Sign out and back in to activate the privilege granted during install, then try again.";
-                _logger.LogError(
-                    "Symlink creation failed for server '{Server}' (DAT set '{DatSetId}'). " +
-                    "Multi-client launch is not possible until this is resolved.\n{Diagnosis}",
-                    server.Name, datSetId, SymlinkLauncher.DiagnoseSymlinkCapability());
-                return null;
-            }
-
             if (!await _datSetService.IsDatSetReadyAsync(datSetId))
             {
                 result.ErrorMessage = $"DAT files for '{server.Name}' are not ready. " +
@@ -228,7 +206,7 @@ public class GameLauncher : IGameLauncher
                 return null;
             }
 
-            return await PrepareSymlinkEnvironmentAsync(server, datSetId, result);
+            return await PrepareInstanceEnvironmentAsync(server, datSetId, result);
         }
 
         // No custom DAT source — launch directly from the configured client path.
@@ -236,18 +214,18 @@ public class GameLauncher : IGameLauncher
     }
 
     /// <summary>
-    /// Calls <see cref="SymlinkLauncher.PrepareInstanceAsync"/> and wraps the result
+    /// Calls <see cref="IInstancePreparer.PrepareInstanceAsync"/> and wraps the result
     /// in a <see cref="LaunchEnvironment"/>. Populates <paramref name="result"/> on failure.
     /// </summary>
-    private async Task<LaunchEnvironment?> PrepareSymlinkEnvironmentAsync(Server server, string? datSetId, LaunchResult result)
+    private async Task<LaunchEnvironment?> PrepareInstanceEnvironmentAsync(Server server, string? datSetId, LaunchResult result)
     {
-        _logger.LogInformation("Server '{Server}' requires DAT set '{DatSetId}' — using SymlinkLauncher",
+        _logger.LogInformation("Server '{Server}' requires DAT set '{DatSetId}' — preparing instance",
             server.Name, datSetId);
 
-        var instanceDir = await _symlinkLauncher.PrepareInstanceAsync(server);
+        var instanceDir = await _instancePreparer.PrepareInstanceAsync(server);
         if (instanceDir is null)
         {
-            result.ErrorMessage = "SymlinkLauncher failed to prepare the instance directory. Check the log for details.";
+            result.ErrorMessage = "Instance preparer failed to prepare the instance directory. Check the log for details.";
             return null;
         }
 

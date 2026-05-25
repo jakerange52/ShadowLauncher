@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Infrastructure.FileSystem;
+// using ShadowLauncher.Infrastructure.Native; // symlink — re-enable with SymlinkLauncher
 using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Services.Dats;
 using ShadowLauncher.Services.GameSessions;
@@ -18,7 +19,7 @@ public class AppCoordinator
     private readonly IServerService _serverService;
     private readonly IDatSetService _datSetService;
     private readonly FirstRunService _firstRunService;
-    private readonly SymlinkLauncher _symlinkLauncher;
+    private readonly IInstancePreparer _instancePreparer;
     private readonly IGameSessionService _sessionService;
     private readonly SessionJournal _sessionJournal;
     private readonly IGameLauncher _gameLauncher;
@@ -26,9 +27,15 @@ public class AppCoordinator
     private CancellationTokenSource? _appCts;
     private Task? _serverMonitorTask;
     private Task? _datRefreshTask;
+    private Task? _instanceCleanupTask;
 
     public event EventHandler? ServerStatusRefreshed;
-    public event EventHandler<SymlinkPrivilegeHelper.PrivilegeStatus>? SymlinkPrivilegeChecked;
+    // public event EventHandler<SymlinkPrivilegeHelper.PrivilegeStatus>? SymlinkPrivilegeChecked; // symlink
+    /// <summary>
+    /// Raised when the ACBase directory needs to be populated before HardLinkLauncher can run.
+    /// Subscribers should show a progress window and await the copy task via the event args.
+    /// </summary>
+    public event EventHandler<Func<IProgress<AcBaseCopyProgress>, Task>>? AcBaseCopyRequired;
 
     public AppCoordinator(
         IConfigurationProvider config,
@@ -36,7 +43,7 @@ public class AppCoordinator
         IServerService serverService,
         IDatSetService datSetService,
         FirstRunService firstRunService,
-        SymlinkLauncher symlinkLauncher,
+        IInstancePreparer instancePreparer,
         IGameSessionService sessionService,
         SessionJournal sessionJournal,
         IGameLauncher gameLauncher,
@@ -47,7 +54,7 @@ public class AppCoordinator
         _serverService = serverService;
         _datSetService = datSetService;
         _firstRunService = firstRunService;
-        _symlinkLauncher = symlinkLauncher;
+        _instancePreparer = instancePreparer;
         _sessionService = sessionService;
         _sessionJournal = sessionJournal;
         _gameLauncher = gameLauncher;
@@ -70,7 +77,7 @@ public class AppCoordinator
 
         // Remove instance directories left over from a previous session.
         // Also sweeps the Instances\ root when it becomes empty (fix #5).
-        _symlinkLauncher.CleanupStaleInstances();
+        _instancePreparer.CleanupStaleInstances();
         var instancesRoot = Path.Combine(_config.DataDirectory, "Instances");
         if (Directory.Exists(instancesRoot) && !Directory.EnumerateFileSystemEntries(instancesRoot).Any())
         {
@@ -81,11 +88,31 @@ public class AppCoordinator
         // Silently detect AC client and import ThwargLauncher data on first launch.
         await _firstRunService.RunAsync();
 
+        // If HardLinkLauncher is active, ensure ACBase is ready before any launch is attempted.
+        if (_instancePreparer is HardLinkLauncher)
+        {
+            if (AcBaseCopyRequired is not null && _firstRunService.HardLinkBaseNeedsCopy())
+            {
+                var tcs = new TaskCompletionSource();
+                Func<IProgress<AcBaseCopyProgress>, Task> copyTask = async progress =>
+                {
+                    await _firstRunService.PrepareHardLinkBaseAsync(progress);
+                    tcs.SetResult();
+                };
+                AcBaseCopyRequired.Invoke(this, copyTask);
+                await tcs.Task;
+            }
+            else
+            {
+                await _firstRunService.PrepareHardLinkBaseAsync();
+            }
+        }
+
         // Ensure SeCreateSymbolicLinkPrivilege is active — covers users who installed
         // an older build before the installer granted it unconditionally.
-        var privilegeStatus = SymlinkPrivilegeHelper.EnsurePrivilege(_logger);
-        if (privilegeStatus != SymlinkPrivilegeHelper.PrivilegeStatus.AlreadyActive)
-            SymlinkPrivilegeChecked?.Invoke(this, privilegeStatus);
+        // var privilegeStatus = SymlinkPrivilegeHelper.EnsurePrivilege(_logger); // symlink
+        // if (privilegeStatus != SymlinkPrivilegeHelper.PrivilegeStatus.AlreadyActive) // symlink
+        //     SymlinkPrivilegeChecked?.Invoke(this, privilegeStatus); // symlink
 
         // Fetch a fresh DatRegistry.xml in the background so checksums and server
         // mappings are always up to date. Failures are non-fatal — the bundled or
@@ -113,6 +140,10 @@ public class AppCoordinator
 
         // Start periodic server status checks
         _serverMonitorTask = ServerStatusLoopAsync(_appCts.Token);
+
+        // Periodically sweep the Instances directory for stale dirs that couldn't be
+        // deleted immediately (e.g. shared inodes locked by other running clients).
+        _instanceCleanupTask = InstanceCleanupLoopAsync(_appCts.Token);
 
         _logger.LogInformation("ShadowLauncher initialized successfully");
     }
@@ -191,6 +222,18 @@ public class AppCoordinator
         }
     }
 
+    private async Task InstanceCleanupLoopAsync(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            try { await Task.Delay(TimeSpan.FromMinutes(15), token); }
+            catch (OperationCanceledException) { break; }
+
+            try { _instancePreparer.CleanupStaleInstances(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Periodic instance cleanup failed"); }
+        }
+    }
+
     public async Task ShutdownAsync()
     {
         _logger.LogInformation("ShadowLauncher shutting down...");
@@ -202,6 +245,8 @@ public class AppCoordinator
                 try { await _serverMonitorTask; } catch (OperationCanceledException) { }
             if (_datRefreshTask is not null)
                 try { await _datRefreshTask; } catch (OperationCanceledException) { }
+            if (_instanceCleanupTask is not null)
+                try { await _instanceCleanupTask; } catch (OperationCanceledException) { }
             _appCts.Dispose();
         }
 

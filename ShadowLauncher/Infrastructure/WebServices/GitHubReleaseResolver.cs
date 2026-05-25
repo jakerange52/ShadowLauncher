@@ -11,7 +11,7 @@ namespace ShadowLauncher.Infrastructure.WebServices;
 /// Supported URL patterns:
 ///   https://github.com/{owner}/{repo}/releases/latest          - resolves latest release
 ///   https://github.com/{owner}/{repo}/releases/tag/{tag}/      - resolves that specific tag
-///   https://github.com/{owner}/{repo}/releases/download/...    - treated as latest
+///   https://github.com/{owner}/{repo}/releases/download/{tag}/{asset} - resolves that specific tag
 /// </summary>
 // TODO: Anonymous GitHub API calls are rate-limited to ~60/hour. With many DAT sets we can hit
 // HTTP 403 (X-RateLimit-Remaining: 0). Consider caching ResolveLatestAsync results in-memory for
@@ -29,8 +29,9 @@ public class GitHubReleaseResolver
     }
 
     // Captures owner, repo, and an optional specific tag from /releases/tag/{tag}
+    // or /releases/download/{tag}/{asset}
     private static readonly Regex GitHubRepoPattern = new(
-        @"https://github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)/releases(?:/tag/(?<tag>[^/?#]+))?",
+        @"https://github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)/releases(?:/(?:tag|download)/(?<tag>[^/?#/]+))?",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly ILogger<GitHubReleaseResolver> _logger;

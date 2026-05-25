@@ -38,17 +38,16 @@
                  Text="Create a &amp;desktop shortcut" />
 
         <!--
-          Sign-out reminder shown only when CheckSymlinkPrivilege determined that
-          SeCreateSymbolicLinkPrivilege was newly granted (BUILTIN\Users did not
-          already hold it). The new privilege only lands in a fresh logon token,
-          so the user must sign out and back in (lock/unlock is NOT enough).
-        -->
+          Symlink sign-out notice commented out — hard links no longer require
+          SeCreateSymbolicLinkPrivilege. Re-enable if reverting to SymlinkLauncher.
+
         <Control Id="LogoffNotice" Type="Text" X="135" Y="160" Width="220" Height="60"
                  Transparent="yes" NoPrefix="yes"
                  Text="{\WixUI_Font_Bold}Sign out required: ShadowLauncher granted your account permission to create symbolic links. You must sign out of Windows and sign back in (locking the screen is not enough) before multi-boxing will work.">
           <Condition Action="show">SHOWLOGOFFMESSAGE = "1"</Condition>
           <Condition Action="hide">NOT SHOWLOGOFFMESSAGE OR SHOWLOGOFFMESSAGE &lt;&gt; "1"</Condition>
         </Control>
+        -->
 
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="1" />
 
