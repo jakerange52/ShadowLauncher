@@ -27,6 +27,7 @@ public class AppCoordinator
     private CancellationTokenSource? _appCts;
     private Task? _serverMonitorTask;
     private Task? _datRefreshTask;
+    private Task? _instanceCleanupTask;
 
     public event EventHandler? ServerStatusRefreshed;
     // public event EventHandler<SymlinkPrivilegeHelper.PrivilegeStatus>? SymlinkPrivilegeChecked; // symlink
@@ -140,6 +141,10 @@ public class AppCoordinator
         // Start periodic server status checks
         _serverMonitorTask = ServerStatusLoopAsync(_appCts.Token);
 
+        // Periodically sweep the Instances directory for stale dirs that couldn't be
+        // deleted immediately (e.g. shared inodes locked by other running clients).
+        _instanceCleanupTask = InstanceCleanupLoopAsync(_appCts.Token);
+
         _logger.LogInformation("ShadowLauncher initialized successfully");
     }
 
@@ -217,6 +222,18 @@ public class AppCoordinator
         }
     }
 
+    private async Task InstanceCleanupLoopAsync(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            try { await Task.Delay(TimeSpan.FromMinutes(15), token); }
+            catch (OperationCanceledException) { break; }
+
+            try { _instancePreparer.CleanupStaleInstances(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Periodic instance cleanup failed"); }
+        }
+    }
+
     public async Task ShutdownAsync()
     {
         _logger.LogInformation("ShadowLauncher shutting down...");
@@ -228,6 +245,8 @@ public class AppCoordinator
                 try { await _serverMonitorTask; } catch (OperationCanceledException) { }
             if (_datRefreshTask is not null)
                 try { await _datRefreshTask; } catch (OperationCanceledException) { }
+            if (_instanceCleanupTask is not null)
+                try { await _instanceCleanupTask; } catch (OperationCanceledException) { }
             _appCts.Dispose();
         }
 

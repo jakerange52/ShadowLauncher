@@ -81,18 +81,45 @@ public abstract class InstanceLauncherBase : IInstancePreparer
 
     protected void CleanupInstance(string instanceDir)
     {
+        if (!Directory.Exists(instanceDir)) return;
+
+        // Hard links share an inode with the source file. If any other acclient process is
+        // running from the base dir, it holds a lock on shared DLL inodes and prevents deletion
+        // of the corresponding hard links here — even though this instance's process has exited.
+        // We delete what we can file-by-file and leave the rest for the next startup sweep.
+        int deleted = 0, skipped = 0;
+        foreach (var file in Directory.GetFiles(instanceDir, "*", SearchOption.AllDirectories))
+        {
+            try
+            {
+                File.SetAttributes(file, FileAttributes.Normal);
+                File.Delete(file);
+                deleted++;
+            }
+            catch
+            {
+                skipped++;
+            }
+        }
+
+        // Remove any now-empty subdirectories.
+        foreach (var sub in Directory.GetDirectories(instanceDir, "*", SearchOption.AllDirectories)
+                                     .OrderByDescending(d => d.Length)) // deepest first
+        {
+            try { Directory.Delete(sub); } catch { }
+        }
+
         try
         {
-            if (!Directory.Exists(instanceDir)) return;
-            // Hard-linked files inherit read-only attributes from the source — strip them
-            // before deletion so Directory.Delete doesn't throw UnauthorizedAccessException.
-            foreach (var file in Directory.GetFiles(instanceDir))
-                File.SetAttributes(file, FileAttributes.Normal);
-            Directory.Delete(instanceDir, recursive: true);
+            Directory.Delete(instanceDir);
+            _logger.LogDebug("Instance cleaned up: {Dir} ({Deleted} files)", instanceDir, deleted);
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.LogWarning(ex, "Could not clean up instance directory: {Dir}", instanceDir);
+            // Remaining locked files (shared inodes in use by other acclient processes).
+            // CleanupStaleInstances() will retry on next startup.
+            _logger.LogDebug("Instance partially cleaned ({Deleted} deleted, {Skipped} locked — will retry): {Dir}",
+                deleted, skipped, instanceDir);
         }
     }
 
@@ -107,18 +134,21 @@ public abstract class InstanceLauncherBase : IInstancePreparer
             try
             {
                 var exePath = proc.MainModule?.FileName;
-                if (string.IsNullOrEmpty(exePath)) return false;
+                if (string.IsNullOrEmpty(exePath)) continue;
 
                 var exeDirNorm = Path.GetFullPath(Path.GetDirectoryName(exePath)!)
                     .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                     .ToLowerInvariant();
 
                 if (exeDirNorm == instanceDirNorm)
-                    return false;
+                    return false; // this instance is still in use
             }
             catch
             {
-                return false; // can't confirm — conservatively keep it
+                // Can't read this process's module — skip it rather than keeping all dirs forever.
+                // If it turns out to be using this dir, the process will still hold file locks
+                // and Directory.Delete will fail safely.
+                continue;
             }
             finally
             {
