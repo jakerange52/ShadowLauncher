@@ -36,6 +36,12 @@ public class AppCoordinator
     /// Subscribers should show a progress window and await the copy task via the event args.
     /// </summary>
     public event EventHandler<Func<IProgress<AcBaseCopyProgress>, Task>>? AcBaseCopyRequired;
+    /// <summary>
+    /// Raised once when a Windows Firewall rule for acclient.exe would prevent repeated prompts.
+    /// Subscribers should ask the user and then call <see cref="FirstRunService.AddFirewallRule"/>
+    /// or <see cref="FirstRunService.DeclineFirewallRule"/> based on their response.
+    /// </summary>
+    public event EventHandler? FirewallRuleRequested;
 
     public AppCoordinator(
         IConfigurationProvider config,
@@ -106,6 +112,11 @@ public class AppCoordinator
             {
                 await _firstRunService.PrepareHardLinkBaseAsync();
             }
+
+            // Add a persistent Windows Firewall rule for acclient.exe once so that
+            // hard-link instances (new path each launch) don't trigger repeated prompts.
+            if (_firstRunService.FirewallRuleNeeded())
+                FirewallRuleRequested?.Invoke(this, EventArgs.Empty);
         }
 
         // Ensure SeCreateSymbolicLinkPrivilege is active — covers users who installed

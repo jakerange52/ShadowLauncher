@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using ShadowLauncher.Core.Interfaces;
@@ -58,7 +59,64 @@ public class FirstRunService
     }
 
     /// <summary>
-    /// Returns true if <see cref="PrepareHardLinkBaseAsync"/> would need to perform
+    /// Returns true if a firewall rule for acclient.exe needs to be added
+    /// (i.e. the user hasn't been asked yet and the exe exists).
+    /// </summary>
+    public bool FirewallRuleNeeded()
+    {
+        if (_config.GetSetting("FirewallRuleAdded") == "1") return false;
+        if (_config.GetSetting("FirewallRuleDeclined") == "1") return false;
+
+        var basePath = _config.GetSetting("HardLinkBasePath");
+        if (string.IsNullOrWhiteSpace(basePath))
+            basePath = Path.GetDirectoryName(_config.GameClientPath) ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(basePath)) return false;
+
+        return File.Exists(Path.Combine(basePath, "acclient.exe"));
+    }
+
+    /// <summary>
+    /// Adds a Windows Firewall allow-rule for acclient.exe via a one-time UAC elevation.
+    /// Call only after the user has confirmed they want this.
+    /// </summary>
+    public void AddFirewallRule()
+    {
+        const string ruleName = "ShadowLauncher - Asheron's Call";
+
+        var basePath = _config.GetSetting("HardLinkBasePath");
+        if (string.IsNullOrWhiteSpace(basePath))
+            basePath = Path.GetDirectoryName(_config.GameClientPath) ?? string.Empty;
+        var exePath = Path.Combine(basePath, "acclient.exe");
+
+        _logger.LogInformation("Adding firewall rule for {Exe}", exePath);
+        try
+        {
+            var args = $"advfirewall firewall add rule name=\"{ruleName}\" dir=in action=allow program=\"{exePath}\" enable=yes profile=any";
+            var proc = Process.Start(new ProcessStartInfo("netsh", args)
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+                CreateNoWindow = true,
+            });
+            proc?.WaitForExit(10_000);
+            _config.SetSetting("FirewallRuleAdded", "1");
+            _config.Save();
+            _logger.LogInformation("Firewall rule added for acclient.exe");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not add firewall rule — user may see Windows Firewall prompts");
+        }
+    }
+
+    /// <summary>Persists the user's choice to decline the firewall rule so they aren't asked again.</summary>
+    public void DeclineFirewallRule()
+    {
+        _config.SetSetting("FirewallRuleDeclined", "1");
+        _config.Save();
+    }
+
+
     /// a file copy (i.e. the AC install is in a protected path and ACBase doesn't exist yet).
     /// Use this to decide whether to show a progress window before calling PrepareHardLinkBaseAsync.
     /// </summary>

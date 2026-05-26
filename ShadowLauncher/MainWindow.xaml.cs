@@ -180,6 +180,13 @@ public partial class MainWindow : Window
         }
     }
 
+    private void DismissUpdateBanner_Click(object sender, RoutedEventArgs e) => _viewModel.DismissUpdateBanner();
+    private void UpdateNow_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.OpenUpdateUrl();
+        _viewModel.DismissUpdateBanner();
+    }
+
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }

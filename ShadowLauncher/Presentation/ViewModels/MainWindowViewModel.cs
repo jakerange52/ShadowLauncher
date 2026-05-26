@@ -44,6 +44,8 @@ public class MainWindowViewModel : ViewModelBase
     private string _currentThemeName;
     private LaunchProfile? _currentProfile;
     private bool _applyingProfile;
+    private string? _updateBannerText;
+    private string? _updateDownloadUrl;
 
     /// <summary>Tracks PID → (Account, Server) for auto-relaunch.</summary>
     private readonly Dictionary<int, (Account Account, Server Server)> _launchedSessions = [];
@@ -157,6 +159,23 @@ public class MainWindowViewModel : ViewModelBase
 
     public string CurrentVersion { get; } =
         $"v{UpdateChecker.CurrentVersion.Major}.{UpdateChecker.CurrentVersion.Minor}.{UpdateChecker.CurrentVersion.Build}";
+
+    public string? UpdateBannerText
+    {
+        get => _updateBannerText;
+        private set { SetProperty(ref _updateBannerText, value); OnPropertyChanged(nameof(UpdateBannerVisibility)); }
+    }
+
+    public System.Windows.Visibility UpdateBannerVisibility =>
+        string.IsNullOrEmpty(_updateBannerText) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
+
+    public void DismissUpdateBanner() => UpdateBannerText = null;
+
+    public void OpenUpdateUrl()
+    {
+        if (!string.IsNullOrEmpty(_updateDownloadUrl))
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_updateDownloadUrl) { UseShellExecute = true });
+    }
 
     private GameSession? _selectedSession;
     public GameSession? SelectedSession
@@ -425,6 +444,27 @@ public class MainWindowViewModel : ViewModelBase
         finally
         {
             IsLoading = false;
+        }
+
+        _ = CheckForUpdateSilentlyAsync();
+        // Uncomment to test the update banner UI:
+        // UpdateBannerText = "\u2B06 New version available: v0.9.9 \u2014 you have v0.3.0";
+    }
+
+    private async Task CheckForUpdateSilentlyAsync()
+    {
+        try
+        {
+            var result = await _updateChecker.CheckAsync();
+            if (result.Success && result.UpdateAvailable)
+            {
+                _updateDownloadUrl = result.DownloadUrl;
+                UpdateBannerText = $"\u2B06 New version available: v{result.RemoteVersion} \u2014 you have v{result.CurrentVersion}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Silent update check failed");
         }
     }
 

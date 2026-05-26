@@ -26,9 +26,15 @@
 
     <Border CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
             Background="{DynamicResource BgBrush}">
-        <Grid Margin="14">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="52"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
             <!-- Title bar: icon + stacked title + Settings + Minimize + Close -->
-            <DockPanel VerticalAlignment="Top" Margin="0,-6,0,0" Height="52"
+            <DockPanel Grid.Row="0" Margin="14,0,14,0"
                        WindowChrome.IsHitTestVisibleInChrome="True">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
                             HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0">
@@ -72,7 +78,29 @@
                                FontFamily="{DynamicResource EmojiFont}"/>
                 </StackPanel>
             </DockPanel>
-        <Grid Margin="0,56,0,0">
+
+            <!-- Update available banner (hidden until an update is detected) -->
+            <Border Grid.Row="1"
+                    Background="#1a2a1a" BorderBrush="#4CAF50" BorderThickness="0,1,0,1"
+                    Visibility="{Binding UpdateBannerVisibility}">
+                <DockPanel Margin="14,5">
+                    <Button DockPanel.Dock="Left" Content="UPDATE" Padding="12,4" Margin="0,0,12,0"
+                            FontSize="11" FontWeight="Bold" Foreground="#FFD700"
+                            Click="UpdateNow_Click"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            ToolTip="Open download page for the latest release"/>
+                    <Button DockPanel.Dock="Right" Content="&#x2715;" Padding="8,2" FontSize="11"
+                            Style="{DynamicResource IconButton}"
+                            Click="DismissUpdateBanner_Click"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            ToolTip="Dismiss"/>
+                    <TextBlock Text="{Binding UpdateBannerText}" Foreground="#4CAF50"
+                               FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </DockPanel>
+            </Border>
+
+            <!-- Main content -->
+            <Grid Grid.Row="2" Margin="14,8,14,14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
