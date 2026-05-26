@@ -26,19 +26,24 @@ namespace ShadowLauncher.Infrastructure.Native;
 /// </summary>
 public class HardLinkLauncher : InstanceLauncherBase
 {
-    private readonly string _acBaseDir;
-
     public HardLinkLauncher(
         IConfigurationProvider config,
         IDatSetService datSetService,
         ILogger<HardLinkLauncher> logger)
         : base(config, datSetService, logger)
     {
-        // ACBase is either the copy under LocalAppData (protected installs) or the
-        // original install dir (custom path). Resolved by FirstRunService before first launch.
-        var hardLinkBasePath = config.GetSetting("HardLinkBasePath");
-        _acBaseDir = string.IsNullOrWhiteSpace(hardLinkBasePath)
-            ? Path.GetDirectoryName(config.GameClientPath) ?? string.Empty
+    }
+
+    /// <summary>
+    /// Resolves the AC base directory at launch time rather than at construction time,
+    /// so it picks up HardLinkBasePath written by FirstRunService.PrepareHardLinkBaseAsync
+    /// during app initialization (which runs after the DI container is built).
+    /// </summary>
+    private string ResolveAcBaseDir()
+    {
+        var hardLinkBasePath = _config.GetSetting("HardLinkBasePath");
+        return string.IsNullOrWhiteSpace(hardLinkBasePath)
+            ? Path.GetDirectoryName(_config.GameClientPath) ?? string.Empty
             : hardLinkBasePath;
     }
 
@@ -47,7 +52,7 @@ public class HardLinkLauncher : InstanceLauncherBase
         Server server,
         IProgress<DatDownloadProgress>? downloadProgress = null)
     {
-        var clientDir = _acBaseDir;
+        var clientDir = ResolveAcBaseDir();
 
         if (string.IsNullOrWhiteSpace(clientDir) || !Directory.Exists(clientDir))
         {
