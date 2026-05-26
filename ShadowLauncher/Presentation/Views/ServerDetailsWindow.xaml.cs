@@ -197,6 +197,14 @@ public partial class ServerDetailsWindow : Window
         }
     }
 
+    private void DatInfo_Click(object sender, RoutedEventArgs e)
+    {
+        if (_datSetService is null) return;
+        var cacheDir = _datSetService.GetLocalDatSetPathForServer(_server);
+        var w = new DatInfoWindow(_server.Name, cacheDir) { Owner = this };
+        w.ShowDialog();
+    }
+
     private void Discord_Click(object sender, RoutedEventArgs e)
     {
         if (!string.IsNullOrWhiteSpace(_server.DiscordUrl))

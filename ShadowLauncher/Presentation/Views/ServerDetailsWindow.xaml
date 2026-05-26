@@ -134,6 +134,9 @@
                     <Button DockPanel.Dock="Right" Content="&#x21BA; Refresh DATs" Padding="14,6"
                             HorizontalAlignment="Right" Click="RefreshDats_Click"
                             ToolTip="Delete the cached DAT files for this server and re-download from the registry"/>
+                    <Button DockPanel.Dock="Right" Content="DAT Info" Padding="14,6" Margin="0,0,8,0"
+                            HorizontalAlignment="Right" Click="DatInfo_Click"
+                            ToolTip="Show checksum and size details for the cached DAT files"/>
                 </DockPanel>
 
             </StackPanel>

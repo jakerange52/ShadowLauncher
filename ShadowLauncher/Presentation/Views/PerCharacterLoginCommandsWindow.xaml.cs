@@ -1,6 +1,9 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Input;
 using ShadowLauncher.Services.Accounts;
 using ShadowLauncher.Services.LoginCommands;
 using ShadowLauncher.Services.Servers;
@@ -13,6 +16,7 @@ public partial class PerCharacterLoginCommandsWindow : Window
     private readonly IAccountService _accountService;
     private readonly IServerService _serverService;
     private readonly ObservableCollection<CharacterCommandEntry> _entries = [];
+    private readonly CollectionViewSource _view = new();
     private FileSystemWatcher? _charWatcher;
 
     public PerCharacterLoginCommandsWindow(
@@ -24,7 +28,17 @@ public partial class PerCharacterLoginCommandsWindow : Window
         _loginService = loginService;
         _accountService = accountService;
         _serverService = serverService;
-        CharacterGrid.ItemsSource = _entries;
+        _view.Source = _entries;
+        _view.Filter += (_, e) =>
+        {
+            var q = SearchBox.Text.Trim();
+            if (string.IsNullOrEmpty(q)) { e.Accepted = true; return; }
+            if (e.Item is CharacterCommandEntry entry)
+                e.Accepted = entry.AvailableCharacters.Any(c => c.Contains(q, StringComparison.OrdinalIgnoreCase))
+                          || entry.AccountName.Contains(q, StringComparison.OrdinalIgnoreCase)
+                          || entry.ServerName.Contains(q, StringComparison.OrdinalIgnoreCase);
+        };
+        CharacterGrid.ItemsSource = _view.View;
 
         Loaded += async (_, _) =>
         {
@@ -152,6 +166,23 @@ public partial class PerCharacterLoginCommandsWindow : Window
                 CharacterGrid.Items.Refresh();
             }
         }
+    }
+
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _view.View.Refresh();
+        StatusText.Text = string.Empty;
+    }
+
+    private void SearchBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        var first = _view.View.Cast<CharacterCommandEntry>().FirstOrDefault();
+        if (first is null) return;
+        CharacterGrid.SelectedItem = first;
+        CharacterGrid.ScrollIntoView(first);
+        CharacterGrid.Focus();
+        e.Handled = true;
     }
 
     private void OffsetFromOwner()
