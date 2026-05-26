@@ -49,7 +49,16 @@ public class HardLinkLauncher : InstanceLauncherBase
     {
         var clientDir = _acBaseDir;
 
-        // If the stored DatSetId is missing (server added before the registry had the mapping),
+        if (string.IsNullOrWhiteSpace(clientDir) || !Directory.Exists(clientDir))
+        {
+            _logger.LogError(
+                "ACBase directory is not configured or does not exist ('{Dir}'). " +
+                "Set the game client path in Settings and restart the application.",
+                clientDir);
+            return null;
+        }
+
+        // If the stored DatSetId is missing
         // do a live lookup so we don't silently fall back to retail DATs.
         var effectiveServer = server; // mutating DatSetId on the local reference only
         if (string.IsNullOrWhiteSpace(server.DatSetId)
