@@ -46,7 +46,7 @@ public class GameLauncher : IGameLauncher
         _logger = logger;
     }
 
-    /// <summary>Carries the resolved exe path, working directory, and optional instance dir for a launch.</summary>
+    /// <summary>Carries the resolved exe path, working directory, and optional instance dir for cleanup watcher.</summary>
     private record LaunchEnvironment(string ExePath, string WorkingDir, string? InstanceDir);
 
     public async Task<LaunchResult> LaunchGameAsync(Account account, Server server)
@@ -111,8 +111,8 @@ public class GameLauncher : IGameLauncher
             // Hand the instance directory to the cleanup watcher.
             if (env.InstanceDir is not null)
             {
-                System.Diagnostics.Process? process = null;
-                try { process = System.Diagnostics.Process.GetProcessById(processId); } catch { }
+                Process? process = null;
+                try { process = Process.GetProcessById(processId); } catch { }
                 if (process is not null)
                     _ = _instancePreparer.WatchAndCleanupAsync(process, env.InstanceDir);
             }
@@ -213,26 +213,17 @@ public class GameLauncher : IGameLauncher
         return new LaunchEnvironment(clientPath, Path.GetDirectoryName(clientPath) ?? string.Empty, InstanceDir: null);
     }
 
-    /// <summary>
-    /// Calls <see cref="IInstancePreparer.PrepareInstanceAsync"/> and wraps the result
-    /// in a <see cref="LaunchEnvironment"/>. Populates <paramref name="result"/> on failure.
-    /// </summary>
     private async Task<LaunchEnvironment?> PrepareInstanceEnvironmentAsync(Server server, string? datSetId, LaunchResult result)
     {
         _logger.LogInformation("Server '{Server}' requires DAT set '{DatSetId}' — preparing instance",
             server.Name, datSetId);
-
-        var instanceEnv = await _instancePreparer.PrepareInstanceAsync(server);
-        if (instanceEnv is null)
+        var env = await _instancePreparer.PrepareInstanceAsync(server);
+        if (env is null)
         {
             result.ErrorMessage = "Instance preparer failed to prepare the instance directory. Check the log for details.";
             return null;
         }
-
-        return new LaunchEnvironment(
-            ExePath: instanceEnv.ExePath,
-            WorkingDir: instanceEnv.WorkingDir,
-            InstanceDir: instanceEnv.WorkingDir);
+        return new LaunchEnvironment(env.ExePath, env.WorkingDir, InstanceDir: env.WorkingDir);
     }
 
     public Task TerminateGameAsync(int processId)
@@ -303,8 +294,8 @@ public class GameLauncher : IGameLauncher
         else
         {
             // No Decal — single client only, plain launch.
-            var process = System.Diagnostics.Process.Start(new ProcessStartInfo
-            {
+                var process = Process.Start(new ProcessStartInfo
+                {
                 FileName = exePath,
                 Arguments = arguments,
                 WorkingDirectory = workingDir,

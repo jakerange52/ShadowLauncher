@@ -49,24 +49,6 @@ public partial class App : System.Windows.Application
             _ = copyWindow.RunAsync(copyTask);
         };
 
-        var firstRunService = _serviceProvider.GetRequiredService<FirstRunService>();
-        _coordinator.FirewallRuleRequested += (_, _) =>
-        {
-            var result = MessageBox.Show(
-                "ShadowLauncher creates a new folder for each game instance, which can cause " +
-                "Windows Firewall to prompt you every time you launch.\n\n" +
-                "Would you like to add a one-time firewall rule to prevent these prompts?\n\n" +
-                "(This will show a UAC confirmation — nothing is changed without your approval.)",
-                "Windows Firewall",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Yes)
-                firstRunService.AddFirewallRule();
-            else
-                firstRunService.DeclineFirewallRule();
-        };
-
         await _coordinator.InitializeAsync();
 
         // Apply saved theme (replaces the default ShadowTheme loaded from App.xaml).
