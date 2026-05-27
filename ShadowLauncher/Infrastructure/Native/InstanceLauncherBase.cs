@@ -36,7 +36,7 @@ public abstract class InstanceLauncherBase : IInstancePreparer
     }
 
     /// <inheritdoc/>
-    public abstract Task<string?> PrepareInstanceAsync(
+    public abstract Task<InstanceEnvironment?> PrepareInstanceAsync(
         Server server,
         IProgress<DatDownloadProgress>? downloadProgress = null);
 

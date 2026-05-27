@@ -98,7 +98,7 @@ public class SymlinkLauncher : InstanceLauncherBase
     }
 
     /// <inheritdoc/>
-    public override async Task<string?> PrepareInstanceAsync(
+    public override async Task<InstanceEnvironment?> PrepareInstanceAsync(
         Server server,
         IProgress<DatDownloadProgress>? downloadProgress = null)
     {
@@ -164,7 +164,7 @@ public class SymlinkLauncher : InstanceLauncherBase
                 _logger.LogInformation("Using custom acclient.exe from DAT set: {Path}", customClient);
             }
 
-            return instanceDir;
+            return new InstanceEnvironment(Path.Combine(instanceDir, "acclient.exe"), instanceDir);
         }
         catch (Exception ex)
         {

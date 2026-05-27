@@ -48,7 +48,7 @@ public class HardLinkLauncher : InstanceLauncherBase
     }
 
     /// <inheritdoc/>
-    public override async Task<string?> PrepareInstanceAsync(
+    public override async Task<InstanceEnvironment?> PrepareInstanceAsync(
         Server server,
         IProgress<DatDownloadProgress>? downloadProgress = null)
     {
@@ -95,7 +95,8 @@ public class HardLinkLauncher : InstanceLauncherBase
             // We skip files that acclient opens for exclusive write access (.log, .ini, .pdb,
             // .bin, .avi, .txt, .rtf, .msi) — hard links share the same inode, so two instances
             // linking the same acclient.log would contend on it, causing a misleading DirectX error.
-            // DAT files and acclient.exe are skipped here and handled in steps 2 and 3.
+            // acclient.exe is intentionally excluded — we launch from its stable source path so
+            // Windows Firewall only needs to learn one path, not a new GUID path each launch.
             var datFileSet = new HashSet<string>(KnownDatFiles, StringComparer.OrdinalIgnoreCase) { "acclient.exe" };
             var runtimeExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".dll", ".exe", ".dat", ".xsd" };
             LinkRuntimeFiles(clientDir, instanceDir, datFileSet, runtimeExtensions);
@@ -112,23 +113,15 @@ public class HardLinkLauncher : InstanceLauncherBase
                 CreateHardLinkOrThrow(Path.Combine(instanceDir, datFile), sourceDat);
             }
 
-            // Step 3: override acclient.exe with a custom one from the DAT set cache if present,
-            // otherwise link the base acclient.exe.
+            // Step 3: resolve the stable acclient.exe path (never linked into instance dir).
+            // Using the source path directly means Windows Firewall learns it once and never re-prompts.
             var customClient = Path.Combine(datSourceDir, "acclient.exe");
-            var baseClient = Path.Combine(clientDir, "acclient.exe");
-            var exeLink = Path.Combine(instanceDir, "acclient.exe");
+            var stableExePath = File.Exists(customClient) ? customClient : Path.Combine(clientDir, "acclient.exe");
             if (File.Exists(customClient))
-            {
-                CreateHardLinkOrThrow(exeLink, customClient);
                 _logger.LogInformation("Using custom acclient.exe from DAT set: {Path}", customClient);
-            }
-            else if (File.Exists(baseClient))
-            {
-                CreateHardLinkOrThrow(exeLink, baseClient);
-            }
 
-            _logger.LogInformation("Hard-link instance ready: {Dir}", instanceDir);
-            return instanceDir;
+            _logger.LogInformation("Hard-link instance ready: {Dir} (exe={Exe})", instanceDir, stableExePath);
+            return new InstanceEnvironment(stableExePath, instanceDir);
         }
         catch (Exception ex)
         {

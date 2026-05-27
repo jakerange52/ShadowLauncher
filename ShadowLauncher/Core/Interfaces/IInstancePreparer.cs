@@ -1,6 +1,13 @@
 namespace ShadowLauncher.Core.Interfaces;
 
 /// <summary>
+/// Result of a successful <see cref="IInstancePreparer.PrepareInstanceAsync"/> call.
+/// </summary>
+/// <param name="ExePath">Stable path to the acclient.exe to launch (ACBase or DAT-set custom client).</param>
+/// <param name="WorkingDir">Per-instance directory containing hard-linked DLLs and DAT files.</param>
+public record InstanceEnvironment(string ExePath, string WorkingDir);
+
+/// <summary>
 /// Abstracts the strategy used to prepare a per-instance AC directory before launch.
 /// Implementations: <c>SymlinkLauncher</c> (requires symlink privilege / Dev Mode),
 /// <c>HardLinkLauncher</c> (no privileges required).
@@ -9,9 +16,9 @@ public interface IInstancePreparer
 {
     /// <summary>
     /// Ensures required DAT files are ready and creates a per-instance directory.
-    /// Returns the instance directory path on success, or null on failure.
+    /// Returns an <see cref="InstanceEnvironment"/> on success, or null on failure.
     /// </summary>
-    Task<string?> PrepareInstanceAsync(
+    Task<InstanceEnvironment?> PrepareInstanceAsync(
         ShadowLauncher.Core.Models.Server server,
         IProgress<ShadowLauncher.Services.Dats.DatDownloadProgress>? downloadProgress = null);
 

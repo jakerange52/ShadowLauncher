@@ -222,17 +222,17 @@ public class GameLauncher : IGameLauncher
         _logger.LogInformation("Server '{Server}' requires DAT set '{DatSetId}' — preparing instance",
             server.Name, datSetId);
 
-        var instanceDir = await _instancePreparer.PrepareInstanceAsync(server);
-        if (instanceDir is null)
+        var instanceEnv = await _instancePreparer.PrepareInstanceAsync(server);
+        if (instanceEnv is null)
         {
             result.ErrorMessage = "Instance preparer failed to prepare the instance directory. Check the log for details.";
             return null;
         }
 
         return new LaunchEnvironment(
-            ExePath: Path.Combine(instanceDir, "acclient.exe"),
-            WorkingDir: instanceDir,
-            InstanceDir: instanceDir);
+            ExePath: instanceEnv.ExePath,
+            WorkingDir: instanceEnv.WorkingDir,
+            InstanceDir: instanceEnv.WorkingDir);
     }
 
     public Task TerminateGameAsync(int processId)
