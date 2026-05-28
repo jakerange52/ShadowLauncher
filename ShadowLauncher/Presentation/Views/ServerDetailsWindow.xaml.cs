@@ -153,9 +153,9 @@ public partial class ServerDetailsWindow : Window
             {
                 await _datSetService.EnsureCustomDatSourceReadyAsync(_server, progress);
 
-                // Complete the cache with retail DATs for any files not in the zip,
-                // matching what SymlinkLauncher does at launch so IsCustomDatCachePresent
-                // returns true immediately and the fetch window won't reopen on next launch.
+                // Complete the cache with retail DATs for any files not in the zip
+                // so IsCustomDatCachePresent returns true immediately and the fetch window
+                // won't reopen on next launch.
                 var clientDir = Path.GetDirectoryName(_config.GameClientPath);
                 if (!string.IsNullOrWhiteSpace(clientDir))
                 {
