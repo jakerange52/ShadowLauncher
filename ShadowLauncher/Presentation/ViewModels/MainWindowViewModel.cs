@@ -171,10 +171,43 @@ public class MainWindowViewModel : ViewModelBase
 
     public void DismissUpdateBanner() => UpdateBannerText = null;
 
-    public void OpenUpdateUrl()
+    public async Task ApplyUpdateAsync()
     {
-        if (!string.IsNullOrEmpty(_updateDownloadUrl))
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_updateDownloadUrl) { UseShellExecute = true });
+        if (string.IsNullOrEmpty(_updateDownloadUrl)) return;
+
+        var answer = MessageBox.Show(
+            $"Download and install the new version now? The app will restart automatically.",
+            "Install Update",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Information);
+
+        if (answer != MessageBoxResult.Yes) return;
+
+        DismissUpdateBanner();
+
+        var progress = new Progress<int>(pct => StatusText = $"Downloading update... {pct}%");
+        string installerPath;
+        try
+        {
+            installerPath = await _updateChecker.DownloadInstallerAsync(_updateDownloadUrl, progress, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Download failed: {ex.Message}";
+            return;
+        }
+
+        StatusText = "Download complete — launching installer...";
+        var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+        var relaunchCmd = $"/c start \"\" /wait \"{installerPath}\" /install /quiet /norestart & del /f /q \"{installerPath}\" & start \"\" \"{exePath}\"";
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName        = "cmd.exe",
+            Arguments       = relaunchCmd,
+            UseShellExecute = true,
+            WindowStyle     = System.Diagnostics.ProcessWindowStyle.Hidden,
+        });
+        Application.Current.Shutdown();
     }
 
     private GameSession? _selectedSession;
