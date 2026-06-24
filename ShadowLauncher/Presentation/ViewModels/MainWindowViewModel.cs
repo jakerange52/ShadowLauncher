@@ -207,7 +207,7 @@ public class MainWindowViewModel : ViewModelBase
             UseShellExecute = true,
             WindowStyle     = System.Diagnostics.ProcessWindowStyle.Hidden,
         });
-        Application.Current.Shutdown();
+        System.Windows.Application.Current.Shutdown();
     }
 
     private GameSession? _selectedSession;
