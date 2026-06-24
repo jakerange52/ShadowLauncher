@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout ShadowLauncher
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout ThwargLauncher
+        uses: actions/checkout@v4
+        with:
+          repository: Thwargle/ThwargLauncher
+          path: ../ThwargLauncher
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install WiX
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add WixToolset.UI.wixext/5.0.2 WixToolset.Util.wixext/5.0.2 WixToolset.Netfx.wixext/5.0.2 WixToolset.Bal.wixext/5.0.2 --global
+          "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Read and validate version
+        id: version
+        shell: pwsh
+        run: ./.github/scripts/get-version.ps1
+
+      - name: Check if release is needed
+        id: gate
+        shell: pwsh
+        run: ./.github/scripts/should-release.ps1 -Version ${{ steps.version.outputs.version }}
+
+      - name: Resolve previous tag
+        if: steps.gate.outputs.should_release == 'true'
+        id: prev_tag
+        shell: pwsh
+        run: |
+          $latest = git tag -l 'v*' --sort=-v:refname | Select-Object -First 1
+          if ($latest) {
+            Write-Host "Previous tag: $latest"
+            "tag=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+
+      - name: Build installer
+        if: steps.gate.outputs.should_release == 'true'
+        shell: pwsh
+        run: ./Build-Installer.ps1 -Version ${{ steps.version.outputs.version }}
+
+      - name: Generate release notes
+        if: steps.gate.outputs.should_release == 'true'
+        id: notes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $args = @{
+            Version = '${{ steps.version.outputs.version }}'
+            Tag     = '${{ steps.version.outputs.tag }}'
+          }
+          if ('${{ steps.prev_tag.outputs.tag }}') {
+            $args.PreviousTag = '${{ steps.prev_tag.outputs.tag }}'
+          }
+          ./.github/scripts/build-release-notes.ps1 @args
+
+      - name: Create GitHub Release
+        if: steps.gate.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ShadowLauncher ${{ steps.version.outputs.tag }}
+          body: ${{ steps.notes.outputs.body }}
+          files: ShadowLauncher.Installer.Bundle/bin/ShadowLauncher-Setup.exe
+          make_latest: true
+          draft: false

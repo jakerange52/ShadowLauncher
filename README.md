@@ -62,10 +62,12 @@ To override the version:
 
 ## Releasing a new version
 
-1. Update `<Version>` in `ShadowLauncher\ShadowLauncher.csproj`, `ShadowLauncher.Installer\ShadowLauncher.Installer.wixproj`, and `ShadowLauncher.Installer.Bundle\ShadowLauncher.Installer.Bundle.wixproj`
-2. Run `.\Build-Installer.ps1 -Version x.y.z`
-3. Create a GitHub Release tagged `vx.y.z`
-4. Upload `ShadowLauncher-Setup.exe` as the release asset
+1. Update `<Version>` in `ShadowLauncher\ShadowLauncher.csproj`, `ShadowLauncher.Installer\ShadowLauncher.Installer.wixproj`, and `ShadowLauncher.Installer.Bundle\ShadowLauncher.Installer.Bundle.wixproj` (all three must match)
+2. Open a PR and merge to `master`
+3. GitHub Actions builds the installer and publishes a GitHub Release tagged `vx.y.z` with a summary of merged PRs
+4. Verify the release asset (`ShadowLauncher-Setup.exe`) and notes on the [Releases](../../releases) page
+
+Merges that do not bump the version are skipped automatically. To release locally instead, run `.\Build-Installer.ps1 -Version x.y.z` and upload the output manually.
 
 Users with the app installed will be notified via **Settings → Check for Updates**.
 
