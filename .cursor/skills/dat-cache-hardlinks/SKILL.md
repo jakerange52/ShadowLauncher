@@ -1,143 +1,132 @@
 ---
 name: dat-cache-hardlinks
-description: Modify DAT download, caching, registry integration, and hard-link instance preparation in ShadowLauncher. Use when changing how server-specific DAT files are fetched, stored, or linked into per-client directories.
+description: Modify DAT download, caching, registry, and hard-link instance prep in ShadowLauncher. Veteran AC knowledge of client_*.dat files, per-server content, and multi-box directory strategies. Use when touching DAT or instance-prep code.
 ---
 
 # DAT Cache and Hard Links
 
-## Why this matters
+## Background — the DAT problem
 
-Transparent DAT management is a **core invariant**. Players must never manually swap `client_*.dat` files when switching servers or multi-boxing. The launcher:
+Asheron's Call reads world data from fixed filenames in the client directory:
 
-1. Knows which DAT set each server needs (registry, zip URL, or local path)
-2. Downloads and caches files under `%LocalAppData%\ShadowLauncher\DatSets\`
-3. Creates a unique instance directory per launch using **hard links**
-4. Cleans up instance dirs when the client exits
+| File | Contents |
+|------|----------|
+| `client_portal.dat` | Portal/landblock data — which world you load |
+| `client_cell_1.dat` | Cell geometry |
+| `client_local_English.dat` | UI strings, localized text |
+| `client_highres.dat` | High-res textures (optional, pre-2003 patch) |
+| `acclient.exe` | Sometimes replaced by emulator-specific builds |
+
+Retail AC ended at a specific patch level. Private servers — Dark Majesty, Seedsow, GDLE custom content, ACE forks — ship different DAT sets. Connect with the wrong portal DAT and you get wrong terrain, missing content, or immediate disconnect.
+
+**The old workflow:** maintain `C:\AC-Retail\`, `C:\AC-MyServer\`, copy 1–2 GB between them, or keep a "current server" symlink and swap manually. Every server switch was error-prone. ThwargLauncher copied/symlinked per instance. ShadowLauncher caches each known set once and hard-links into per-launch instance directories — same isolation, fraction of the disk.
+
+Players must never think about this. The launcher resolves the server's DAT set, ensures the cache is populated, and builds the instance dir before Decal injection.
 
 ## When to use this skill
 
-- Changing DAT download, extraction, or cache validation
-- Modifying hard-link instance preparation
-- Adding server DAT source types
-- Updating `DatRegistry.xml` integration
-- Debugging wrong/missing DATs at launch
-- Changing ACBase copy behavior for protected installs
+- DAT download, extraction, cache validation
+- Hard-link instance preparation
+- `DatRegistry.xml` integration
+- New server DAT source types
+- Wrong-world / missing-content bugs
+- ACBase copy for Program Files installs
 
 ## Data flow
 
 ```
-Server definition
-  ├─ DatSetId              → community registry (DatRegistry.xml)
-  ├─ CustomDatZipUrl       → direct/GitHub zip download
+Server (UserServerList.xml)
+  ├─ DatSetId              → community DatRegistry.xml
+  ├─ CustomDatZipUrl       → direct or GitHub release zip
   └─ CustomDatRegistryPath → local folder (Dat Developer Mode)
 
 DatSetService
-  ├─ EnsureCustomDatSourceReadyAsync()   (before launch, custom sources)
+  ├─ EnsureCustomDatSourceReadyAsync()
   ├─ DownloadMissingFilesAsync()         (DAT Manager UI)
-  ├─ IsDatSetReadyAsync()                (validate cache)
-  └─ CompleteDatCacheFromRetailAsync()   (fill missing DATs from retail)
+  ├─ IsDatSetReadyAsync()
+  └─ CompleteDatCacheFromRetailAsync()   (fill gaps from retail)
 
 HardLinkLauncher.PrepareInstanceAsync()
-  ├─ ResolveDataSourceDir()              (pick cache dir vs ACBase)
-  ├─ CreateInstanceDirectory()           (Instances\{guid}\)
-  ├─ LinkRuntimeFiles()                  (DLLs from ACBase, skip DATs/exe)
-  ├─ Hard link DAT files from cache
-  └─ Hard link acclient.exe (custom from cache if present, else ACBase)
+  ├─ ResolveDataSourceDir()
+  ├─ CreateInstanceDirectory()           → Instances\{guid}\
+  ├─ LinkRuntimeFiles()                  → DLLs from ACBase
+  ├─ Hard link client_*.dat from cache
+  └─ Hard link acclient.exe (custom if in cache, else ACBase)
 ```
 
-## Cache directory layout
+## Cache layout
 
 ```
 %LocalAppData%\ShadowLauncher\
   DatSets\
-    dark-majesty\              ← registry DatSetId
+    dark-majesty\                ← registry DatSetId
       client_portal.dat
       client_cell_1.dat
       client_local_English.dat
-      client_highres.dat       (optional)
-      acclient.exe             (optional custom client)
-      .version                 (GitHub release tag sidecar)
-    my-custom-server\          ← CustomDatZipUrl (sanitized server name)
-      ...
-  ACBase\                      ← copy of AC install (Program Files only)
+      client_highres.dat         (optional)
+      acclient.exe               (optional emulator build)
+      .version                   (GitHub release tag for re-download detection)
+    my-server\                   ← CustomDatZipUrl (sanitized server name)
+  ACBase\                        ← writable copy of AC install (Program Files case)
   Instances\
-    a1b2c3...\                 ← ephemeral, deleted after client exit
-      acclient.exe             → hard link
-      client_*.dat             → hard links
-      *.dll                    → hard links (from ACBase, recursive)
+    {guid}\                      ← ephemeral, one per launch
+      acclient.exe               → hard link
+      client_*.dat               → hard links from cache
+      *.dll, controls\           → hard links from ACBase
 ```
 
-## DAT source resolution
+Hard links share inodes — zero extra disk for the DAT files themselves. A 500 MB portal DAT exists once in `DatSets\` and can back dozens of concurrent instance dirs.
 
-In `HardLinkLauncher.ResolveDataSourceDir()` and `GameLauncher.ResolveInstancePathAsync()`:
+## Source resolution
 
-| Condition | Source directory |
-|-----------|-----------------|
-| `DatSetId` empty/null/`retail`, no custom source | ACBase (retail DATs) |
-| `CustomDatRegistryPath` set | That local path (highest priority) |
-| `CustomDatZipUrl` set | `%DatSets%/{sanitized server name}/` |
-| `DatSetId` set (non-retail) | `%DatSets%/{datSetId}/` |
+`HardLinkLauncher.ResolveDataSourceDir()` / `GameLauncher.ResolveInstancePathAsync()`:
 
-Live registry lookup: if a server has no `DatSetId` but matches a `<Server name="..."/>` entry in `DatRegistry.xml`, the ID is resolved at launch time.
+| Condition | Source |
+|-----------|--------|
+| No DatSetId / `retail`, no custom source | ACBase (retail DATs) |
+| `CustomDatRegistryPath` | Local path (highest priority) |
+| `CustomDatZipUrl` | `%DatSets%/{sanitized name}/` |
+| `DatSetId` (non-retail) | `%DatSets%/{datSetId}/` |
 
-## Known DAT files
-
-Defined in `InstanceLauncherBase.KnownDatFiles`:
-
-- `client_portal.dat`
-- `client_cell_1.dat`
-- `client_local_English.dat`
-- `client_highres.dat` (optional)
-
-Also tracked: `acclient.exe` (may be custom per DAT set).
+Live lookup: server with no `DatSetId` but matching `<Server name="..."/>` in `DatRegistry.xml` gets resolved at launch — covers servers added before the registry mapped them.
 
 ## Hard link rules
 
-File: `Infrastructure/Native/HardLinkLauncher.cs`
+### Same volume
 
-### Same-volume requirement
+`CreateHardLink` requires source and target on the same NTFS volume. AC under `Program Files` is a different permission context and often a different volume layout than `%LocalAppData%`. `FirstRunService.PrepareHardLinkBaseAsync()` copies once to `ACBase\` — same trick every launcher author eventually discovers.
 
-Hard links only work on the same NTFS volume. If AC is installed under Program Files:
+Win32 error **1142** (`ERROR_NOT_SAME_DEVICE`) = volume mismatch. Check ACBase copy completed.
 
-1. `FirstRunService.PrepareHardLinkBaseAsync()` copies to `%LocalAppData%\ShadowLauncher\ACBase\`
-2. `HardLinkBasePath` stored in settings
-3. All hard links originate from ACBase + DatSets (both on LocalAppData volume)
+### Link order in HardLinkLauncher
 
-### Files to hard link
+1. **Runtime files from ACBase** — `.dll`, `.exe`, `.dat`, `.xsd` recursively (including `controls\Controls.dll`). Skip known DAT names, skip `acclient.exe`, skip `backup\` and `plugins\`.
+2. **DAT overrides** — hard link each `KnownDatFiles` entry from cache dir.
+3. **acclient.exe** — custom from cache if present, else ACBase.
 
-| Step | What | Source |
-|------|------|--------|
-| 1 | Runtime DLLs/EXEs (recursive subdirs) | ACBase |
-| 2 | DAT files | DAT cache (overrides step 1 skips) |
-| 3 | acclient.exe | DAT cache if present, else ACBase |
+### Never hard-link these
 
-### Files to skip in step 1
+`.log`, `.ini`, `.pdb`, `.bin`, `.avi`, `.txt`, `.rtf`, `.msi`
 
-- Known DAT filenames and `acclient.exe` (handled in steps 2–3)
-- Extensions not in runtime set (only `.dll`, `.exe`, `.dat`, `.xsd`)
-- Subdirectories: `backup`, `plugins`
-- Write-contended extensions: `.log`, `.ini`, `.pdb`, `.bin`, `.avi`, `.txt`, `.rtf`, `.msi`
+Hard links share inodes. Two acclient instances writing the same `acclient.log` = file lock contention. The client surfaces this as a **DirectX initialization error** — classic multi-box red herring that wastes hours if you don't know the inode sharing issue.
 
-**Why skip write-contended files:** hard links share inodes. Two instances linking the same `acclient.log` causes file lock conflicts and misleading DirectX errors.
+Each instance dir should have its own `.ini`/`.log` (not linked), or none at all (client creates fresh ones in CWD).
 
 ### Instance cleanup
 
-- `WatchAndCleanupAsync()` waits for process exit + 2s delay, then deletes instance dir
-- File-by-file delete (some links may be locked if another instance shares inodes)
-- `CleanupStaleInstances()` on startup removes orphaned dirs with no running acclient
+`WatchAndCleanupAsync()` → wait for exit + 2s → delete instance dir file-by-file. Some links may resist deletion if another running instance shares the inode (same DLL hard-linked from ACBase). `CleanupStaleInstances()` on startup catches orphans.
+
+Only delete `Instances\{guid}\` — **never** delete `DatSets\` cache during cleanup.
 
 ## DatRegistry.xml
 
-Fetched by `DatRegistryDownloader` from configurable URL (default: community registry on GitHub).
-
-Schema:
+Community-maintained mapping of server names → DAT sets. Fetched by `DatRegistryDownloader`, cached atomically to AppData.
 
 ```xml
 <DatRegistry>
   <DatSet id="dark-majesty" name="Dark Majesty" version="1.0">
-    <Description>...</Description>
+    <Description>Dark Majesty expansion content</Description>
     <Zip url="https://github.com/owner/repo/releases/latest"/>
-    <File name="client_portal.dat"/>
     <Servers>
       <Server name="Dark Majesty"/>
     </Servers>
@@ -145,86 +134,79 @@ Schema:
 </DatRegistry>
 ```
 
-Cached atomically to `%LocalAppData%\ShadowLauncher\DatRegistry.xml`.
+Default URL: `https://raw.githubusercontent.com/jakerange52/ac-dat-registry/main/DatRegistry.xml`
 
 ## Download behavior
 
-`DatSetService` handles:
-
-- **GitHub release URLs** — resolved via `GitHubReleaseResolver`; `.version` sidecar tracks release tag for re-download
-- **Direct zip URLs** — downloaded to temp, extracted (known filenames only)
-- **Partial sets** — `CompleteDatCacheFromRetailAsync()` copies missing DATs from retail ACBase
-- **Progress reporting** — `DatDownloadProgress` for UI
+- **GitHub release URLs** — `GitHubReleaseResolver` resolves latest asset; `.version` sidecar tracks tag
+- **Direct zip** — extract only known AC filenames (ignore junk in archive)
+- **Partial sets** — `CompleteDatCacheFromRetailAsync()` copies missing DATs from retail ACBase (common for servers that only override portal/cell)
+- Server zips that include a custom `acclient.exe` get it cached too
 
 ## Launch integration
 
-In `GameLauncher.ResolveInstancePathAsync()`:
+| Server type | Instance dir? | CWD |
+|-------------|--------------|-----|
+| Retail (no DatSetId) | No | Client install dir |
+| Registry/custom DAT | Yes | `Instances\{guid}\` |
 
-1. Custom source → `EnsureCustomDatSourceReadyAsync()` then instance prep
-2. Registry `DatSetId` → validate set exists and `IsDatSetReadyAsync()`, then instance prep
-3. Neither → launch directly from configured client path (no instance dir)
-
-Retail servers skip instance prep entirely — Decal injection still applies.
+Decal injection runs in both cases. Custom DAT servers **require** instance prep — acclient must see the right portal DAT in CWD or `-rodat on` loads the wrong world.
 
 ## Dat Developer Mode
 
-`AppConfiguration.DatDeveloperMode` enables per-server overrides:
+`AppConfiguration.DatDeveloperMode` enables:
 
-- `CustomDatRegistryPath` — point at a local DAT folder
-- `CustomDatZipUrl` — shared zip for remote developers
+- `CustomDatRegistryPath` — point at a local dev DAT folder
+- `CustomDatZipUrl` — shared zip for the dev team
 
-Local path takes priority over zip URL.
+Local path beats zip URL. This mirrors how server devs passed DAT folders around before registries existed.
 
-## Active vs symlink strategy
+## SymlinkLauncher (dormant)
 
-`ServiceBootstrapper.cs` registers `HardLinkLauncher` as `IInstancePreparer`. `SymlinkLauncher` is dormant (commented out). Do not switch strategies without explicit request — symlinks require Developer Mode or elevated symlink privilege.
+`SymlinkLauncher` is the ThwargLauncher-style approach — symlinks/junctions instead of hard links. Commented out in `ServiceBootstrapper.cs`. Symlinks need Developer Mode or `SeCreateSymbolicLinkPrivilege`. Hard links need nothing. Don't switch without explicit request.
 
-## Debugging checklist
+## Debugging — veteran checklist
 
-1. Check server's `DatSetId`, `CustomDatRegistryPath`, `CustomDatZipUrl` in `UserServerList.xml`
-2. Verify cache dir exists and contains expected DAT files
-3. Check log for `"Creating hard-link instance at"` with base/datSource paths
-4. Confirm `HardLinkBasePath` in settings (ACBase copy completed)
-5. Win32 error 1142 (ERROR_NOT_SAME_DEVICE) → volume mismatch; ACBase copy may have failed
-6. Wrong world content → wrong cache dir linked; check `ResolveDataSourceDir` logic
+1. Wrong world / missing dungeons → wrong `client_portal.dat` linked. Check `ResolveDataSourceDir` output in logs.
+2. Server added manually with no DatSetId → live registry lookup should catch it; verify `DatRegistry.xml` has the server name
+3. `Creating hard-link instance at {Dir} (base=..., datSource=...)` — datSource should be cache dir, not ACBase, for custom servers
+4. `HardLinkBasePath` in settings — ACBase copy done?
+5. Error 1142 → volume mismatch
+6. DirectX error on multi-box → shared `.log`/`.ini` hard link (check skip list)
+7. Partial zip missing cell DAT → `CompleteDatCacheFromRetailAsync` should fill; check warnings in log
 
-## Safe change patterns
+## Safe changes
 
-- Add new DAT filename to `KnownDatFiles` and `KnownAcFileNames` together
-- Add new download source type in `DatSetService` with corresponding `Server` property
-- Improve cache validation in `IsDatSetReadyAsync` / `IsFullyDownloaded`
-- Add logging around hard link creation (already at Debug level)
+- Add DAT filename to both `InstanceLauncherBase.KnownDatFiles` and `DatSetService.KnownAcFileNames`
+- New download source type on `Server` model
+- Better cache validation / UI feedback in DAT Manager
+- Logging around link creation
 
-## Unsafe change patterns (avoid)
+## Do not
 
-- Requiring manual DAT file copying by the player
-- Hard-linking `.log`/`.ini` files into instance dirs
-- Deleting shared DAT cache files during instance cleanup (only delete instance dir)
-- Using symlinks without privilege handling
-- Skipping `CompleteDatCacheFromRetailAsync` for partial custom sets (causes missing DAT warnings)
+- Make players copy/swap DATs manually
+- Hard-link logs or inis
+- Delete `DatSets\` during instance cleanup
+- Enable symlinks without privilege handling
+- Skip retail backfill for partial custom sets
+- Symlink or copy full 2 GB when a hard link suffices
 
-## Related files
+## Key files
 
 | File | Role |
 |------|------|
-| `Services/Dats/DatSetService.cs` | Download, cache, validation |
-| `Services/Dats/IDatSetService.cs` | Service interface |
-| `Infrastructure/Native/HardLinkLauncher.cs` | Hard-link instance creation |
-| `Infrastructure/Native/InstanceLauncherBase.cs` | Shared instance logic, KnownDatFiles |
-| `Infrastructure/Native/SymlinkLauncher.cs` | Dormant symlink alternative |
-| `Application/FirstRunService.cs` | ACBase copy for protected installs |
-| `Infrastructure/WebServices/DatRegistryDownloader.cs` | Registry fetch/parse |
-| `Core/Models/Server.cs` | DAT-related server properties |
-| `Core/Models/DatSet.cs` | Registry dat set model |
+| `Services/Dats/DatSetService.cs` | Cache, download, validation |
+| `Infrastructure/Native/HardLinkLauncher.cs` | Instance hard-link tree |
+| `Infrastructure/Native/InstanceLauncherBase.cs` | KnownDatFiles, cleanup |
+| `Application/FirstRunService.cs` | ACBase copy |
+| `Infrastructure/WebServices/DatRegistryDownloader.cs` | Registry fetch |
+| `Core/Models/Server.cs` | DatSetId, CustomDat* properties |
 | `Services/Launching/GameLauncher.cs` | Launch-time DAT resolution |
-| `Presentation/ViewModels/DatFetchViewModel.cs` | DAT Manager UI |
 
 ## Verification
 
-On Windows with AC client installed:
-
-1. **Retail server** — no `Instances\` dir; launches from client path
-2. **Registry DAT set** — cache populated via DAT Manager; instance dir created; correct world loads
-3. **Multi-box same server** — two distinct `Instances\{guid}\` dirs; both clients run
-4. **Program Files install** — ACBase copy runs once; subsequent launches hard link successfully
-5. **Partial custom zip** — missing DATs filled from retail; launch succeeds
+1. **Retail** — no `Instances\`, correct world, `-rodat` respected
+2. **Registry DAT set** — cache via DAT Manager, instance dir, correct world
+3. **Multi-box same custom server** — two `Instances\{guid}\`, same world in both, no DirectX log errors
+4. **Program Files install** — ACBase copy once, links succeed
+5. **Partial zip** — missing cell DAT backfilled from retail

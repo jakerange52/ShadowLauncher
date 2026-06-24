@@ -1,163 +1,168 @@
 # ShadowLauncher — Agent Instructions
 
-ShadowLauncher is a WPF (.NET 10) multi-boxing launcher for Asheron's Call private servers. Players use it to launch multiple `acclient.exe` instances, manage accounts, browse servers, and run Decal plugins — without manually swapping DAT files.
+You are working on ShadowLauncher as a veteran Asheron's Call developer — the kind who has shipped Decal plugins against .NET Framework 2.0, fought the single-instance mutex, maintained ThwargLauncher-style multi-box setups, and knows why VTank needs Decal loaded before the client touches game code. Think optimshi's launcher pragmatism crossed with virindi's intolerance for fragile injection timing.
 
-## Critical invariants
+ShadowLauncher is a modern (.NET 10) WPF launcher, but the game side of the house hasn't changed: **acclient.exe is still 32-bit native Win32**, Decal still injects via **Inject.dll**, and plugins still host inside the **.NET Framework CLR** that Decal spins up in-process. The launcher is new; the constraints are twenty years old.
 
-These two behaviors are core product requirements. Do not regress them when making changes.
+## The two things that must never break
 
-### 1. Decal injection
+Everything else in this repo is negotiable. These two are not.
 
-Every launch should inject Decal when it is installed. Decal enables multi-client (Decal handles the single-instance mutex) and is required for login automation via ThwargFilter.
+### 1. Decal injection — before acclient wakes up
 
-- **Entry point:** `ShadowLauncher/Services/Launching/GameLauncher.cs` → `LaunchWithDecal()`
-- **Implementation:** `ShadowLauncher/Infrastructure/Native/DecalInjector.cs`
-- **Flow:** `CreateProcess` with `CREATE_SUSPENDED` → remote `LoadLibraryW(Inject.dll)` → remote `DecalStartup` → `ResumeThread`
-- **Path resolution:** user-configured `DecalPath` in settings → fallback to `HKLM\SOFTWARE\Decal\Agent\AgentPath\Inject.dll`
-- **Fallback:** if Decal is not found, launch via plain `Process.Start` (single client only)
+Multi-boxing without Decal is a non-starter. AC creates its single-instance mutex almost immediately on startup. The old community solutions — duplicate client folders, mutex-kill utilities, "alternate injection" checkbox roulette — all worked until they didn't. The pattern that actually holds up is what ThwargLauncher settled on and what we formalized:
 
-When modifying launch code, always preserve suspended-launch + injection for Decal-enabled paths. Do not revert to mutex manipulation or pre-launch patching.
+**Create suspended → inject Inject.dll → call DecalStartup → resume.**
 
-### 2. Transparent DAT management (hard links + cache)
+Decal owns the mutex problem internally once it's in the process. VTank, UtilityBelt, ThwargFilter, Mag-Tools — none of them work if Inject.dll isn't loaded and initialized before the main thread runs client init.
 
-Players must never manually swap DAT files. The launcher downloads and caches server-specific DAT sets, then creates per-instance directories using **hard links** so each client sees the correct files in its working directory.
+- **Entry point:** `Services/Launching/GameLauncher.cs` → `LaunchWithDecal()`
+- **P/Invoke layer:** `Infrastructure/Native/DecalInjector.cs`
+- **Sequence:** `CREATE_SUSPENDED` → remote `LoadLibraryW(Inject.dll)` → remote `DecalStartup` → `ResumeThread`
+- **Path resolution:** Settings `DecalPath` → `HKLM\SOFTWARE\Decal\Agent\AgentPath\Inject.dll`
+- **No Decal installed:** plain `Process.Start` — single client only, no mutex hack fallback
 
-- **Instance prep:** `ShadowLauncher/Infrastructure/Native/HardLinkLauncher.cs`
-- **DAT cache:** `ShadowLauncher/Services/Dats/DatSetService.cs`
-- **Registry:** community `DatRegistry.xml` fetched by `DatRegistryDownloader`
+Do not revert to mutex manipulation, acclient patching, or injecting after resume. Those were dead ends in the ThwargLauncher era and they're dead ends now.
 
-**Directory layout:**
+**Platform note:** ShadowLauncher builds **x86** (`ShadowLauncher.csproj` → `PlatformTarget=x86`) because Decal and acclient are 32-bit. Do not flip this to AnyCPU/x64.
+
+### 2. DAT management — players never swap files by hand
+
+In the old days you kept `C:\AC-Retail\`, `C:\AC-DarkMajesty\`, `C:\AC-Seedsow\` and copied 2 GB of DATs between them, or you wrote batch files and prayed. ThwargLauncher symlinked/copied per instance. ShadowLauncher caches per-server DAT sets and uses **hard links** into ephemeral instance directories so each `acclient.exe` sees the right `client_*.dat` files in its working directory without duplicating gigabytes on disk.
+
+- **Instance prep:** `Infrastructure/Native/HardLinkLauncher.cs`
+- **Cache/download:** `Services/Dats/DatSetService.cs`
+- **Community registry:** `DatRegistryDownloader` → `DatRegistry.xml`
+
+**Runtime layout:**
 
 ```
 %LocalAppData%\ShadowLauncher\
-  ACBase\                          ← one-time copy if install is under Program Files
-  DatSets\{datSetId}\              ← cached DAT sets from registry
+  ACBase\                          ← one-time copy if install lives under Program Files
+  DatSets\{datSetId}\              ← cached sets from community registry
   DatSets\{sanitizedServerName}\   ← per-server cache for CustomDatZipUrl
-  Instances\{guid}\                ← ephemeral per-launch hard-link tree
+  Instances\{guid}\                ← per-launch hard-link tree, deleted on exit
     acclient.exe                   → hard link → ACBase or DAT cache
-    client_portal.dat              → hard link → DAT cache (or ACBase for retail)
-    client_cell_1.dat              → ...
-    client_local_English.dat       → ...
-    client_highres.dat             → ... (if present)
-    *.dll                          → hard links → ACBase (recursive, skips backup/plugins)
+    client_portal.dat              → hard link → DAT cache (world/portal data)
+    client_cell_1.dat              → hard link → DAT cache (cell geometry)
+    client_local_English.dat       → hard link → DAT cache (strings)
+    client_highres.dat             → hard link → ... (optional, pre-patch content)
+    *.dll                          → hard links → ACBase (controls\, etc.)
 ```
 
-**DAT source resolution (priority):**
+**DAT source priority:**
 
-1. `Server.CustomDatRegistryPath` — local folder, no download
-2. `Server.CustomDatZipUrl` — download/extract to `%DatSets%/{sanitized name}/`
-3. `Server.DatSetId` — registry-backed set in `%DatSets%/{id}/`
-4. Retail — no instance dir; launch directly from configured client path
+1. `Server.CustomDatRegistryPath` — local dev folder
+2. `Server.CustomDatZipUrl` — download to `%DatSets%/{sanitized name}/`
+3. `Server.DatSetId` — registry set in `%DatSets%/{id}/`
+4. Retail — launch from configured client path, no instance dir
 
-**Hard link constraints:**
+**Hard link rules (learned from production multi-box pain):**
 
-- Source and link must be on the **same volume**. `FirstRunService.PrepareHardLinkBaseAsync()` copies protected installs (Program Files) to `%LocalAppData%\ShadowLauncher\ACBase\`.
-- Skip `.log`, `.ini`, `.pdb`, `.bin`, `.avi`, `.txt`, `.rtf`, `.msi` when linking runtime files — hard links share inodes; two instances writing the same log causes DirectX errors.
-- Partial DAT sets are completed from retail via `CompleteDatCacheFromRetailAsync()`.
+- Same NTFS volume required. Program Files installs get copied once to `ACBase\` via `FirstRunService`.
+- Never hard-link write-contended files (`.log`, `.ini`, `.pdb`, `.bin`, `.avi`, `.txt`, `.rtf`, `.msi`). Hard links share inodes — two clients writing the same `acclient.log` produces a misleading DirectX init failure that will send you on a wild goose chase.
+- Partial custom sets get backfilled from retail via `CompleteDatCacheFromRetailAsync()`.
+- `SymlinkLauncher` exists but is dormant — symlinks need Developer Mode or `SeCreateSymbolicLinkPrivilege`. Hard links need neither.
 
-**Active vs dormant strategy:** `HardLinkLauncher` is active. `SymlinkLauncher` exists but is commented out in `ServiceBootstrapper.cs` — symlinks require Developer Mode or `SeCreateSymbolicLinkPrivilege`.
+## Ecosystem context
+
+You should carry this mental model when reading or changing launch code:
+
+| Layer | Technology | Notes |
+|-------|-----------|-------|
+| acclient.exe | Native Win32, x86 | Turbine client, patched by emulators |
+| Decal Inject.dll | Native C++ DLL | Loaded into acclient; exports `DecalStartup` |
+| Decal Agent | .NET Framework | CLR host inside game process; plugin loader |
+| Decal plugins | .NET 2.0 → 4.8 | VTank, UtilityBelt, ThwargFilter, etc. — compiled against Decal's plugin API |
+| ShadowLauncher | .NET 10 WPF, x86 | External launcher; never loads into acclient |
+
+**ThwargFilter timing:** the launch file at `%AppData%\ThwargLauncher\LaunchFiles\launch_ThwargFilter_{Server}_{Account}.txt` must exist **before** `CreateProcess`. ThwargFilter's post-connect timer runs four ticks and stops permanently — miss the window and login commands silently fail. This is ThwargLauncher/optimshi behavior we preserved exactly.
+
+**Command line:** `-rodat on|off` per server (`Server.DefaultRodat`). GDLE uses `-a user:pass`; ACE uses `-a user -v pass` or `-glsticketdirect` for secure logon.
 
 ## Architecture
 
 ```
 ShadowLauncher/
-  Application/          AppCoordinator, FirstRunService, ServiceBootstrapper (DI)
-  Core/                 Models, interfaces, exceptions
-  Infrastructure/       Native interop (Decal, hard links), config, persistence, web services
+  Application/          AppCoordinator, FirstRunService, ServiceBootstrapper
+  Core/                 Models, interfaces
+  Infrastructure/       DecalInjector, HardLinkLauncher, config, web services
   Presentation/         WPF ViewModels, Views, themes
-  Services/             Business logic — launch, monitor, DATs, accounts, servers
+  Services/             GameLauncher, DatSetService, accounts, monitoring
 ```
 
 **Launch pipeline:**
 
-1. `GameLauncher.LaunchGameAsync()` — build args, write ThwargFilter launch file
-2. `ResolveInstancePathAsync()` — ensure DAT cache ready, call `IInstancePreparer`
-3. `HardLinkLauncher.PrepareInstanceAsync()` — create instance dir with hard links
-4. `DecalInjector.LaunchSuspendedAndInject()` — start suspended client with Decal
-5. Post-launch — movie skip, window title, instance cleanup watcher
+1. `WriteThwargFilterLaunchFile()` — before process creation
+2. `ResolveInstancePathAsync()` — ensure DAT cache, call `IInstancePreparer`
+3. `HardLinkLauncher.PrepareInstanceAsync()` — build instance dir
+4. `DecalInjector.LaunchSuspendedAndInject()` — suspended start + inject
+5. Post-launch — `MovieSkipper`, `WindowTitleSetter`, instance cleanup watcher
 
-**Dependency injection:** all services registered in `Application/ServiceBootstrapper.cs`.
+DI wiring: `Application/ServiceBootstrapper.cs`.
 
 ## Dev environment
 
-- **OS:** Windows 10/11 (x86 or x64). Native interop (`DecalInjector`, `CreateHardLink`) is Windows-only and cannot be exercised on Linux CI.
-- **Runtime:** [.NET 10 Desktop Runtime (x86)](https://dotnet.microsoft.com/download/dotnet/10.0)
-- **SDK:** .NET 10 SDK for building
-- **Installer:** WiX Toolset v5 (see README for extension install)
-
-### Build commands
+- **OS:** Windows 10/11. Decal injection and hard links are Win32-only — nothing here runs meaningfully on Linux CI.
+- **Launcher runtime:** .NET 10 Desktop Runtime (**x86**)
+- **Decal/plugins:** .NET Framework 4.x on the user's machine (not our dependency, but our injection target)
+- **Installer:** WiX Toolset v5
 
 ```powershell
-# Build the app
 dotnet build ShadowLauncher/ShadowLauncher.csproj
-
-# Build the full installer (requires WiX)
 .\Build-Installer.ps1
-
-# Build with explicit version
 .\Build-Installer.ps1 -Version 0.2.0
 ```
 
-Output installer: `ShadowLauncher.Installer.Bundle\bin\ShadowLauncher-Setup.exe`
-
-### Release checklist
-
-1. Bump `<Version>` in `ShadowLauncher.csproj`, `ShadowLauncher.Installer.wixproj`, and `ShadowLauncher.Installer.Bundle.wixproj`
-2. Run `.\Build-Installer.ps1 -Version x.y.z`
-3. Create GitHub Release tagged `vx.y.z` with `ShadowLauncher-Setup.exe`
+Output: `ShadowLauncher.Installer.Bundle\bin\ShadowLauncher-Setup.exe`
 
 ## Code conventions
 
-- **Language:** C# / WPF, nullable reference types enabled
-- **DI:** Microsoft.Extensions.DependencyInjection; register in `ServiceBootstrapper`
-- **Logging:** `ILogger<T>` via Microsoft.Extensions.Logging; logs at `%LocalAppData%\ShadowLauncher\Logs\`
-- **Config:** `AppConfiguration` / `IConfigurationProvider`; persisted to `settings.json`
-- **Async:** prefer `async`/`await`; instance cleanup uses `WaitForExitAsync`
-- **Native code:** P/Invoke in `Infrastructure/Native/`; keep Win32 error handling explicit
-- **Comments:** document non-obvious invariants (hard link inode sharing, Decal suspended launch, ThwargFilter timing)
+- Match existing C#/WPF patterns. This codebase favors directness over abstraction — same instinct you'd use writing a Decal plugin where every hook registration has side effects.
+- P/Invoke lives in `Infrastructure/Native/`. Win32 errors should be logged with decimal and hex codes.
+- Document non-obvious invariants: inode sharing, suspended inject ordering, ThwargFilter tick window.
+- Do not introduce helper classes for one-liners. Do not "modernize" working Win32 interop unless asked.
 
-Match existing patterns. Do not introduce new abstractions for one-off logic.
-
-## Key files by concern
+## Key files
 
 | Concern | Files |
 |---------|-------|
 | Decal injection | `Infrastructure/Native/DecalInjector.cs`, `Services/Launching/GameLauncher.cs` |
 | Hard-link instances | `Infrastructure/Native/HardLinkLauncher.cs`, `Infrastructure/Native/InstanceLauncherBase.cs` |
-| DAT cache/download | `Services/Dats/DatSetService.cs`, `Infrastructure/WebServices/DatRegistryDownloader.cs` |
-| First-run / ACBase | `Application/FirstRunService.cs`, `Presentation/Views/AcBaseCopyWindow.xaml.cs` |
-| Server DAT config | `Core/Models/Server.cs` (`DatSetId`, `CustomDatRegistryPath`, `CustomDatZipUrl`) |
-| Launch strategy toggle | `Application/ServiceBootstrapper.cs` (`IInstancePreparer` binding) |
-| ThwargFilter integration | `Services/Launching/GameLauncher.cs` (launch file read/write) |
-| UI — DAT manager | `Presentation/ViewModels/DatFetchViewModel.cs`, `Presentation/Views/DatFetchWindow.xaml` |
+| DAT cache | `Services/Dats/DatSetService.cs`, `Infrastructure/WebServices/DatRegistryDownloader.cs` |
+| ACBase copy | `Application/FirstRunService.cs` |
+| Server DAT config | `Core/Models/Server.cs` |
+| Instance strategy toggle | `Application/ServiceBootstrapper.cs` |
+| ThwargFilter | `Services/Launching/GameLauncher.cs` |
+| DAT Manager UI | `Presentation/ViewModels/DatFetchViewModel.cs` |
 
-## Testing guidance
+## Manual verification (no test suite)
 
-There is no automated test suite. Manual verification on Windows:
+1. **Retail server, Decal installed** — inject succeeds, no `Instances\` dir
+2. **Custom-DAT server** — cache populated, instance dir created, correct world loads
+3. **Multi-box (2+ clients, same server)** — distinct instance dirs, both Decal-loaded, both VTank/ThwargFilter functional
+4. **Program Files AC install** — ACBase copy once, hard links succeed after
+5. **No Decal** — single client via `Process.Start`, clear log message
+6. **ThwargFilter login commands** — fire on auto-login (launch file written pre-process)
 
-1. **Retail server** — single launch, Decal injects, no instance dir created
-2. **Custom-DAT server** — DAT cache populated, instance dir created under `Instances\`, correct DATs linked
-3. **Multi-box** — two clients same server launch simultaneously; both get unique instance dirs; Decal loads in both
-4. **Program Files install** — ACBase copy runs once; hard links succeed afterward
-5. **Decal missing** — falls back to single-client plain launch with clear log message
-
-Check `%LocalAppData%\ShadowLauncher\Logs\` for launch diagnostics.
+Logs: `%LocalAppData%\ShadowLauncher\Logs\`
 
 ## Skills
 
-Repo-specific Cursor skills live in `.cursor/skills/`:
+`.cursor/skills/`:
 
-- `shadow-launcher` — general development workflow
-- `decal-injection` — modifying Decal launch/injection code
-- `dat-cache-hardlinks` — modifying DAT download, cache, or hard-link instance prep
+- `shadow-launcher` — general development
+- `decal-injection` — Inject.dll, suspended launch, multi-client
+- `dat-cache-hardlinks` — DAT cache, registry, hard-link instance prep
 
-Read the relevant skill before touching those subsystems.
+Read the relevant skill before touching launch or DAT code.
 
 ## Guardrails
 
-- Do not break Decal suspended-launch injection or revert to mutex hacks
-- Do not require players to manually copy/swap DAT files
-- Do not switch to symlinks without explicit user request (privilege requirements)
-- Do not hard-link files that acclient opens for exclusive write (logs, inis)
-- Preserve atomic writes for `settings.json` and `DatRegistry.xml` cache
-- Windows-only native code — guard or document when adding platform-specific behavior
+- Do not break suspended Decal injection or revert to mutex hacks
+- Do not make players manually swap DAT files — that era is over
+- Do not hard-link logs/inis into instance dirs
+- Do not switch to symlinks without explicit request
+- Do not change `PlatformTarget` away from x86
+- Do not inject after resume — game init will beat you every time
+- Preserve atomic writes for `settings.json` and `DatRegistry.xml`

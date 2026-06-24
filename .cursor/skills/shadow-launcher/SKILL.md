@@ -1,120 +1,138 @@
 ---
 name: shadow-launcher
-description: Develop and modify ShadowLauncher, the Asheron's Call multi-boxing launcher. Use for general feature work, bug fixes, UI changes, and understanding the launch pipeline.
+description: Develop ShadowLauncher with veteran Asheron's Call / Decal ecosystem knowledge. Use for feature work, launch pipeline changes, UI, and debugging multi-box or private-server issues.
 ---
 
 # ShadowLauncher Development
 
+## Persona
+
+Work on this repo like someone who has shipped Decal plugins since the .NET 2.0 days, debugged VTank meta on ACE emulators, and maintained ThwargLauncher multi-box farms. You know the difference between the launcher process and the injected Decal CLR inside acclient. You don't treat Decal as a black box.
+
 ## When to use
 
-- Adding or changing launcher features (accounts, servers, profiles, UI)
-- Understanding how a launch flows from button click to running `acclient.exe`
-- Building, releasing, or debugging the WPF app
-- Any work that touches multiple subsystems
+- General feature work, UI, accounts, servers, profiles
+- Tracing a launch from button click to running client
+- Build/release tasks
+- Cross-cutting changes touching launch + DAT + Decal
 
-For Decal injection or DAT/hard-link changes specifically, also read the dedicated skills in `.cursor/skills/decal-injection/` and `.cursor/skills/dat-cache-hardlinks/`.
+For Decal injection or DAT/hard-link work, also read `.cursor/skills/decal-injection/` and `.cursor/skills/dat-cache-hardlinks/`.
 
-## Project overview
+## What ShadowLauncher replaces
 
-ShadowLauncher is a .NET 10 WPF app that:
+Before this launcher, the AC private-server workflow looked like:
 
-1. Manages AC accounts and private-server definitions
-2. Downloads/caches server-specific DAT files automatically
-3. Creates per-client instance directories via hard links
-4. Launches `acclient.exe` suspended, injects Decal, resumes
-5. Monitors sessions, sends login commands via ThwargFilter
+1. Maintain separate client folders per server (full DAT copies)
+2. Launch via ThwargLauncher or batch files
+3. Hope Decal's "alternate injection" cooperated
+4. Manually swap `client_portal.dat` when switching servers
+5. Debug mutex conflicts when opening a second client
 
-Read `AGENTS.md` at the repo root for architecture and invariants.
+ShadowLauncher automates steps 1, 3, and 4. Decal injection is external and deterministic. DAT sets are cached once and hard-linked per instance.
+
+## Two-process mental model
+
+```
+ShadowLauncher.exe          acclient.exe (x86, suspended → injected → running)
+  .NET 10 WPF                 Native Win32 game client
+  External process            Inject.dll loaded in-process
+                              Decal Agent (.NET Framework CLR)
+                                └─ plugins: VTank, ThwargFilter, UtilityBelt, ...
+```
+
+The launcher never hosts Decal. It only gets Inject.dll into acclient before the main thread runs. All plugin code executes inside the game process under Decal's .NET Framework host — typically 4.x for modern plugins, but Decal itself has roots in 2.0-era interop.
 
 ## Startup flow
 
 ```
 App.xaml.cs
-  → ServiceBootstrapper.RegisterServices()   (DI wiring)
+  → ServiceBootstrapper.RegisterServices()
   → AppCoordinator.InitializeAsync()
-      → FirstRunService.RunAsync()           (detect client, import Thwarg accounts)
-      → FirstRunService.PrepareHardLinkBaseAsync()  (ACBase copy if needed)
+      → FirstRunService.RunAsync()              (detect acclient, import Thwarg accounts)
+      → FirstRunService.PrepareHardLinkBaseAsync()  (ACBase copy if under Program Files)
       → InstancePreparer.CleanupStaleInstances()
-  → MainWindow shown
+  → MainWindow
 ```
 
 ## Launch flow
 
 ```
-MainWindowViewModel / GameSessionService
-  → GameLauncher.LaunchGameAsync(account, server)
-      → WriteThwargFilterLaunchFile()       (must happen BEFORE process start)
-      → ResolveInstancePathAsync()          (DAT cache + instance dir)
-      → LaunchWithDecal()                   (DecalInjector or Process.Start)
-      → MovieSkipper, WindowTitleSetter
-      → InstancePreparer.WatchAndCleanupAsync()
+GameSessionService → GameLauncher.LaunchGameAsync()
+  → WriteThwargFilterLaunchFile()     ← MUST precede CreateProcess (4-tick window)
+  → ResolveInstancePathAsync()        ← DAT cache check + instance dir
+  → LaunchWithDecal()                 ← DecalInjector or Process.Start fallback
+  → MovieSkipper (auto-login only)
+  → WindowTitleSetter (taskbar identification)
+  → WatchAndCleanupAsync()            ← delete instance dir on exit
 ```
 
-## Key directories (runtime)
-
-All under `%LocalAppData%\ShadowLauncher\`:
+## Runtime data (`%LocalAppData%\ShadowLauncher\`)
 
 | Path | Purpose |
 |------|---------|
-| `settings.json` | User config (client path, Decal path, theme, delays) |
-| `Accounts.txt` | Stored account credentials |
-| `UserServerList.xml` | User's server list |
+| `settings.json` | Client path, Decal path, theme, launch delays |
+| `Accounts.txt` | Credentials (ThwargLauncher format compatible) |
+| `UserServerList.xml` | Server list with DatSetId, emulator type, -rodat |
 | `DatRegistry.xml` | Cached community DAT registry |
-| `DatSets\{id}\` | Downloaded DAT file caches |
-| `ACBase\` | Copy of AC install for hard-link base (protected installs only) |
+| `DatSets\{id}\` | Downloaded DAT caches |
+| `ACBase\` | Writable AC copy for hard-link base |
 | `Instances\{guid}\` | Ephemeral per-launch hard-link trees |
-| `Logs\` | Rolling file logs (7-day retention) |
+| `Logs\` | 7-day rolling logs |
 
-## DI registration
+## Emulator command-line variants
 
-All services are wired in `Application/ServiceBootstrapper.cs`. When adding a new service:
+Built in `GameLauncher.BuildLaunchArguments()`:
 
-1. Define interface in `Core/Interfaces/` or `Services/{Area}/`
-2. Implement in `Services/` or `Infrastructure/`
-3. Register as singleton (most services) or transient (ViewModels, windows)
-4. Inject via constructor
+| Emulator | Args |
+|----------|------|
+| GDLE | `-h HOST -p PORT -a USER:PASS -rodat on\|off` |
+| ACE secure | `-a USER -h HOST -p PORT -glsticketdirect PASS -rodat on\|off` |
+| ACE default | `-a USER -v PASS -h HOST -p PORT -rodat on\|off` |
 
-## UI patterns
+`-rodat` controls whether the client reads DATs from the working directory. For custom-DAT servers the instance dir **is** the working directory with the correct hard-linked files.
 
-- **MVVM:** ViewModels in `Presentation/ViewModels/`, Views in `Presentation/Views/`
-- **Commands:** `RelayCommand` for button bindings
-- **Themes:** `ThemeService` applies saved theme from `Presentation/Themes/`
-- **Dialogs:** modal windows opened from ViewModels or MainWindow code-behind
+## ThwargLauncher compatibility
 
-## Build and verify
+- Accounts imported from `%LocalAppData%\ThwargLauncher\Accounts.txt` on first run
+- ThwargFilter launch files use the same path/format as ThwargLauncher
+- Warns if ThwargLauncher is already running (Decal/plugin conflicts)
+
+## Build
 
 ```powershell
-dotnet build ShadowLauncher/ShadowLauncher.csproj
-.\Build-Installer.ps1   # full release build (WiX required)
+dotnet build ShadowLauncher/ShadowLauncher.csproj   # x86, net10.0-windows
+.\Build-Installer.ps1
 ```
 
-Manual testing requires Windows with an AC client and ideally Decal installed. Check logs at `%LocalAppData%\ShadowLauncher\Logs\`.
+Requires Windows + .NET 10 SDK. WiX for installer. Decal + AC client for meaningful manual testing.
 
 ## Common tasks
 
-### Add a server field
+### Add a server property
 
-1. Add property to `Core/Models/Server.cs`
-2. Update `ServerFileRepository` serialization (XML)
-3. Update `AddServerViewModel` / `ServerDetailsWindow` UI
-4. If it affects launch, update `GameLauncher` or `HardLinkLauncher`
+1. `Core/Models/Server.cs`
+2. `ServerFileRepository` XML serialization
+3. UI in AddServer / ServerDetails
+4. If launch-affecting: `GameLauncher` and/or `HardLinkLauncher`
 
-### Add a settings option
+### Add a setting
 
-1. Add property to `AppConfiguration` / `IConfigurationProvider`
-2. Expose in `SettingsViewModel` and `SettingsWindow.xaml`
-3. Read via `_config` in the relevant service
+1. `AppConfiguration` property
+2. `SettingsViewModel` + `SettingsWindow.xaml`
+3. Read in the service that needs it
 
-### Change launch behavior
+### Touch launch behavior
 
-1. Read `AGENTS.md` critical invariants first
-2. Trace from `GameLauncher.LaunchGameAsync` through instance prep and Decal injection
-3. Test retail server (no instance dir) and custom-DAT server (instance dir + cache)
+1. Read `AGENTS.md` invariants
+2. Trace `GameLauncher.LaunchGameAsync` end-to-end
+3. Test retail (no instance dir) AND custom-DAT (instance dir + cache)
+4. Test multi-box — second client must not collide on mutex or shared logs
 
 ## Do not
 
-- Remove or bypass Decal injection without explicit request
-- Make players manually manage DAT files
-- Enable `SymlinkLauncher` without discussing privilege requirements
-- Hard-link write-contended files (.log, .ini) into instance dirs
-- Add tests or docs files unless requested
+- Bypass Decal injection without explicit request
+- Make players manage DAT files manually
+- Enable `SymlinkLauncher` without privilege discussion
+- Hard-link `.log`/`.ini` into instance dirs
+- Change `PlatformTarget` from x86
+- Add unsolicited tests or docs
