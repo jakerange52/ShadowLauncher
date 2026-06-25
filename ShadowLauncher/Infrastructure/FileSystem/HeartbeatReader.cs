@@ -21,47 +21,66 @@ public class HeartbeatReader : IHeartbeatReader
     public async Task<HeartbeatData?> ReadHeartbeatAsync(int processId)
     {
         var path = GetHeartbeatFilePath(processId);
-        if (!File.Exists(path))
-            return null;
 
         try
         {
-            // Read with FileShare.ReadWrite since ThwargFilter may be writing
-            string[] lines;
+            // Read with FileShare.ReadWrite since ThwargFilter may be writing.
+            // Open directly and let the not-found exceptions below stand in for an
+            // existence check — avoids a redundant stat and the TOCTOU race.
+            string text;
             using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             using (var reader = new StreamReader(stream))
             {
-                var text = await reader.ReadToEndAsync();
-                lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                text = await reader.ReadToEndAsync();
             }
 
-            var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var line in lines)
+            // Parse only the handful of fields we actually consume rather than
+            // materializing a dictionary of every key in the file. EnumerateLines
+            // is allocation-free and handles CRLF natively.
+            string? fileVersion = null;
+            string? actualCharacterName = null;
+            string? characterName = null;
+            string? uptimeSeconds = null;
+            string? isOnlineStr = null;
+
+            foreach (var line in text.AsSpan().EnumerateLines())
             {
                 var colonIndex = line.IndexOf(':');
                 if (colonIndex <= 0) continue;
+
                 var key = line[..colonIndex].Trim();
                 var value = line[(colonIndex + 1)..].Trim();
-                dict[key] = value;
+
+                // Last occurrence wins, matching the prior dictionary overwrite semantics.
+                if (key.Equals("FileVersion", StringComparison.OrdinalIgnoreCase))
+                    fileVersion = value.ToString();
+                else if (key.Equals("ActualCharacterName", StringComparison.OrdinalIgnoreCase))
+                    actualCharacterName = value.ToString();
+                else if (key.Equals("CharacterName", StringComparison.OrdinalIgnoreCase))
+                    characterName = value.ToString();
+                else if (key.Equals("UptimeSeconds", StringComparison.OrdinalIgnoreCase))
+                    uptimeSeconds = value.ToString();
+                else if (key.Equals("IsOnline", StringComparison.OrdinalIgnoreCase))
+                    isOnlineStr = value.ToString();
             }
 
             // Verify file version compatibility (accept 1.x heartbeat schema only).
-            if (dict.TryGetValue("FileVersion", out var version) && !version.StartsWith("1."))
+            if (fileVersion is not null && !fileVersion.StartsWith("1."))
                 return null;
+
+            var resolvedCharacterName = actualCharacterName ?? characterName ?? string.Empty;
 
             var heartbeat = new HeartbeatData
             {
-                CharacterName = dict.GetValueOrDefault("ActualCharacterName",
-                    dict.GetValueOrDefault("CharacterName", string.Empty)),
-                UptimeSeconds = int.TryParse(dict.GetValueOrDefault("UptimeSeconds", "0"), out var up) ? up : 0,
+                CharacterName = resolvedCharacterName,
+                UptimeSeconds = int.TryParse(uptimeSeconds, out var up) ? up : 0,
                 Timestamp = DateTime.UtcNow
             };
 
             // Determine status from IsOnline field
-            if (dict.TryGetValue("IsOnline", out var onlineStr)
-                && bool.TryParse(onlineStr, out var isOnline) && isOnline)
+            if (isOnlineStr is not null && bool.TryParse(isOnlineStr, out var isOnline) && isOnline)
             {
-                heartbeat.Status = !string.IsNullOrEmpty(heartbeat.CharacterName)
+                heartbeat.Status = !string.IsNullOrEmpty(resolvedCharacterName)
                     ? GameSessionStatus.InGame
                     : GameSessionStatus.CharacterSelection;
             }
@@ -71,6 +90,14 @@ public class HeartbeatReader : IHeartbeatReader
             }
 
             return heartbeat;
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return null;
         }
         catch
         {

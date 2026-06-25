@@ -104,8 +104,9 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="*" MinHeight="120"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="150" MinHeight="80"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
@@ -291,10 +292,18 @@
             </Grid>
         </GroupBox>
 
+        <!-- Resize handle for Active Sessions -->
+        <GridSplitter Grid.Row="3" Grid.ColumnSpan="2"
+                      Height="6" HorizontalAlignment="Stretch"
+                      VerticalAlignment="Center"
+                      ResizeBehavior="PreviousAndNext" ResizeDirection="Rows"
+                      Background="Transparent" Cursor="SizeNS"
+                      ToolTip="Drag to resize Active Sessions"/>
+
         <!-- Active Sessions -->
-        <GroupBox Grid.Row="3" Grid.ColumnSpan="2" Header="Active Sessions" Margin="0,10,0,0">
+        <GroupBox Grid.Row="4" Grid.ColumnSpan="2" Header="Active Sessions" Margin="0,2,0,0">
             <DataGrid ItemsSource="{Binding ActiveSessions}" AutoGenerateColumns="False"
-                      IsReadOnly="True" Height="120"
+                      IsReadOnly="True"
                       SelectedItem="{Binding SelectedSession}">
                 <DataGrid.InputBindings>
                     <MouseBinding Gesture="LeftDoubleClick"
@@ -312,7 +321,7 @@
         </GroupBox>
 
         <!-- Action Bar -->
-        <DockPanel Grid.Row="4" Grid.ColumnSpan="2" Margin="0,12,0,0">
+        <DockPanel Grid.Row="5" Grid.ColumnSpan="2" Margin="0,12,0,0">
             <CheckBox DockPanel.Dock="Left" Content="Kill disconnected client"
                       IsChecked="{Binding KillOnMissingHeartbeat}"
                       VerticalAlignment="Center" Margin="0,0,4,0"
