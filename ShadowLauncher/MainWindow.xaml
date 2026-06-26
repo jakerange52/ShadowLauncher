@@ -22,6 +22,32 @@
         <converters:WebsiteMenuVisibilityConverter x:Key="WebsiteMenuVisibilityConverter"/>
         <converters:ServerDetailsButtonVisibilityConverter x:Key="ServerDetailsButtonVisibilityConverter"/>
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
+
+        <!-- Soft white selection highlight for the Accounts/Servers lists -->
+        <Style x:Key="SoftWhiteSelectListBoxItem" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected" Value="False"/>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Bd" Property="Background" Value="#1AFFFFFF"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Border CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
@@ -173,6 +199,7 @@
                          SelectionMode="Extended"
                          SelectionChanged="AccountsListBox_SelectionChanged"
                          PreviewMouseLeftButtonDown="ToggleSelect_PreviewMouseLeftButtonDown"
+                         ItemContainerStyle="{StaticResource SoftWhiteSelectListBoxItem}"
                          HorizontalContentAlignment="Stretch">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
@@ -216,6 +243,7 @@
                          SelectionMode="Extended"
                          SelectionChanged="ServersListBox_SelectionChanged"
                          PreviewMouseLeftButtonDown="ToggleSelect_PreviewMouseLeftButtonDown"
+                         ItemContainerStyle="{StaticResource SoftWhiteSelectListBoxItem}"
                          HorizontalContentAlignment="Stretch">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
