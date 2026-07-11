@@ -21,6 +21,7 @@ public interface IConfigurationProvider
     int AutoRelaunchDelaySeconds { get; set; }
     int MultiLaunchDelaySeconds { get; set; }
     bool DatDeveloperMode { get; set; }
+    bool AttemptDecalInjection { get; set; }
     void Load();
     void Save();
     string GetSetting(string key, string defaultValue = "");

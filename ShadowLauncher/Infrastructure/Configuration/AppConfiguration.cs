@@ -83,6 +83,12 @@ public class AppConfiguration : IConfigurationProvider
         set => SetSetting(nameof(DatDeveloperMode), value.ToString());
     }
 
+    public bool AttemptDecalInjection
+    {
+        get => GetBool(nameof(AttemptDecalInjection), true);
+        set => SetSetting(nameof(AttemptDecalInjection), value.ToString());
+    }
+
     public void Load()
     {
         if (!File.Exists(_settingsFilePath)) return;

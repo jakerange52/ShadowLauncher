@@ -157,6 +157,13 @@ Logs: `%LocalAppData%\ShadowLauncher\Logs\`
 
 Read the relevant skill before touching launch or DAT code.
 
+## Git workflow
+
+- Do not create a new branch unless explicitly asked
+- Do not commit code unless explicitly asked
+- Do not open or push a PR unless explicitly asked
+- Leave changes as uncommitted working-tree edits for the user to review
+
 ## Guardrails
 
 - Do not break suspended Decal injection or revert to mutex hacks
