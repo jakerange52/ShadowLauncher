@@ -32,7 +32,10 @@
 
         <!-- Decal Path -->
         <TextBlock Grid.Row="0" Text="Custom Decal Inject" FontWeight="SemiBold" Foreground="#AAA" Margin="0,0,0,4"/>
-        <TextBlock Grid.Row="0" Text="Leave blank for standard install" Foreground="#E8A838" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+        <CheckBox Grid.Row="0" IsChecked="{Binding AttemptDecalInjection}"
+                  Content="Attempt Decal Injection" Foreground="#E8A838" FontSize="11" FontWeight="SemiBold"
+                  HorizontalAlignment="Right" VerticalAlignment="Center"
+                  ToolTip="Leave the path below blank for a standard Decal install. Uncheck to always launch acclient directly without attempting Decal injection."/>
         <Grid Grid.Row="1" VerticalAlignment="Top" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>

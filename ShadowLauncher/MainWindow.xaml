@@ -22,13 +22,45 @@
         <converters:WebsiteMenuVisibilityConverter x:Key="WebsiteMenuVisibilityConverter"/>
         <converters:ServerDetailsButtonVisibilityConverter x:Key="ServerDetailsButtonVisibilityConverter"/>
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
+
+        <!-- Soft white selection highlight for the Accounts/Servers lists -->
+        <Style x:Key="SoftWhiteSelectListBoxItem" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected" Value="False"/>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Bd" Property="Background" Value="#1AFFFFFF"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Border CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
             Background="{DynamicResource BgBrush}">
-        <Grid Margin="14">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="52"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
             <!-- Title bar: icon + stacked title + Settings + Minimize + Close -->
-            <DockPanel VerticalAlignment="Top" Margin="0,-6,0,0" Height="52"
+            <DockPanel Grid.Row="0" Margin="14,0,14,0"
                        WindowChrome.IsHitTestVisibleInChrome="True">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
                             HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0">
@@ -72,12 +104,35 @@
                                FontFamily="{DynamicResource EmojiFont}"/>
                 </StackPanel>
             </DockPanel>
-        <Grid Margin="0,56,0,0">
+
+            <!-- Update available banner (hidden until an update is detected) -->
+            <Border Grid.Row="1"
+                    Background="#1a2a1a" BorderBrush="#4CAF50" BorderThickness="0,1,0,1"
+                    Visibility="{Binding UpdateBannerVisibility}">
+                <DockPanel Margin="14,5">
+                    <Button DockPanel.Dock="Left" Content="UPDATE" Padding="12,4" Margin="0,0,12,0"
+                            FontSize="11" FontWeight="Bold" Foreground="#FFD700"
+                            Click="UpdateNow_Click"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            ToolTip="Open download page for the latest release"/>
+                    <Button DockPanel.Dock="Right" Content="&#x2715;" Padding="8,2" FontSize="11"
+                            Style="{DynamicResource IconButton}"
+                            Click="DismissUpdateBanner_Click"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            ToolTip="Dismiss"/>
+                    <TextBlock Text="{Binding UpdateBannerText}" Foreground="#4CAF50"
+                               FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </DockPanel>
+            </Border>
+
+            <!-- Main content -->
+            <Grid Grid.Row="2" Margin="14,8,14,14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="*" MinHeight="120"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="150" MinHeight="80"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
@@ -144,6 +199,7 @@
                          SelectionMode="Extended"
                          SelectionChanged="AccountsListBox_SelectionChanged"
                          PreviewMouseLeftButtonDown="ToggleSelect_PreviewMouseLeftButtonDown"
+                         ItemContainerStyle="{StaticResource SoftWhiteSelectListBoxItem}"
                          HorizontalContentAlignment="Stretch">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
@@ -187,6 +243,7 @@
                          SelectionMode="Extended"
                          SelectionChanged="ServersListBox_SelectionChanged"
                          PreviewMouseLeftButtonDown="ToggleSelect_PreviewMouseLeftButtonDown"
+                         ItemContainerStyle="{StaticResource SoftWhiteSelectListBoxItem}"
                          HorizontalContentAlignment="Stretch">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
@@ -263,10 +320,18 @@
             </Grid>
         </GroupBox>
 
+        <!-- Resize handle for Active Sessions -->
+        <GridSplitter Grid.Row="3" Grid.ColumnSpan="2"
+                      Height="6" HorizontalAlignment="Stretch"
+                      VerticalAlignment="Center"
+                      ResizeBehavior="PreviousAndNext" ResizeDirection="Rows"
+                      Background="Transparent" Cursor="SizeNS"
+                      ToolTip="Drag to resize Active Sessions"/>
+
         <!-- Active Sessions -->
-        <GroupBox Grid.Row="3" Grid.ColumnSpan="2" Header="Active Sessions" Margin="0,10,0,0">
+        <GroupBox Grid.Row="4" Grid.ColumnSpan="2" Header="Active Sessions" Margin="0,2,0,0">
             <DataGrid ItemsSource="{Binding ActiveSessions}" AutoGenerateColumns="False"
-                      IsReadOnly="True" Height="120"
+                      IsReadOnly="True"
                       SelectedItem="{Binding SelectedSession}">
                 <DataGrid.InputBindings>
                     <MouseBinding Gesture="LeftDoubleClick"
@@ -284,7 +349,7 @@
         </GroupBox>
 
         <!-- Action Bar -->
-        <DockPanel Grid.Row="4" Grid.ColumnSpan="2" Margin="0,12,0,0">
+        <DockPanel Grid.Row="5" Grid.ColumnSpan="2" Margin="0,12,0,0">
             <CheckBox DockPanel.Dock="Left" Content="Kill disconnected client"
                       IsChecked="{Binding KillOnMissingHeartbeat}"
                       VerticalAlignment="Center" Margin="0,0,4,0"
@@ -305,7 +370,7 @@
                        Foreground="{DynamicResource TextBrush}"/>
             <TextBox DockPanel.Dock="Left" Text="{Binding MultiLaunchDelaySeconds, UpdateSourceTrigger=LostFocus}"
                      Width="35" VerticalContentAlignment="Center" Padding="3,2"
-                     Margin="0,0,16,0" ToolTip="Seconds to wait between launching each client (helps avoid server full errors)"
+                     Margin="0,0,16,0" ToolTip="Seconds to wait between launching each client (minimum 1; helps avoid server full errors and PreferencePath races)"
                      KeyDown="TimeoutTextBox_KeyDown"/>
             <TextBlock DockPanel.Dock="Left" Text="{Binding StatusText}"
                        VerticalAlignment="Center" Foreground="#666"/>

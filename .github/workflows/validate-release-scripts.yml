@@ -1,0 +1,24 @@
+name: Validate release scripts
+
+on:
+  pull_request:
+    paths:
+      - ".github/**"
+  push:
+    branches: [master]
+    paths:
+      - ".github/**"
+
+jobs:
+  pester:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Pester tests
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -Force -Scope CurrentUser -MinimumVersion 5.5.0
+          $result = Invoke-Pester .github/scripts/tests -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0) { exit 1 }

@@ -61,8 +61,8 @@ public class AppConfiguration : IConfigurationProvider
 
     public int MultiLaunchDelaySeconds
     {
-        get => GetInt(nameof(MultiLaunchDelaySeconds), 1, min: 0);
-        set => SetSetting(nameof(MultiLaunchDelaySeconds), Math.Max(0, value).ToString());
+        get => GetInt(nameof(MultiLaunchDelaySeconds), 1, min: 1);
+        set => SetSetting(nameof(MultiLaunchDelaySeconds), Math.Max(1, value).ToString());
     }
 
     public bool KillOnMissingHeartbeat
@@ -81,6 +81,12 @@ public class AppConfiguration : IConfigurationProvider
     {
         get => GetBool(nameof(DatDeveloperMode));
         set => SetSetting(nameof(DatDeveloperMode), value.ToString());
+    }
+
+    public bool AttemptDecalInjection
+    {
+        get => GetBool(nameof(AttemptDecalInjection), true);
+        set => SetSetting(nameof(AttemptDecalInjection), value.ToString());
     }
 
     public void Load()

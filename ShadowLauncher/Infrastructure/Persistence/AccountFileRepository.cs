@@ -88,9 +88,10 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
                     PasswordHash = password,
                 };
 
-                // Store optional Thwarg properties in Notes for round-tripping
                 if (properties.TryGetValue("Alias", out var alias) && !string.IsNullOrEmpty(alias))
                     account.Notes = alias;
+                if (properties.TryGetValue("PreferencePath", out var preferencePath) && !string.IsNullOrEmpty(preferencePath))
+                    account.PreferencePath = preferencePath;
 
                 accounts.Add(account);
             }
@@ -122,6 +123,8 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
                 };
                 if (!string.IsNullOrEmpty(a.Notes))
                     parts.Add($"Alias={ThwargLineParser.Encode(a.Notes)}");
+                if (!string.IsNullOrEmpty(a.PreferencePath))
+                    parts.Add($"PreferencePath={ThwargLineParser.Encode(a.PreferencePath)}");
 
                 lines.Add(string.Join(",", parts));
             }

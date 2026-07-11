@@ -46,7 +46,7 @@ public class GameLauncher : IGameLauncher
         _logger = logger;
     }
 
-    /// <summary>Carries the resolved exe path, working directory, and optional instance dir for a launch.</summary>
+    /// <summary>Carries the resolved exe path, working directory, and optional instance dir for cleanup watcher.</summary>
     private record LaunchEnvironment(string ExePath, string WorkingDir, string? InstanceDir);
 
     public async Task<LaunchResult> LaunchGameAsync(Account account, Server server)
@@ -66,11 +66,19 @@ public class GameLauncher : IGameLauncher
 
             // Resolve Decal's Inject.dll — user config takes priority, then registry auto-detect.
             // If Decal is not found, launch normally (single client only).
-            var decalInjectPath = DecalInjector.ResolveDecalInjectPath(_config.DecalPath);
-            if (decalInjectPath is not null)
-                _logger.LogInformation("Decal injection: {Path}", decalInjectPath);
+            string? decalInjectPath = null;
+            if (_config.AttemptDecalInjection)
+            {
+                decalInjectPath = DecalInjector.ResolveDecalInjectPath(_config.DecalPath);
+                if (decalInjectPath is not null)
+                    _logger.LogInformation("Decal injection: {Path}", decalInjectPath);
+                else
+                    _logger.LogInformation("Decal not found — single client launch");
+            }
             else
-                _logger.LogInformation("Decal not found — single client launch");
+            {
+                _logger.LogInformation("Decal injection disabled by user setting — single client launch");
+            }
 
             // "any" or null means stay at character select instead of auto-logging in.
             var defaultChar = _loginCommandsService.GetDefaultCharacter(account.Name, server.Name);
@@ -87,6 +95,9 @@ public class GameLauncher : IGameLauncher
             // ── Resolve which exe/directory to launch from ──────────────────────
             var env = await ResolveInstancePathAsync(server, clientPath, result);
             if (env is null) return result;
+
+            // Swap per-account UserPreferences.ini into the default location (ThwargLauncher PreferencePath).
+            ApplyPreferencePath(account);
 
             // ── Start the process ───────────────────────────────────────────────
             var processId = LaunchWithDecal(env.ExePath, arguments, env.WorkingDir, decalInjectPath);
@@ -111,8 +122,8 @@ public class GameLauncher : IGameLauncher
             // Hand the instance directory to the cleanup watcher.
             if (env.InstanceDir is not null)
             {
-                System.Diagnostics.Process? process = null;
-                try { process = System.Diagnostics.Process.GetProcessById(processId); } catch { }
+                Process? process = null;
+                try { process = Process.GetProcessById(processId); } catch { }
                 if (process is not null)
                     _ = _instancePreparer.WatchAndCleanupAsync(process, env.InstanceDir);
             }
@@ -213,26 +224,17 @@ public class GameLauncher : IGameLauncher
         return new LaunchEnvironment(clientPath, Path.GetDirectoryName(clientPath) ?? string.Empty, InstanceDir: null);
     }
 
-    /// <summary>
-    /// Calls <see cref="IInstancePreparer.PrepareInstanceAsync"/> and wraps the result
-    /// in a <see cref="LaunchEnvironment"/>. Populates <paramref name="result"/> on failure.
-    /// </summary>
     private async Task<LaunchEnvironment?> PrepareInstanceEnvironmentAsync(Server server, string? datSetId, LaunchResult result)
     {
         _logger.LogInformation("Server '{Server}' requires DAT set '{DatSetId}' — preparing instance",
             server.Name, datSetId);
-
-        var instanceDir = await _instancePreparer.PrepareInstanceAsync(server);
-        if (instanceDir is null)
+        var env = await _instancePreparer.PrepareInstanceAsync(server);
+        if (env is null)
         {
             result.ErrorMessage = "Instance preparer failed to prepare the instance directory. Check the log for details.";
             return null;
         }
-
-        return new LaunchEnvironment(
-            ExePath: Path.Combine(instanceDir, "acclient.exe"),
-            WorkingDir: instanceDir,
-            InstanceDir: instanceDir);
+        return new LaunchEnvironment(env.ExePath, env.WorkingDir, InstanceDir: env.WorkingDir);
     }
 
     public Task TerminateGameAsync(int processId)
@@ -303,8 +305,8 @@ public class GameLauncher : IGameLauncher
         else
         {
             // No Decal — single client only, plain launch.
-            var process = System.Diagnostics.Process.Start(new ProcessStartInfo
-            {
+                var process = Process.Start(new ProcessStartInfo
+                {
                 FileName = exePath,
                 Arguments = arguments,
                 WorkingDirectory = workingDir,
@@ -318,6 +320,89 @@ public class GameLauncher : IGameLauncher
             _logger.LogDebug("Launched acclient without Decal, PID {Pid}", process.Id);
             return process.Id;
         }
+    }
+
+    /// <summary>
+    /// Copies the account's <see cref="Account.PreferencePath"/> ini into the default
+    /// Documents\UserPreferences.ini location immediately before launch, matching ThwargLauncher.
+    /// acclient reads that file once at startup; stagger multi-launch via MultiLaunchDelaySeconds
+    /// to avoid two clients racing on the same default file.
+    /// </summary>
+    private void ApplyPreferencePath(Account account)
+    {
+        if (string.IsNullOrWhiteSpace(account.PreferencePath))
+            return;
+
+        var sourcePath = account.PreferencePath.Trim();
+        if (!File.Exists(sourcePath))
+        {
+            _logger.LogWarning("PreferencePath not found for {Account}: {Path}", account.Name, sourcePath);
+            return;
+        }
+
+        var defaultPath = ResolveDefaultUserPreferencesPath();
+        if (defaultPath is null)
+        {
+            _logger.LogWarning("Default UserPreferences.ini location not found for {Account}", account.Name);
+            return;
+        }
+
+        const int maxAttempts = 3;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                var defaultDir = Path.GetDirectoryName(defaultPath);
+                if (!string.IsNullOrEmpty(defaultDir))
+                    Directory.CreateDirectory(defaultDir);
+
+                File.Copy(sourcePath, defaultPath, overwrite: true);
+                _logger.LogDebug("Applied PreferencePath for {Account}: {Source} -> {Dest}",
+                    account.Name, sourcePath, defaultPath);
+                return;
+            }
+            catch (IOException ex) when (attempt < maxAttempts)
+            {
+                _logger.LogDebug(ex,
+                    "PreferencePath copy locked for {Account}, retry {Attempt}/{Max}",
+                    account.Name, attempt, maxAttempts);
+                Thread.Sleep(100);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Failed to apply PreferencePath for {Account}: {Source}",
+                    account.Name, sourcePath);
+                return;
+            }
+        }
+
+        _logger.LogWarning(
+            "Failed to apply PreferencePath for {Account} after {Max} attempts: {Source}",
+            account.Name, maxAttempts, sourcePath);
+    }
+
+    private static string? ResolveDefaultUserPreferencesPath()
+    {
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        var withApostrophe = Path.Combine(documents, "Asheron's Call", "UserPreferences.ini");
+        if (File.Exists(withApostrophe))
+            return withApostrophe;
+
+        var withoutApostrophe = Path.Combine(documents, "Asherons Call", "UserPreferences.ini");
+        if (File.Exists(withoutApostrophe))
+            return withoutApostrophe;
+
+        // Prefer the standard folder even if the file does not exist yet.
+        var preferredDir = Path.Combine(documents, "Asheron's Call");
+        if (Directory.Exists(preferredDir))
+            return withApostrophe;
+
+        var altDir = Path.Combine(documents, "Asherons Call");
+        if (Directory.Exists(altDir))
+            return withoutApostrophe;
+
+        return withApostrophe;
     }
 
     /// <summary>

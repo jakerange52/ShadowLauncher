@@ -82,6 +82,7 @@ if ($LASTEXITCODE -ne 0) { throw "wix build (msi) failed" }
 Step "5a/5  Caching .NET 10 Desktop Runtime (x86)"
 if (-not (Test-Path $runtimeExe)) {
     Write-Host "  Downloading .NET 10 Desktop Runtime (x86)..." -ForegroundColor Yellow
+    New-Item -ItemType Directory -Path $bundleBinDir -Force | Out-Null
     Invoke-WebRequest $runtimeUrl -OutFile $runtimeExe -UseBasicParsing
     Write-Host "  Downloaded." -ForegroundColor Green
 } else {

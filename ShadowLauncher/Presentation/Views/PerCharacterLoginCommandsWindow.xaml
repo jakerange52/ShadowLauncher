@@ -18,6 +18,7 @@
     <Grid Margin="0,24,0,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -25,7 +26,24 @@
         <TextBlock Grid.Row="0" Foreground="#AAA" FontSize="11" Margin="0,0,0,8" TextWrapping="Wrap"
                    Text="Set login commands for specific characters. Click Edit to set commands for that character."/>
 
-        <DataGrid Grid.Row="1" x:Name="CharacterGrid" AutoGenerateColumns="False"
+        <!-- Search bar -->
+        <TextBox Grid.Row="1" x:Name="SearchBox" Margin="0,0,0,8" Padding="6,4"
+                 Background="{DynamicResource InputBgBrush}" Foreground="{DynamicResource TextBrush}"
+                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                 TextChanged="SearchBox_TextChanged" KeyDown="SearchBox_KeyDown"
+                 Tag="Search characters…">
+            <TextBox.Style>
+                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                    <Style.Resources>
+                        <Style TargetType="Label">
+                            <Setter Property="Foreground" Value="#555"/>
+                        </Style>
+                    </Style.Resources>
+                </Style>
+            </TextBox.Style>
+        </TextBox>
+
+        <DataGrid Grid.Row="2" x:Name="CharacterGrid" AutoGenerateColumns="False"
                   IsReadOnly="False" CanUserAddRows="False" CanUserDeleteRows="False"
                   SelectionMode="Single" Background="#1A1A1F" RowBackground="#1A1A1F"
                   Foreground="#EEE" BorderBrush="#2A2A30" GridLinesVisibility="Horizontal"
@@ -79,7 +97,7 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <DockPanel Grid.Row="2" Margin="0,10,0,0">
+        <DockPanel Grid.Row="3" Margin="0,10,0,0">
             <TextBlock x:Name="StatusText" DockPanel.Dock="Left" Foreground="#4CAF50" FontWeight="SemiBold"
                        VerticalAlignment="Center"/>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">

@@ -10,7 +10,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>SLicon.ico</ApplicationIcon>
-    <Version>0.3.0</Version>
+    <Version>0.3.4</Version>
   </PropertyGroup>
 
   <!-- Project-wide implicit usings in addition to the SDK defaults. -->
