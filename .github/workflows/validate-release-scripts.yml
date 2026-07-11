@@ -20,4 +20,5 @@ jobs:
         run: |
           Set-PSRepository PSGallery -InstallationPolicy Trusted
           Install-Module Pester -Force -Scope CurrentUser -MinimumVersion 5.5.0
-          Invoke-Pester .github/scripts/tests -Output Detailed -PassThru -Exit
+          $result = Invoke-Pester .github/scripts/tests -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0) { exit 1 }
