@@ -4,7 +4,7 @@
     <OutputName>ShadowLauncher-Setup</OutputName>
     <OutputType>Bundle</OutputType>
     <InstallerPlatform>x86</InstallerPlatform>
-    <Version>0.3.2</Version>
+    <Version>0.3.4</Version>
   </PropertyGroup>
 
   <PropertyGroup>
