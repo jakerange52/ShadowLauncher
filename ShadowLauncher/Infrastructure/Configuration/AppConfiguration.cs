@@ -61,8 +61,8 @@ public class AppConfiguration : IConfigurationProvider
 
     public int MultiLaunchDelaySeconds
     {
-        get => GetInt(nameof(MultiLaunchDelaySeconds), 1, min: 0);
-        set => SetSetting(nameof(MultiLaunchDelaySeconds), Math.Max(0, value).ToString());
+        get => GetInt(nameof(MultiLaunchDelaySeconds), 1, min: 1);
+        set => SetSetting(nameof(MultiLaunchDelaySeconds), Math.Max(1, value).ToString());
     }
 
     public bool KillOnMissingHeartbeat

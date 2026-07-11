@@ -370,7 +370,7 @@
                        Foreground="{DynamicResource TextBrush}"/>
             <TextBox DockPanel.Dock="Left" Text="{Binding MultiLaunchDelaySeconds, UpdateSourceTrigger=LostFocus}"
                      Width="35" VerticalContentAlignment="Center" Padding="3,2"
-                     Margin="0,0,16,0" ToolTip="Seconds to wait between launching each client (helps avoid server full errors)"
+                     Margin="0,0,16,0" ToolTip="Seconds to wait between launching each client (minimum 1; helps avoid server full errors and PreferencePath races)"
                      KeyDown="TimeoutTextBox_KeyDown"/>
             <TextBlock DockPanel.Dock="Left" Text="{Binding StatusText}"
                        VerticalAlignment="Center" Foreground="#666"/>

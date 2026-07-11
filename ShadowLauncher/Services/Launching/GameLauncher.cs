@@ -96,6 +96,9 @@ public class GameLauncher : IGameLauncher
             var env = await ResolveInstancePathAsync(server, clientPath, result);
             if (env is null) return result;
 
+            // Swap per-account UserPreferences.ini into the default location (ThwargLauncher PreferencePath).
+            ApplyPreferencePath(account);
+
             // ── Start the process ───────────────────────────────────────────────
             var processId = LaunchWithDecal(env.ExePath, arguments, env.WorkingDir, decalInjectPath);
 
@@ -317,6 +320,89 @@ public class GameLauncher : IGameLauncher
             _logger.LogDebug("Launched acclient without Decal, PID {Pid}", process.Id);
             return process.Id;
         }
+    }
+
+    /// <summary>
+    /// Copies the account's <see cref="Account.PreferencePath"/> ini into the default
+    /// Documents\UserPreferences.ini location immediately before launch, matching ThwargLauncher.
+    /// acclient reads that file once at startup; stagger multi-launch via MultiLaunchDelaySeconds
+    /// to avoid two clients racing on the same default file.
+    /// </summary>
+    private void ApplyPreferencePath(Account account)
+    {
+        if (string.IsNullOrWhiteSpace(account.PreferencePath))
+            return;
+
+        var sourcePath = account.PreferencePath.Trim();
+        if (!File.Exists(sourcePath))
+        {
+            _logger.LogWarning("PreferencePath not found for {Account}: {Path}", account.Name, sourcePath);
+            return;
+        }
+
+        var defaultPath = ResolveDefaultUserPreferencesPath();
+        if (defaultPath is null)
+        {
+            _logger.LogWarning("Default UserPreferences.ini location not found for {Account}", account.Name);
+            return;
+        }
+
+        const int maxAttempts = 3;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                var defaultDir = Path.GetDirectoryName(defaultPath);
+                if (!string.IsNullOrEmpty(defaultDir))
+                    Directory.CreateDirectory(defaultDir);
+
+                File.Copy(sourcePath, defaultPath, overwrite: true);
+                _logger.LogDebug("Applied PreferencePath for {Account}: {Source} -> {Dest}",
+                    account.Name, sourcePath, defaultPath);
+                return;
+            }
+            catch (IOException ex) when (attempt < maxAttempts)
+            {
+                _logger.LogDebug(ex,
+                    "PreferencePath copy locked for {Account}, retry {Attempt}/{Max}",
+                    account.Name, attempt, maxAttempts);
+                Thread.Sleep(100);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Failed to apply PreferencePath for {Account}: {Source}",
+                    account.Name, sourcePath);
+                return;
+            }
+        }
+
+        _logger.LogWarning(
+            "Failed to apply PreferencePath for {Account} after {Max} attempts: {Source}",
+            account.Name, maxAttempts, sourcePath);
+    }
+
+    private static string? ResolveDefaultUserPreferencesPath()
+    {
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        var withApostrophe = Path.Combine(documents, "Asheron's Call", "UserPreferences.ini");
+        if (File.Exists(withApostrophe))
+            return withApostrophe;
+
+        var withoutApostrophe = Path.Combine(documents, "Asherons Call", "UserPreferences.ini");
+        if (File.Exists(withoutApostrophe))
+            return withoutApostrophe;
+
+        // Prefer the standard folder even if the file does not exist yet.
+        var preferredDir = Path.Combine(documents, "Asheron's Call");
+        if (Directory.Exists(preferredDir))
+            return withApostrophe;
+
+        var altDir = Path.Combine(documents, "Asherons Call");
+        if (Directory.Exists(altDir))
+            return withoutApostrophe;
+
+        return withApostrophe;
     }
 
     /// <summary>

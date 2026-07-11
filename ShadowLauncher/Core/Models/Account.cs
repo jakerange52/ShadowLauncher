@@ -7,6 +7,12 @@ public class Account : IEquatable<Account>
     public string PasswordHash { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Optional path to a per-account UserPreferences.ini file (ThwargLauncher PreferencePath).
+    /// Copied into the default Documents location immediately before launch.
+    /// </summary>
+    public string PreferencePath { get; set; } = string.Empty;
+
     public bool Equals(Account? other) => other is not null && Id == other.Id;
     public override bool Equals(object? obj) => Equals(obj as Account);
     public override int GetHashCode() => Id.GetHashCode();

@@ -222,6 +222,7 @@ public class FirstRunService
                     continue;
                 props.TryGetValue("Password", out var password);
                 props.TryGetValue("Alias", out var alias);
+                props.TryGetValue("PreferencePath", out var preferencePath);
 
                 var account = new Core.Models.Account
                 {
@@ -229,6 +230,7 @@ public class FirstRunService
                     Name = name,
                     PasswordHash = password ?? string.Empty,
                     Notes = string.IsNullOrWhiteSpace(alias) ? string.Empty : alias,
+                    PreferencePath = string.IsNullOrWhiteSpace(preferencePath) ? string.Empty : preferencePath,
                 };
 
                 await _accountRepo.AddAsync(account);

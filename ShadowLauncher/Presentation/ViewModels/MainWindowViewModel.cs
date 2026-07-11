@@ -307,7 +307,18 @@ public class MainWindowViewModel : ViewModelBase
         get => _config.MultiLaunchDelaySeconds;
         set
         {
-            if (value >= 0 && _config.MultiLaunchDelaySeconds != value)
+            if (value < 1)
+            {
+                MessageBox.Show(
+                    "Multi-launch delay must be at least 1 second.",
+                    "Invalid Setting",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                OnPropertyChanged();
+                return;
+            }
+
+            if (_config.MultiLaunchDelaySeconds != value)
             {
                 _config.MultiLaunchDelaySeconds = value;
                 _config.Save();
