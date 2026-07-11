@@ -36,10 +36,8 @@ jobs:
           fetch-depth: 0
 
       - name: Checkout ThwargLauncher
-        uses: actions/checkout@v4
-        with:
-          repository: Thwargle/ThwargLauncher
-          path: ../ThwargLauncher
+        shell: pwsh
+        run: git clone --depth 1 https://github.com/Thwargle/ThwargLauncher ../ThwargLauncher/ThwargLauncher
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
