@@ -18,12 +18,12 @@ foreach ($rel in $versionFiles) {
     if (-not (Test-Path $path)) { throw "Version file not found: $path" }
 
     $xml = [xml](Get-Content $path)
-    $v = ($xml.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
-    if (-not $v) { throw "No <Version> found in $rel" }
-    $versions += $v
+    $versionNode = $xml.Project.PropertyGroup | ForEach-Object { $_.SelectSingleNode("Version") } | Where-Object { $_ } | Select-Object -First 1
+    if (-not $versionNode) { throw "No <Version> found in $rel" }
+    $versions += $versionNode.InnerText
 }
 
-$unique = $versions | Select-Object -Unique
+$unique = @($versions | Select-Object -Unique)
 if ($unique.Count -ne 1) {
     $details = 0..($versionFiles.Count - 1) | ForEach-Object { "  $($versionFiles[$_]): $($versions[$_])" }
     throw "Version mismatch across project files:`n$($details -join "`n")"
