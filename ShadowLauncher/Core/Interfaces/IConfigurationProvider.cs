@@ -14,6 +14,7 @@ public interface IConfigurationProvider
 
     string GameClientPath { get; set; }
     string DecalPath { get; set; }
+    bool EnableDecalInjection { get; set; }
     string Theme { get; set; }
     bool KillOnMissingHeartbeat { get; set; }
     int KillHeartbeatTimeoutSeconds { get; set; }

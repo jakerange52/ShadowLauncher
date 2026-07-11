@@ -14,6 +14,7 @@ public class SettingsViewModel : ViewModelBase
     private readonly UpdateChecker _updateChecker;
     private readonly ThemeService _themeService;
     private string _decalPath;
+    private bool _enableDecalInjection;
     private string _statusText = string.Empty;
     private int _downloadProgress;
     private bool _isDownloading;
@@ -27,6 +28,7 @@ public class SettingsViewModel : ViewModelBase
         _updateChecker = updateChecker;
         _themeService = themeService;
         _decalPath = _config.DecalPath;
+        _enableDecalInjection = _config.EnableDecalInjection;
         _currentThemeName = _themeService.CurrentThemeName;
         _datDeveloperMode = _config.DatDeveloperMode;
 
@@ -50,6 +52,12 @@ public class SettingsViewModel : ViewModelBase
     {
         get => _decalPath;
         set => SetProperty(ref _decalPath, value);
+    }
+
+    public bool EnableDecalInjection
+    {
+        get => _enableDecalInjection;
+        set => SetProperty(ref _enableDecalInjection, value);
     }
 
     public bool DatDeveloperMode
@@ -110,6 +118,7 @@ public class SettingsViewModel : ViewModelBase
     private void Save()
     {
         _config.DecalPath = DecalPath;
+        _config.EnableDecalInjection = EnableDecalInjection;
         _config.Theme = _currentThemeName;
         _config.DatDeveloperMode = DatDeveloperMode;
         _config.Save();

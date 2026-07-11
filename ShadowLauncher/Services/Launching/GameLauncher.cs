@@ -64,13 +64,22 @@ public class GameLauncher : IGameLauncher
 
             var arguments = BuildLaunchArguments(account, server);
 
-            // Resolve Decal's Inject.dll — user config takes priority, then registry auto-detect.
-            // If Decal is not found, launch normally (single client only).
-            var decalInjectPath = DecalInjector.ResolveDecalInjectPath(_config.DecalPath);
-            if (decalInjectPath is not null)
-                _logger.LogInformation("Decal injection: {Path}", decalInjectPath);
+            // Resolve Decal's Inject.dll — only when injection is enabled.
+            // User config takes priority, then registry auto-detect.
+            // If Decal is not found (or injection is disabled), launch normally (single client only).
+            string? decalInjectPath = null;
+            if (_config.EnableDecalInjection)
+            {
+                decalInjectPath = DecalInjector.ResolveDecalInjectPath(_config.DecalPath);
+                if (decalInjectPath is not null)
+                    _logger.LogInformation("Decal injection: {Path}", decalInjectPath);
+                else
+                    _logger.LogInformation("Decal not found — single client launch");
+            }
             else
-                _logger.LogInformation("Decal not found — single client launch");
+            {
+                _logger.LogInformation("Decal injection disabled — single client launch");
+            }
 
             // "any" or null means stay at character select instead of auto-logging in.
             var defaultChar = _loginCommandsService.GetDefaultCharacter(account.Name, server.Name);

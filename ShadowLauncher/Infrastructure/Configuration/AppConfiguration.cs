@@ -41,6 +41,12 @@ public class AppConfiguration : IConfigurationProvider
         set => SetSetting(nameof(DecalPath), value);
     }
 
+    public bool EnableDecalInjection
+    {
+        get => GetBool(nameof(EnableDecalInjection), defaultValue: true);
+        set => SetSetting(nameof(EnableDecalInjection), value.ToString());
+    }
+
     public string Theme
     {
         get => GetSetting(nameof(Theme), "Shadow");
