@@ -148,7 +148,7 @@ public class DatSetService : IDatSetService
 
             if (allDatsPresent && !IsNewRelease(localDir, releaseTag))
             {
-                _logger.LogInformation("Custom DAT zip for '{Server}' is current (tag: {Tag}) - skipping download",
+                _logger.LogDebug("Custom DAT zip for '{Server}' is current (tag: {Tag}) - skipping download",
                     server.Name, releaseTag ?? "n/a");
                 return;
             }
@@ -208,14 +208,14 @@ public class DatSetService : IDatSetService
             var (resolvedUrl, releaseTag) = await ResolveZipUrlAsync(set.ZipUrl);
             if (resolvedUrl is null)
             {
-                _logger.LogInformation("DAT set '{Id}' has no resolvable zip URL", datSetId);
+                _logger.LogDebug("DAT set '{Id}' has no resolvable zip URL", datSetId);
                 return;
             }
 
             var isNewRelease = IsNewRelease(localDir, releaseTag);
             if (IsFullyDownloaded(set) && !isNewRelease)
             {
-                _logger.LogInformation("DAT set '{Id}' is current (tag: {Tag}) - skipping download", datSetId, releaseTag ?? "n/a");
+                _logger.LogDebug("DAT set '{Id}' is current (tag: {Tag}) - skipping download", datSetId, releaseTag ?? "n/a");
                 return;
             }
 
@@ -425,7 +425,7 @@ public class DatSetService : IDatSetService
                 continue;
             }
 
-            _logger.LogInformation("{Action} {File} from zip",
+            _logger.LogDebug("{Action} {File} from zip",
                 overwrite ? "Overwriting" : "Extracting", entryName);
             entry.ExtractToFile(destPath, overwrite: true);
         }

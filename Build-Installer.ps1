@@ -4,26 +4,26 @@ param([string]$Version = "")
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$root         = $PSScriptRoot
-$appProject   = "$root\ShadowLauncher\ShadowLauncher.csproj"
-$caProject    = "$root\ShadowLauncher.Installer.CustomActions\ShadowLauncher.Installer.CustomActions.csproj"
-$thwargRepo   = "$root\..\ThwargLauncher\ThwargLauncher\ThwargLauncher\ThwargFilter\ThwargFilter.csproj"
-$thwargOut    = "$root\..\ThwargLauncher\ThwargLauncher\ThwargLauncher\ThwargFilter\bin\Release"
-$thwargDest   = "$root\ShadowLauncher.Installer\ThirdParty\ThwargFilter"
-$msbuild      = $null  # resolved in prerequisites check below
-$msiPkg       = "$root\ShadowLauncher.Installer\Package.wxs"
-$msiPriv      = "$root\ShadowLauncher.Installer\Privileges.wxs"
-$bundleWxs    = "$root\ShadowLauncher.Installer.Bundle\Bundle.wxs"
-$publishDir   = "$root\ShadowLauncher\bin\Release\net10.0-windows"
-$caDir        = "$root\ShadowLauncher.Installer.CustomActions\bin\Release\net10.0-windows"
-$msiOut       = "$root\ShadowLauncher.Installer\bin\ShadowLauncher-Setup.msi"
-$bundleBinDir = "$root\ShadowLauncher.Installer.Bundle\bin"
-$bundleOut    = "$bundleBinDir\ShadowLauncher-Setup.exe"
-$logoFile     = "$root\ShadowLauncher\SLicon.ico"
-$runtimeExe   = "$bundleBinDir\windowsdesktop-runtime-10.0.6-win-x86.exe"
-$runtimeUrl   = "https://dotnetcli.azureedge.net/dotnet/WindowsDesktop/10.0.6/windowsdesktop-runtime-10.0.6-win-x86.exe"
-$licenseFile  = "$root\ShadowLauncher.Installer.Bundle\license.rtf"
-$balDll       = "$env:USERPROFILE\.wix\extensions\WixToolset.Bal.wixext\5.0.2\wixext5\WixToolset.BootstrapperApplications.wixext.dll"
+$root            = $PSScriptRoot
+$appProject      = "$root\ShadowLauncher\ShadowLauncher.csproj"
+$filterProject   = "$root\ShadowFilter\ShadowFilter.csproj"
+$caProject       = "$root\ShadowLauncher.Installer.CustomActions\ShadowLauncher.Installer.CustomActions.csproj"
+$filterOut       = "$root\ShadowFilter\bin\Release\net472"
+$filterDest      = "$root\ShadowLauncher.Installer\ThirdParty\ShadowFilter"
+$decalAdapter    = "$root\externals\Decal\Decal.Adapter.dll"
+$msiPkg          = "$root\ShadowLauncher.Installer\Package.wxs"
+$msiPriv         = "$root\ShadowLauncher.Installer\Privileges.wxs"
+$bundleWxs       = "$root\ShadowLauncher.Installer.Bundle\Bundle.wxs"
+$publishDir      = "$root\ShadowLauncher\bin\Release\net10.0-windows"
+$caDir           = "$root\ShadowLauncher.Installer.CustomActions\bin\Release\net10.0-windows"
+$msiOut          = "$root\ShadowLauncher.Installer\bin\ShadowLauncher-Setup.msi"
+$bundleBinDir    = "$root\ShadowLauncher.Installer.Bundle\bin"
+$bundleOut       = "$bundleBinDir\ShadowLauncher-Setup.exe"
+$logoFile        = "$root\ShadowLauncher\SLicon.ico"
+$runtimeExe      = "$bundleBinDir\windowsdesktop-runtime-10.0.6-win-x86.exe"
+$runtimeUrl      = "https://dotnetcli.azureedge.net/dotnet/WindowsDesktop/10.0.6/windowsdesktop-runtime-10.0.6-win-x86.exe"
+$licenseFile     = "$root\ShadowLauncher.Installer.Bundle\license.rtf"
+$balDll          = "$env:USERPROFILE\.wix\extensions\WixToolset.Bal.wixext\5.0.2\wixext5\WixToolset.BootstrapperApplications.wixext.dll"
 
 function Step([string]$msg) {
     Write-Host ""
@@ -39,46 +39,39 @@ if (-not $Version) {
 }
 Write-Host "Building ShadowLauncher v$Version" -ForegroundColor Green
 
-# Check prerequisites
 Step "Checking prerequisites"
 if (-not (Get-Command "wix" -ErrorAction SilentlyContinue)) { throw "WiX CLI not found. Run: dotnet tool install --global wix --version 5.0.2" }
 if (-not (Test-Path $balDll)) { throw "WiX Bal extension not found at: $balDll" }
-$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-if (-not (Test-Path $vswhere)) { throw "vswhere.exe not found — is Visual Studio installed? Expected: $vswhere" }
-$msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" 2>$null | Select-Object -First 1
-if (-not $msbuild -or -not (Test-Path $msbuild)) { throw "MSBuild not found via vswhere. Ensure a Visual Studio install with the MSBuild workload is present." }
-Write-Host "  MSBuild: $msbuild" -ForegroundColor DarkGray
+if (-not (Test-Path $decalAdapter)) {
+    throw @"
+Decal.Adapter.dll not found at: $decalAdapter
+Copy it from your Decal install before building ShadowFilter.
+See externals/Decal/README.md
+"@
+}
 Write-Host "  All prerequisites found." -ForegroundColor Green
 
-# Step 1: Build ThwargFilter
-Step "1/5  Building ThwargFilter (Release x86)"
-if (-not (Test-Path $thwargRepo)) { throw "ThwargLauncher repo not found at: $thwargRepo`nClone it alongside ShadowLauncher: git clone https://github.com/Thwargle/ThwargLauncher" }
-& $msbuild $thwargRepo /p:Configuration=Release /p:Platform=AnyCPU /p:PostBuildEvent="" /p:ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch=None /nowarn:0219,0649 /nologo /verbosity:minimal
-if ($LASTEXITCODE -ne 0) { throw "ThwargFilter build failed" }
-New-Item -ItemType Directory -Force -Path $thwargDest | Out-Null
-Copy-Item "$thwargOut\ThwargFilter.dll"      $thwargDest -Force
-Copy-Item "$thwargOut\Newtonsoft.Json.dll"   $thwargDest -Force
-Copy-Item "$thwargOut\VCS5.dll"              $thwargDest -Force
-Copy-Item "$thwargOut\VirindiViewService.dll" $thwargDest -Force
-Write-Host "  ThwargFilter DLLs copied to $thwargDest" -ForegroundColor Green
+Step "1/5  Building ShadowFilter (Release net472)"
+& dotnet build $filterProject -c Release --nologo
+if ($LASTEXITCODE -ne 0) { throw "ShadowFilter build failed" }
+New-Item -ItemType Directory -Force -Path $filterDest | Out-Null
+Copy-Item "$filterOut\ShadowFilter.dll" $filterDest -Force
+Copy-Item "$filterOut\Newtonsoft.Json.dll" $filterDest -Force
+Write-Host "  ShadowFilter DLLs copied to $filterDest" -ForegroundColor Green
 
-# Step 2: Build main app
 Step "2/5  Building ShadowLauncher (Release x86)"
 & dotnet publish $appProject -c Release --output $publishDir --nologo
 if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 
-# Step 3: Build custom actions
 Step "3/5  Building Custom Actions DLL"
 & dotnet publish $caProject -c Release --output $caDir --nologo
 if ($LASTEXITCODE -ne 0) { throw "dotnet build (custom actions) failed" }
 
-# Step 4: Build MSI
 Step "4/5  Building ShadowLauncher-Setup.msi"
 New-Item -ItemType Directory -Path (Split-Path $msiOut) -Force | Out-Null
-& wix build $msiPkg $msiPriv -d "AppPublishDir=$publishDir\" -d "CustomActionsDir=$caDir\" -d "ThirdPartyDir=$thwargDest\..\\" -d "LicenseFile=$licenseFile" -d "Version=$Version" -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -ext WixToolset.Netfx.wixext -arch x86 -out $msiOut
+& wix build $msiPkg $msiPriv -d "AppPublishDir=$publishDir\" -d "CustomActionsDir=$caDir\" -d "ThirdPartyDir=$filterDest\..\\" -d "LicenseFile=$licenseFile" -d "Version=$Version" -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -ext WixToolset.Netfx.wixext -arch x86 -out $msiOut
 if ($LASTEXITCODE -ne 0) { throw "wix build (msi) failed" }
 
-# Step 5: Ensure .NET runtime is cached
 Step "5a/5  Caching .NET 10 Desktop Runtime (x86)"
 if (-not (Test-Path $runtimeExe)) {
     Write-Host "  Downloading .NET 10 Desktop Runtime (x86)..." -ForegroundColor Yellow
@@ -89,7 +82,6 @@ if (-not (Test-Path $runtimeExe)) {
     Write-Host "  .NET runtime already cached." -ForegroundColor DarkGray
 }
 
-# Step 5b: Build bundle
 Step "5b/5  Building ShadowLauncher-Setup.exe (bundle)"
 & wix build $bundleWxs -d "MsiPath=$msiOut" -d "LogoFile=$logoFile" -d "LicenseFile=$licenseFile" -d "Version=$Version" -b $bundleBinDir -ext $balDll -ext WixToolset.Netfx.wixext -arch x86 -out $bundleOut
 if ($LASTEXITCODE -ne 0) { throw "wix build (bundle) failed" }

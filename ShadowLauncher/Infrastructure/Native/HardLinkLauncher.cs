@@ -73,7 +73,7 @@ public class HardLinkLauncher : InstanceLauncherBase
             var resolvedId = await _datSetService.ResolveDatSetIdForServerAsync(server.Name);
             if (!string.IsNullOrWhiteSpace(resolvedId))
             {
-                _logger.LogInformation("Resolved DatSetId '{Id}' for server '{Server}' via live registry lookup", resolvedId, server.Name);
+                _logger.LogDebug("Resolved DatSetId '{Id}' for server '{Server}' via live registry lookup", resolvedId, server.Name);
                 effectiveServer.DatSetId = resolvedId;
             }
         }
@@ -85,7 +85,7 @@ public class HardLinkLauncher : InstanceLauncherBase
         if (!string.Equals(datSourceDir, clientDir, StringComparison.OrdinalIgnoreCase))
             await _datSetService.CompleteDatCacheFromRetailAsync(datSourceDir, clientDir);
 
-        _logger.LogInformation("Creating hard-link instance at {Dir} (base={Base}, datSource={DatSource})",
+        _logger.LogDebug("Creating hard-link instance at {Dir} (base={Base}, datSource={DatSource})",
             instanceDir, clientDir, datSourceDir);
 
         try
@@ -118,9 +118,9 @@ public class HardLinkLauncher : InstanceLauncherBase
             var customClient = Path.Combine(datSourceDir, "acclient.exe");
             var stableExePath = File.Exists(customClient) ? customClient : Path.Combine(clientDir, "acclient.exe");
             if (File.Exists(customClient))
-                _logger.LogInformation("Using custom acclient.exe from DAT set: {Path}", customClient);
+                _logger.LogDebug("Using custom acclient.exe from DAT set: {Path}", customClient);
 
-            _logger.LogInformation("Hard-link instance ready: {Dir} (exe={Exe})", instanceDir, stableExePath);
+            _logger.LogDebug("Hard-link instance ready: {Dir} (exe={Exe})", instanceDir, stableExePath);
             return new InstanceEnvironment(stableExePath, instanceDir);
         }
         catch (Exception ex)
@@ -180,16 +180,16 @@ public class HardLinkLauncher : InstanceLauncherBase
         {
             if (!hasCustomSource)
             {
-                _logger.LogInformation("Server '{Server}' uses retail DATs", server.Name);
+                _logger.LogDebug("Server '{Server}' uses retail DATs", server.Name);
                 return clientDir;
             }
             var dir = _datSetService.GetLocalDatSetPathForServer(server);
-            _logger.LogInformation("Server '{Server}' uses custom DAT source: {Dir}", server.Name, dir);
+            _logger.LogDebug("Server '{Server}' uses custom DAT source: {Dir}", server.Name, dir);
             return dir;
         }
 
         var setDir = _datSetService.GetLocalDatSetPathForServer(server);
-        _logger.LogInformation("Server '{Server}' requires DAT set '{DatSetId}', source: {Dir}",
+        _logger.LogDebug("Server '{Server}' requires DAT set '{DatSetId}', source: {Dir}",
             server.Name, datSetId, setDir);
         return setDir;
     }

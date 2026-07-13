@@ -88,7 +88,7 @@ public partial class App : System.Windows.Application
 
     private static void ShowThwargRunningWarning() => MessageBox.Show(
         "ThwargLauncher is currently running.\n\n" +
-        "ShadowLauncher and ThwargLauncher both use ThwargFilter and can cause a corrupted state in Decal plugins when run simultaneously.\n\n" +
+        "ShadowLauncher and ThwargLauncher both use Decal plugins and can cause a corrupted state when run simultaneously.\n\n" +
         "It is recommended to close ThwargLauncher before continuing.",
         "Compatibility Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
 }

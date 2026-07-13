@@ -19,6 +19,7 @@ namespace ShadowLauncher.Infrastructure.FileSystem;
 /// performs cleanup for any PIDs that are no longer running.
 ///
 /// Files are written to: %LocalAppData%\ShadowLauncher\Sessions\{sessionId}.json
+/// Relaunch minimized preference: %LocalAppData%\ShadowLauncher\Sessions\relaunch_{accountId}_{serverId}.json
 /// </summary>
 public class SessionJournal
 {
@@ -100,4 +101,66 @@ public class SessionJournal
     }
 
     private string EntryPath(string sessionId) => Path.Combine(_directory, $"{sessionId}.json");
+
+    private string RelaunchEntryPath(string accountId, string serverId) =>
+        Path.Combine(_directory, $"relaunch_{SanitizeKey(accountId)}_{SanitizeKey(serverId)}.json");
+
+    private static string SanitizeKey(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return "unknown";
+
+        foreach (var c in Path.GetInvalidFileNameChars())
+            value = value.Replace(c, '_');
+
+        return value;
+    }
+
+    /// <summary>
+    /// Persists whether the last session for this account/server exited while minimized.
+    /// Survives session journal deletion and launcher restarts for auto-relaunch.
+    /// </summary>
+    public void WriteRelaunchMinimized(string accountId, string serverId, bool wasMinimized)
+    {
+        try
+        {
+            var payload = new RelaunchMinimizedState
+            {
+                WasMinimized = wasMinimized,
+                UpdatedUtc = DateTime.UtcNow
+            };
+            var path = RelaunchEntryPath(accountId, serverId);
+            var tempPath = path + ".tmp";
+            File.WriteAllText(tempPath, JsonSerializer.Serialize(payload, JsonOptions));
+            File.Move(tempPath, path, overwrite: true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to write relaunch minimized state for {Account}/{Server}", accountId, serverId);
+        }
+    }
+
+    public bool GetRelaunchWasMinimized(string accountId, string serverId)
+    {
+        try
+        {
+            var path = RelaunchEntryPath(accountId, serverId);
+            if (!File.Exists(path))
+                return false;
+
+            var state = JsonSerializer.Deserialize<RelaunchMinimizedState>(File.ReadAllText(path), JsonOptions);
+            return state?.WasMinimized == true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to read relaunch minimized state for {Account}/{Server}", accountId, serverId);
+            return false;
+        }
+    }
+
+    private sealed class RelaunchMinimizedState
+    {
+        public bool WasMinimized { get; set; }
+        public DateTime UpdatedUtc { get; set; }
+    }
 }

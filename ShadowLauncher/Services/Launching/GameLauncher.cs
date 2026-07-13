@@ -4,6 +4,7 @@ using ShadowLauncher.Core.Exceptions;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Infrastructure.Native;
+using ShadowLauncher.Infrastructure.Paths;
 using ShadowLauncher.Services.Dats;
 using ShadowLauncher.Services.LoginCommands;
 
@@ -67,30 +68,25 @@ public class GameLauncher : IGameLauncher
             // Resolve Decal's Inject.dll — user config takes priority, then registry auto-detect.
             // If Decal is not found, launch normally (single client only).
             string? decalInjectPath = null;
+            string decalMode;
             if (_config.AttemptDecalInjection)
             {
                 decalInjectPath = DecalInjector.ResolveDecalInjectPath(_config.DecalPath);
-                if (decalInjectPath is not null)
-                    _logger.LogInformation("Decal injection: {Path}", decalInjectPath);
-                else
-                    _logger.LogInformation("Decal not found — single client launch");
+                decalMode = decalInjectPath is not null ? "Decal" : "no Decal";
             }
             else
             {
-                _logger.LogInformation("Decal injection disabled by user setting — single client launch");
+                decalMode = "Decal disabled";
             }
 
             // "any" or null means stay at character select instead of auto-logging in.
             var defaultChar = _loginCommandsService.GetDefaultCharacter(account.Name, server.Name);
             var launchCharacter = (string.IsNullOrEmpty(defaultChar) || defaultChar == "any") ? "None" : defaultChar;
 
-            _logger.LogInformation("Launching game for {Account} on {Server} (character: {Character})",
-                account.Name, server.Name, launchCharacter);
-
-            // Write ThwargFilter launch file BEFORE starting the process (same as ThwargLauncher).
-            // ThwargFilter's timer starts on first server connect and only runs 4 ticks (states 0-3)
+            // Write ShadowFilter launch file BEFORE starting the process.
+            // ShadowFilter's timer starts on first server connect and only runs 4 ticks (states 0-3)
             // before stopping permanently. The file must exist by then.
-            WriteThwargFilterLaunchFile(account.Name, server.Name, launchCharacter);
+            WriteShadowFilterLaunchFile(account.Name, server.Name, launchCharacter);
 
             // ── Resolve which exe/directory to launch from ──────────────────────
             var env = await ResolveInstancePathAsync(server, clientPath, result);
@@ -129,9 +125,7 @@ public class GameLauncher : IGameLauncher
             }
 
             // ── Post-launch ─────────────────────────────────────────────────────
-            // Send click events to dismiss intro movie screens (only when auto-logging in).
-            if (launchCharacter != "None")
-                MovieSkipper.StartSkipping(processId);
+            // Intro movies / character select clicks are owned by ShadowFilter when Decal is injected.
 
             // Rename the window title so instances are identifiable in the taskbar.
             WindowTitleSetter.SetTitleAsync(processId, account.Name, server.Name);
@@ -150,8 +144,9 @@ public class GameLauncher : IGameLauncher
             result.ProcessId = processId;
 
             if (result.Success)
-                _logger.LogInformation("Game launched successfully — PID {Pid} ({Account} on {Server})",
-                    processId, account.Name, server.Name);
+                _logger.LogInformation(
+                    "Launched {Account} on {Server} — PID {Pid} (character: {Character}, {DecalMode})",
+                    account.Name, server.Name, processId, launchCharacter, decalMode);
             else
             {
                 _logger.LogWarning("Game process PID {Pid} exited immediately after launch ({Account} on {Server})",
@@ -226,7 +221,7 @@ public class GameLauncher : IGameLauncher
 
     private async Task<LaunchEnvironment?> PrepareInstanceEnvironmentAsync(Server server, string? datSetId, LaunchResult result)
     {
-        _logger.LogInformation("Server '{Server}' requires DAT set '{DatSetId}' — preparing instance",
+        _logger.LogDebug("Server '{Server}' requires DAT set '{DatSetId}' — preparing instance",
             server.Name, datSetId);
         var env = await _instancePreparer.PrepareInstanceAsync(server);
         if (env is null)
@@ -242,7 +237,7 @@ public class GameLauncher : IGameLauncher
         try
         {
             using var process = Process.GetProcessById(processId);
-            process.Kill(entireProcessTree: true);
+            process.Kill(entireProcessTree: false);
             _logger.LogInformation("Terminated game process {Pid}", processId);
         }
         catch (ArgumentException)
@@ -405,45 +400,52 @@ public class GameLauncher : IGameLauncher
         return withApostrophe;
     }
 
-    /// <summary>
-    /// Removes the ThwargFilter launch file written at session start.
-    /// Called when the game process exits so stale launch files do not accumulate.
-    /// </summary>
-    public void CleanupThwargFilterLaunchFile(string accountName, string serverName)
+    public void CleanupShadowFilterLaunchFile(string accountName, string serverName)
     {
         try
         {
-            var launchFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "ThwargLauncher", "LaunchFiles");
-            var filePath = Path.Combine(launchFolder, $"launch_ThwargFilter_{serverName}_{accountName}.txt");
+            var filePath = ShadowLauncherPaths.GetShadowFilterLaunchFilePath(serverName, accountName);
             if (File.Exists(filePath))
             {
                 File.Delete(filePath);
-                _logger.LogDebug("Removed ThwargFilter launch file for {Account} on {Server}", accountName, serverName);
+                _logger.LogDebug("Removed ShadowFilter launch file for {Account} on {Server}", accountName, serverName);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to remove ThwargFilter launch file");
+            _logger.LogWarning(ex, "Failed to remove ShadowFilter launch file");
         }
     }
 
     /// <summary>
-    /// Writes a ThwargFilter launch file so the filter knows which account/server/character
-    /// is logging in. This enables ThwargFilter to record character lists and execute login commands.
-    /// File: %AppData%\ThwargLauncher\LaunchFiles\launch_ThwargFilter_{Server}_{Account}.txt
+    /// Removes the launch file only when no other active session shares the same account/server.
+    /// Prevents multi-box from losing launch info for a still-running client.
     /// </summary>
-    private void WriteThwargFilterLaunchFile(string accountName, string serverName, string characterName)
+    public void CleanupShadowFilterLaunchFileIfUnused(
+        string accountName,
+        string serverName,
+        IEnumerable<GameSession> activeSessions,
+        int exceptProcessId)
+    {
+        var stillActive = activeSessions.Any(s =>
+            s.ProcessId != exceptProcessId
+            && string.Equals(s.AccountName, accountName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(s.ServerName, serverName, StringComparison.OrdinalIgnoreCase));
+
+        if (!stillActive)
+            CleanupShadowFilterLaunchFile(accountName, serverName);
+    }
+
+    /// <summary>
+    /// Writes a ShadowFilter launch file so the plugin knows which account/server/character
+    /// is logging in. This enables character tracking and login command execution.
+    /// </summary>
+    private void WriteShadowFilterLaunchFile(string accountName, string serverName, string characterName)
     {
         try
         {
-            var launchFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "ThwargLauncher", "LaunchFiles");
-            Directory.CreateDirectory(launchFolder);
-
-            var filePath = Path.Combine(launchFolder, $"launch_ThwargFilter_{serverName}_{accountName}.txt");
+            Directory.CreateDirectory(ShadowLauncherPaths.LaunchFilesFolder);
+            var filePath = ShadowLauncherPaths.GetShadowFilterLaunchFilePath(serverName, accountName);
             using var writer = new StreamWriter(filePath, append: false);
             writer.WriteLine("FileVersion:1.2");
             writer.WriteLine($"Timestamp=TimeUtc:'{DateTime.UtcNow:o}'");
@@ -451,11 +453,11 @@ public class GameLauncher : IGameLauncher
             writer.WriteLine($"AccountName:{accountName}");
             writer.WriteLine($"CharacterName:{characterName}");
 
-            _logger.LogDebug("Wrote ThwargFilter launch file for {Account} on {Server}", accountName, serverName);
+            _logger.LogDebug("Wrote ShadowFilter launch file for {Account} on {Server}", accountName, serverName);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to write ThwargFilter launch file");
+            _logger.LogWarning(ex, "Failed to write ShadowFilter launch file");
         }
     }
 }

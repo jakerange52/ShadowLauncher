@@ -37,24 +37,22 @@
                      Condition="NOT DECALINSTALLED" />
 
     <!--
-      Detect ThwargFilter already registered to Decal via two signals:
-        1. The FullInstall registry flag written by a previous ShadowLauncher full install.
-        2. ThwargFilter.dll in ThwargLauncher's default install directory.
-      Either signal sets THWARGFILTERALREADYINSTALLED so the warning fires.
+      Detect ShadowFilter already registered to Decal.
     -->
-    <util:RegistrySearch Id="DetectThwargFilterFlag"
+    <util:RegistrySearch Id="DetectShadowFilterDecal"
+                         Root="HKCU"
+                         Key="Software\Decal\Plugins\A8F3C2D1-4E5B-6A7C-8D9E-0F1A2B3C4D5E"
+                         Value="Enabled"
+                         Variable="SHADOWFILTERINSTALLED"
+                         Result="exists" />
+
+    <util:RegistrySearch Id="DetectShadowFilterFlag"
                          Root="HKLM"
                          Key="Software\ShadowLauncher"
                          Value="FullInstall"
-                         Variable="THWARGFILTERALREADYINSTALLED"
+                         Variable="SHADOWFILTERINSTALLED"
                          Result="exists"
-                         Condition="NOT THWARGFILTERALREADYINSTALLED" />
-
-    <util:FileSearch Id="DetectThwargFilterExe"
-                     Path="[ProgramFilesX86Folder]ThwargLauncher\ThwargFilter.dll"
-                     Variable="THWARGFILTERALREADYINSTALLED"
-                     Result="exists"
-                     Condition="NOT THWARGFILTERALREADYINSTALLED" />
+                         Condition="NOT SHADOWFILTERINSTALLED" />
   </Fragment>
 
   <Package Name="ShadowLauncher"
@@ -108,10 +106,10 @@
                   Error="The Full install requires Decal 3.0 to be installed first. Please install Decal from https://www.decaldev.com and re-run setup." />
 
     <!--
-      Warn when ThwargFilter is already registered to Decal and the user picks Full install.
+      Warn when ShadowFilter is already registered to Decal and the user picks Full install.
     -->
-    <CustomAction Id="WarnThwargFilterAlreadyInstalled"
-                  Error="ThwargFilter is already registered with Decal on this machine (installed by ThwargLauncher or a previous ShadowLauncher setup). You should use the Normal install instead Ã¯Â¿Â½ the Full install is only needed when ThwargFilter is not already present. Cancel this installer, re-run it, and uncheck the Full install option." />
+    <CustomAction Id="WarnShadowFilterAlreadyInstalled"
+                  Error="ShadowFilter is already registered with Decal on this machine. You can use the Normal install instead unless you are upgrading or repairing the Full install option." />
 
     <!--
       Error-type CustomActions must be in both sequences:
@@ -120,15 +118,15 @@
       Conditions live here on the Custom elements, not on the CustomAction definitions.
     -->
     <InstallUISequence>
-      <Custom Action="WarnThwargFilterAlreadyInstalled" Before="BlockIfNoDecal"
-              Condition="&amp;MultiboxingFeature=3 AND THWARGFILTERALREADYINSTALLED AND NOT Installed" />
+      <Custom Action="WarnShadowFilterAlreadyInstalled" Before="BlockIfNoDecal"
+              Condition="&amp;MultiboxingFeature=3 AND SHADOWFILTERINSTALLED AND NOT Installed" />
       <Custom Action="BlockIfNoDecal" Before="ExecuteAction"
               Condition="&amp;MultiboxingFeature=3 AND NOT DECALINSTALLED AND NOT Installed" />
     </InstallUISequence>
 
     <InstallExecuteSequence>
-      <Custom Action="WarnThwargFilterAlreadyInstalled" Before="BlockIfNoDecal"
-              Condition="&amp;MultiboxingFeature=3 AND THWARGFILTERALREADYINSTALLED AND NOT Installed" />
+      <Custom Action="WarnShadowFilterAlreadyInstalled" Before="BlockIfNoDecal"
+              Condition="&amp;MultiboxingFeature=3 AND SHADOWFILTERINSTALLED AND NOT Installed" />
       <Custom Action="BlockIfNoDecal" Before="InstallFiles"
               Condition="&amp;MultiboxingFeature=3 AND NOT DECALINSTALLED AND NOT Installed" />
     </InstallExecuteSequence>
@@ -143,7 +141,7 @@
     <!-- Directory structure -->
     <StandardDirectory Id="ProgramFilesFolder">
       <Directory Id="INSTALLFOLDER" Name="ShadowLauncher">
-        <Directory Id="ThwargFilterFolder" Name="ThwargFilter" />
+        <Directory Id="ShadowFilterFolder" Name="ShadowFilter" />
       </Directory>
     </StandardDirectory>
 
@@ -251,31 +249,19 @@
     </ComponentGroup>
 
     <!--
-      Multiboxing optional components
-      Decal must already be installed (it provides Decal.Adapter.dll at runtime).
-      Decal discovers ThwargFilter through its own plugin registry at runtime Ã¯Â¿Â½
-      util:RegisterAssembly (regasm) is not used; Decal does not require COM registration.
-
-      Files land in: INSTALLFOLDER\ThwargFilter\
+      Multiboxing optional components — ShadowFilter Decal plugin.
+      Files land in INSTALLFOLDER\ShadowFilter\ and are registered with Decal by custom action.
     -->
-    <ComponentGroup Id="MultiboxingComponents" Directory="ThwargFilterFolder">
+    <ComponentGroup Id="MultiboxingComponents" Directory="ShadowFilterFolder">
 
-      <Component Id="ThwargFilterDll" Guid="F1E2D3C4-B5A6-7890-1234-ABCDEF012345">
-        <File Id="ThwargFilterDllFile"
-              Source="$(var.ThirdPartyDir)ThwargFilter\ThwargFilter.dll"
+      <Component Id="ShadowFilterDll" Guid="F1E2D3C4-B5A6-7890-1234-ABCDEF012345">
+        <File Id="ShadowFilterDllFile"
+              Source="$(var.ThirdPartyDir)ShadowFilter\ShadowFilter.dll"
               KeyPath="yes" />
       </Component>
 
       <Component Id="NewtonsoftJsonDll" Guid="E2D3C4B5-A697-8901-2345-BCDEF0123456">
-        <File Source="$(var.ThirdPartyDir)ThwargFilter\Newtonsoft.Json.dll" KeyPath="yes" />
-      </Component>
-
-      <Component Id="VCS5Dll" Guid="7A3F1C6E-2B94-4D80-A517-3E8C0F2D9B45">
-        <File Source="$(var.ThirdPartyDir)ThwargFilter\VCS5.dll" KeyPath="yes" />
-      </Component>
-
-      <Component Id="VirindiViewServiceDll" Guid="C4B5A6F7-E8D9-0123-4567-DEF012345678">
-        <File Source="$(var.ThirdPartyDir)ThwargFilter\VirindiViewService.dll" KeyPath="yes" />
+        <File Source="$(var.ThirdPartyDir)ShadowFilter\Newtonsoft.Json.dll" KeyPath="yes" />
       </Component>
 
       <!-- Registry flag so we know full install was chosen on repair/uninstall -->
@@ -285,8 +271,7 @@
                        Name="FullInstall"
                        Type="integer" Value="1"
                        KeyPath="yes" />
-        <!-- Tell MSI to remove the ThwargFilter subdirectory on uninstall -->
-        <RemoveFolder Id="RemoveThwargFilterFolder" Directory="ThwargFilterFolder" On="uninstall" />
+        <RemoveFolder Id="RemoveShadowFilterFolder" Directory="ShadowFilterFolder" On="uninstall" />
       </Component>
 
     </ComponentGroup>
@@ -317,13 +302,13 @@
       </Feature>
 
       <!--
-        Full install: Decal + ThwargFilter for multi-boxing support.
+        Full install: Decal + ShadowFilter for multi-boxing support.
         Level="2" = NOT selected by default (opt-in).
         Users must explicitly check this to get the full install.
       -->
       <Feature Id="MultiboxingFeature"
-               Title="Full install (includes ThwargFilter for multi-boxing Ã¯Â¿Â½ requires Decal 3.0)"
-               Description="Installs the ThwargFilter plugin for Decal. Enables in-game heartbeat monitoring, character tracking, and login commands. Requires Decal 3.0 to already be installed Ã¯Â¿Â½ setup will abort if Decal is not found. Can be skipped if you do not use Decal or manage plugins separately. Note: a log off and back on is required after install to activate multi-boxing support (grants SeCreateSymbolicLinkPrivilege to your user account)."
+               Title="Full install (includes ShadowFilter for multi-boxing — requires Decal 3.0)"
+               Description="Builds and registers the ShadowFilter Decal plugin. Enables in-game heartbeat monitoring, character tracking, and login commands. Requires Decal 3.0 to already be installed — setup will abort if Decal is not found."
                Level="2"
                Display="expand">
         <ComponentGroupRef Id="MultiboxingComponents" />

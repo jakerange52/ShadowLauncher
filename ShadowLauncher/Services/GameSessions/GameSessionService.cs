@@ -18,6 +18,7 @@ public class GameSessionService : IGameSessionService
 
     public Task<GameSession> CreateSessionAsync(Account account, Server server, int processId)
     {
+        var startedAtUtc = DateTime.UtcNow;
         var session = new GameSession
         {
             Id = Guid.NewGuid().ToString(),
@@ -27,7 +28,8 @@ public class GameSessionService : IGameSessionService
             ServerName = server.Name,
             ProcessId = processId,
             Status = GameSessionStatus.Launching,
-            LastHeartbeatTime = DateTime.UtcNow
+            StartedAtUtc = startedAtUtc,
+            LastHeartbeatTime = startedAtUtc
         };
 
         _sessions[session.Id] = session;
@@ -49,17 +51,38 @@ public class GameSessionService : IGameSessionService
         return Task.FromResult(session);
     }
 
+    public GameSession? FindSessionByProcessId(int processId) =>
+        _sessions.Values.FirstOrDefault(s => s.ProcessId == processId);
+
     public Task CloseSessionAsync(string sessionId)
     {
         if (_sessions.TryGetValue(sessionId, out var session))
         {
+            _journal.WriteRelaunchMinimized(session.AccountId, session.ServerId, session.WasMinimized);
             session.Status = GameSessionStatus.Offline;
             _sessions.Remove(sessionId);
             _journal.Delete(sessionId);
-            _logger.LogInformation("Session closed: {Id}", sessionId);
+            _logger.LogInformation(
+                "Session closed: {Id} (wasMinimized: {WasMinimized})",
+                sessionId, session.WasMinimized);
         }
         return Task.CompletedTask;
     }
+
+    public void UpdateMinimizedState(string sessionId, bool wasMinimized)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session))
+            return;
+
+        if (session.WasMinimized == wasMinimized)
+            return;
+
+        session.WasMinimized = wasMinimized;
+        _journal.Write(session);
+    }
+
+    public bool GetRelaunchWasMinimized(string accountId, string serverId) =>
+        _journal.GetRelaunchWasMinimized(accountId, serverId);
 
     public async Task RecordHeartbeatAsync(string sessionId, HeartbeatData heartbeatData)
     {
@@ -69,7 +92,7 @@ public class GameSessionService : IGameSessionService
         session.LastHeartbeatTime = heartbeatData.Timestamp;
         session.CharacterName = heartbeatData.CharacterName;
         session.Status = heartbeatData.Status;
-        session.UptimeSeconds = heartbeatData.UptimeSeconds;
+        session.UptimeSeconds = session.GetAliveSeconds();
     }
 
     public Task<IEnumerable<GameSession>> GetActiveSessionsAsync()
@@ -87,7 +110,7 @@ public class GameSessionService : IGameSessionService
     public Task RestoreSessionAsync(GameSession session)
     {
         _sessions[session.Id] = session;
-        _logger.LogInformation("Session restored from journal: {Id} PID {Pid}", session.Id, session.ProcessId);
+        _logger.LogDebug("Session restored from journal: {Id} PID {Pid}", session.Id, session.ProcessId);
         return Task.CompletedTask;
     }
 }

@@ -1,22 +1,18 @@
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
+using ShadowLauncher.Infrastructure.Paths;
 using ShadowLauncher.Services.GameSessions;
 
 namespace ShadowLauncher.Infrastructure.FileSystem;
 
 /// <summary>
-/// Reads heartbeat status files written by ThwargFilter (Decal plugin).
-/// ThwargFilter writes to: %AppData%\ThwargLauncher\Running\game_{pid}.txt
-/// Format is line-based Key:Value pairs.
+/// Reads heartbeat status files written by ShadowFilter (Decal plugin).
+/// ShadowFilter writes to: %LocalAppData%\ShadowLauncher\Running\game_{pid}.txt
 /// </summary>
 public class HeartbeatReader : IHeartbeatReader
 {
-    private static readonly string ThwargRunningFolder = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "ThwargLauncher", "Running");
-
     public string GetHeartbeatFilePath(int processId)
-        => Path.Combine(ThwargRunningFolder, $"game_{processId}.txt");
+        => ShadowLauncherPaths.GetHeartbeatFilePath(processId);
 
     public async Task<HeartbeatData?> ReadHeartbeatAsync(int processId)
     {
@@ -24,9 +20,11 @@ public class HeartbeatReader : IHeartbeatReader
 
         try
         {
-            // Read with FileShare.ReadWrite since ThwargFilter may be writing.
-            // Open directly and let the not-found exceptions below stand in for an
-            // existence check — avoids a redundant stat and the TOCTOU race.
+            if (!File.Exists(path))
+                return null;
+
+            var lastWriteUtc = File.GetLastWriteTimeUtc(path);
+
             string text;
             using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             using (var reader = new StreamReader(stream))
@@ -34,14 +32,15 @@ public class HeartbeatReader : IHeartbeatReader
                 text = await reader.ReadToEndAsync();
             }
 
-            // Parse only the handful of fields we actually consume rather than
-            // materializing a dictionary of every key in the file. EnumerateLines
-            // is allocation-free and handles CRLF natively.
+            if (string.IsNullOrWhiteSpace(text))
+                return null;
+
             string? fileVersion = null;
             string? actualCharacterName = null;
             string? characterName = null;
             string? uptimeSeconds = null;
             string? isOnlineStr = null;
+            string? teamList = null;
 
             foreach (var line in text.AsSpan().EnumerateLines())
             {
@@ -51,7 +50,6 @@ public class HeartbeatReader : IHeartbeatReader
                 var key = line[..colonIndex].Trim();
                 var value = line[(colonIndex + 1)..].Trim();
 
-                // Last occurrence wins, matching the prior dictionary overwrite semantics.
                 if (key.Equals("FileVersion", StringComparison.OrdinalIgnoreCase))
                     fileVersion = value.ToString();
                 else if (key.Equals("ActualCharacterName", StringComparison.OrdinalIgnoreCase))
@@ -62,9 +60,10 @@ public class HeartbeatReader : IHeartbeatReader
                     uptimeSeconds = value.ToString();
                 else if (key.Equals("IsOnline", StringComparison.OrdinalIgnoreCase))
                     isOnlineStr = value.ToString();
+                else if (key.Equals("TeamList", StringComparison.OrdinalIgnoreCase))
+                    teamList = value.ToString();
             }
 
-            // Verify file version compatibility (accept 1.x heartbeat schema only).
             if (fileVersion is not null && !fileVersion.StartsWith("1."))
                 return null;
 
@@ -73,11 +72,12 @@ public class HeartbeatReader : IHeartbeatReader
             var heartbeat = new HeartbeatData
             {
                 CharacterName = resolvedCharacterName,
+                TeamList = teamList ?? string.Empty,
                 UptimeSeconds = int.TryParse(uptimeSeconds, out var up) ? up : 0,
-                Timestamp = DateTime.UtcNow
+                // Prefer file write time so kill timers measure real silence, not "now".
+                Timestamp = lastWriteUtc
             };
 
-            // Determine status from IsOnline field
             if (isOnlineStr is not null && bool.TryParse(isOnlineStr, out var isOnline) && isOnline)
             {
                 heartbeat.Status = !string.IsNullOrEmpty(resolvedCharacterName)
@@ -102,6 +102,20 @@ public class HeartbeatReader : IHeartbeatReader
         catch
         {
             return null;
+        }
+    }
+
+    public static void DeleteHeartbeatFile(int processId)
+    {
+        try
+        {
+            var path = ShadowLauncherPaths.GetHeartbeatFilePath(processId);
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch
+        {
+            // Best effort.
         }
     }
 }

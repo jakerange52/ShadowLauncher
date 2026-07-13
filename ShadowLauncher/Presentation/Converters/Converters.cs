@@ -30,15 +30,18 @@ public class UptimeConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        if (value is not int seconds || seconds <= 0)
-            return "0m";
+        if (value is not int seconds || seconds < 0)
+            return "0s";
+
+        if (seconds < 60)
+            return $"{seconds}s";
 
         var ts = TimeSpan.FromSeconds(seconds);
         if (ts.TotalDays >= 1)
             return $"{(int)ts.TotalDays}d {ts.Hours}h {ts.Minutes}m";
         if (ts.TotalHours >= 1)
             return $"{(int)ts.TotalHours}h {ts.Minutes}m";
-        return $"{ts.Minutes}m";
+        return $"{(int)ts.TotalMinutes}m";
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

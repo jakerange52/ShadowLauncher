@@ -11,7 +11,7 @@ A multi-boxing launcher for Asheron's Call private servers. Launch and manage mu
 - **Server browser** — fetch and browse community server listings, add servers in one click
 - **DAT management** — servers can require alternate DAT files (e.g. expansion content, custom worlds); ShadowLauncher fetches and caches them automatically from a community DAT registry, then uses hard links to point each client at the correct set — no manual file swapping required
 - **Decal support** — inject [Decal](http://decaldev.com) into each client for plugin support
-- **Login commands** — send ThwargFilter login commands globally or per-character after login
+- **Login commands** — send ShadowFilter login commands globally or per-character after login
 - **Auto-update** — checks GitHub Releases and installs updates in-app
 
 ---
@@ -22,9 +22,9 @@ A multi-boxing launcher for Asheron's Call private servers. Launch and manage mu
 - [.NET 10 Desktop Runtime (x86)](https://dotnet.microsoft.com/download/dotnet/10.0) — installed automatically by the setup wizard
 - An Asheron's Call client (`acclient.exe`) and associated DAT files
 - **[Decal](http://decaldev.com)** — required for login automation and plugin support
-- **[ThwargFilter](https://github.com/ThwargLauncher/ThwargLauncher)** — required for login commands and per-character automation
+- **Decal + ShadowFilter** — required for login commands, heartbeat monitoring, and per-character automation (included in Full Install)
 
-> **Note:** Basic launching and server browsing work without Decal/ThwargFilter. Account auto-login, login commands, and per-character scripting require both to be installed and configured.
+> **Note:** Basic launching and server browsing work without Decal/ShadowFilter. Account auto-login, login commands, and per-character scripting require Decal with ShadowFilter enabled.
 
 ---
 
@@ -62,12 +62,13 @@ To override the version:
 
 ## Releasing a new version
 
-1. Update `<Version>` in `ShadowLauncher\ShadowLauncher.csproj`, `ShadowLauncher.Installer\ShadowLauncher.Installer.wixproj`, and `ShadowLauncher.Installer.Bundle\ShadowLauncher.Installer.Bundle.wixproj` (all three must match)
-2. Open a PR and merge to `master`
-3. GitHub Actions builds the installer and publishes a GitHub Release tagged `vx.y.z` with a summary of merged PRs
-4. Verify the release asset (`ShadowLauncher-Setup.exe`) and notes on the [Releases](../../releases) page
+1. Ensure the Actions secret `DECAL_ADAPTER_DLL_BASE64` is set (base64 of `Decal.Adapter.dll` — see `externals/Decal/README.md`). Hosted runners do not have Decal installed.
+2. Update `<Version>` in `ShadowLauncher\ShadowLauncher.csproj`, `ShadowLauncher.Installer\ShadowLauncher.Installer.wixproj`, and `ShadowLauncher.Installer.Bundle\ShadowLauncher.Installer.Bundle.wixproj` (all three must match)
+3. Open a PR and merge to `master`
+4. GitHub Actions builds the installer and publishes a GitHub Release tagged `vx.y.z` with a summary of merged PRs
+5. Verify the release asset (`ShadowLauncher-Setup.exe`) and notes on the [Releases](../../releases) page
 
-Merges that do not bump the version are skipped automatically. To release locally instead, run `.\Build-Installer.ps1 -Version x.y.z` and upload the output manually.
+Merges that do not bump the version (or that target a version ≤ the latest existing release tag) are skipped automatically. To release locally instead, run `.\Build-Installer.ps1 -Version x.y.z` and upload the output manually.
 
 Users with the app installed will be notified via **Settings → Check for Updates**.
 

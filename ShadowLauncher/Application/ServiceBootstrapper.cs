@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
+using ShadowLauncher.Infrastructure.Channels;
 using ShadowLauncher.Infrastructure.Configuration;
 using ShadowLauncher.Infrastructure.FileSystem;
 using ShadowLauncher.Infrastructure.Logging;
@@ -74,6 +75,9 @@ public static class ServiceBootstrapper
         services.AddSingleton<IServerService, ServerService>();
         services.AddSingleton<IGameSessionService, GameSessionService>();
         services.AddSingleton<IGameLauncher, GameLauncher>();
+        services.AddSingleton<GameWindowPlacementStore>();
+        services.AddSingleton<GameWindowPlacementService>();
+        services.AddSingleton<ChannelRelayService>();
         services.AddSingleton<IGameMonitor, GameMonitor>();
         services.AddSingleton<LoginCommandsService>();
         services.AddSingleton<FirstRunService>();

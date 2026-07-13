@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using ShadowLauncher.Core.Interfaces;
+using ShadowLauncher.Infrastructure.Decal;
+using ShadowLauncher.Infrastructure.Paths;
 using ShadowLauncher.Infrastructure.Persistence;
 
 namespace ShadowLauncher.Application;
@@ -32,10 +34,15 @@ public class FirstRunService
         @"C:\Program Files\Asheron's Call\acclient.exe",
     ];
 
-    // ThwargLauncher stores accounts in %LocalAppData%\ThwargLauncher\Accounts.txt
-    private static readonly string ThwargAccountsFile = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "ThwargLauncher", "Accounts.txt");
+    private static readonly string[] ShadowLauncherInstallCandidates =
+    [
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "ShadowLauncher"),
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "ShadowLauncher"),
+    ];
+
+    private static readonly string LegacyThwargAppDataFolder = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "ThwargLauncher");
 
     public FirstRunService(
         IConfigurationProvider config,
@@ -55,6 +62,8 @@ public class FirstRunService
     {
         TryDetectGameClient();
         await TryImportThwargAccountsAsync();
+        TryImportLegacyThwargFilterData();
+        TryEnsureShadowFilterRegistered();
     }
 
     /// <summary>
@@ -99,7 +108,7 @@ public class FirstRunService
         var existing = _config.GetSetting("HardLinkBasePath");
         if (!string.IsNullOrWhiteSpace(existing) && Directory.Exists(existing))
         {
-            _logger.LogInformation("ACBase already prepared at {Path}", existing);
+            _logger.LogDebug("ACBase already prepared at {Path}", existing);
             return existing;
         }
 
@@ -203,10 +212,14 @@ public class FirstRunService
             if (existing.Any())
                 return;
 
-            if (!File.Exists(ThwargAccountsFile))
+            var thwargAccountsFile = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ThwargLauncher", "Accounts.txt");
+
+            if (!File.Exists(thwargAccountsFile))
                 return;
 
-            var lines = await File.ReadAllLinesAsync(ThwargAccountsFile);
+            var lines = await File.ReadAllLinesAsync(thwargAccountsFile);
             var imported = 0;
 
             foreach (var line in lines)
@@ -243,6 +256,71 @@ public class FirstRunService
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "First-run: could not import ThwargLauncher accounts");
+        }
+    }
+
+    private void TryImportLegacyThwargFilterData()
+    {
+        try
+        {
+            if (!Directory.Exists(LegacyThwargAppDataFolder))
+                return;
+
+            Directory.CreateDirectory(ShadowLauncherPaths.AppFolder);
+
+            CopyDirectoryIfMissing(
+                Path.Combine(LegacyThwargAppDataFolder, "LoginCommands"),
+                ShadowLauncherPaths.LoginCommandsFolder);
+
+            CopyDirectoryIfMissing(
+                Path.Combine(LegacyThwargAppDataFolder, "characters"),
+                ShadowLauncherPaths.CharactersFolder);
+
+            var legacyDefaults = Path.Combine(LegacyThwargAppDataFolder, "DefaultCharacters.json");
+            if (File.Exists(legacyDefaults) && !File.Exists(ShadowLauncherPaths.DefaultCharactersFile))
+                File.Copy(legacyDefaults, ShadowLauncherPaths.DefaultCharactersFile, overwrite: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "First-run: could not import legacy ThwargFilter data");
+        }
+    }
+
+    private static void CopyDirectoryIfMissing(string sourceDir, string destDir)
+    {
+        if (!Directory.Exists(sourceDir))
+            return;
+
+        Directory.CreateDirectory(destDir);
+        foreach (var file in Directory.GetFiles(sourceDir))
+        {
+            var dest = Path.Combine(destDir, Path.GetFileName(file));
+            if (!File.Exists(dest))
+                File.Copy(file, dest, overwrite: false);
+        }
+    }
+
+    private void TryEnsureShadowFilterRegistered()
+    {
+        try
+        {
+            if (ShadowFilterDecalRegistration.IsRegisteredAndEnabled())
+                return;
+
+            foreach (var installDir in ShadowLauncherInstallCandidates)
+            {
+                if (ShadowFilterDecalRegistration.TryInstallFromShadowLauncherFolder(installDir))
+                {
+                    _logger.LogInformation("First-run: registered ShadowFilter with Decal from {InstallDir}", installDir);
+                    return;
+                }
+            }
+
+            _logger.LogDebug("First-run: ShadowFilter is not registered with Decal");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "First-run: could not register ShadowFilter with Decal");
         }
     }
 }

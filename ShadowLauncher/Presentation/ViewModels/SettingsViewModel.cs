@@ -5,6 +5,7 @@ using System.Windows.Input;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Infrastructure;
 using ShadowLauncher.Infrastructure.Updates;
+using ShadowLauncher.Presentation.Views;
 
 namespace ShadowLauncher.Presentation.ViewModels;
 
@@ -20,6 +21,8 @@ public class SettingsViewModel : ViewModelBase
     private string _currentThemeName;
     private bool _datDeveloperMode;
     private bool _attemptDecalInjection;
+    private bool _saveGameWindows;
+    private bool _restoreGameWindows;
     private CancellationTokenSource? _downloadCts;
 
     public SettingsViewModel(IConfigurationProvider config, UpdateChecker updateChecker, ThemeService themeService)
@@ -31,6 +34,8 @@ public class SettingsViewModel : ViewModelBase
         _currentThemeName = _themeService.CurrentThemeName;
         _datDeveloperMode = _config.DatDeveloperMode;
         _attemptDecalInjection = _config.AttemptDecalInjection;
+        _saveGameWindows = _config.SaveGameWindows;
+        _restoreGameWindows = _config.RestoreGameWindows;
 
         SaveCommand = new RelayCommand(Save);
         BrowseDecalCommand = new RelayCommand(() => BrowseRequested?.Invoke(this, nameof(DecalPath)));
@@ -64,6 +69,18 @@ public class SettingsViewModel : ViewModelBase
     {
         get => _attemptDecalInjection;
         set => SetProperty(ref _attemptDecalInjection, value);
+    }
+
+    public bool SaveGameWindows
+    {
+        get => _saveGameWindows;
+        set => SetProperty(ref _saveGameWindows, value);
+    }
+
+    public bool RestoreGameWindows
+    {
+        get => _restoreGameWindows;
+        set => SetProperty(ref _restoreGameWindows, value);
     }
 
     public string StatusText
@@ -121,6 +138,8 @@ public class SettingsViewModel : ViewModelBase
         _config.Theme = _currentThemeName;
         _config.DatDeveloperMode = DatDeveloperMode;
         _config.AttemptDecalInjection = AttemptDecalInjection;
+        _config.SaveGameWindows = SaveGameWindows;
+        _config.RestoreGameWindows = RestoreGameWindows;
         _config.Save();
 
         StatusText = "Settings saved.";
@@ -144,16 +163,8 @@ public class SettingsViewModel : ViewModelBase
             return;
         }
 
-        // Update available — ask the user whether to install now.
-        var answer = MessageBox.Show(
-            $"ShadowLauncher v{result.RemoteVersion} is available (you have v{result.CurrentVersion}).\n\n" +
-            (string.IsNullOrWhiteSpace(result.ReleaseNotes) ? string.Empty : result.ReleaseNotes.Trim() + "\n\n") +
-            "Download and install now? The app will restart automatically.",
-            "Update Available",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Information);
-
-        if (answer != MessageBoxResult.Yes) return;
+        if (!UpdateAvailableWindow.PromptInstall(result.CurrentVersion, result.RemoteVersion, result.ReleaseUrl))
+            return;
 
         if (string.IsNullOrWhiteSpace(result.DownloadUrl))
         {

@@ -1,23 +1,21 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Models;
+using ShadowLauncher.Infrastructure.Paths;
 
 namespace ShadowLauncher.Services.LoginCommands;
 
 /// <summary>
-/// Manages login commands that ThwargFilter executes after a character logs in.
-/// Writes files to %AppData%\ThwargLauncher\LoginCommands\ in ThwargFilter's format.
+/// Manages login commands that ShadowFilter executes after a character logs in.
+/// Writes files to %LocalAppData%\ShadowLauncher\LoginCommands\.
 /// Also manages default character selections per account/server.
 /// </summary>
 public class LoginCommandsService
 {
     private readonly ILogger<LoginCommandsService> _logger;
 
-    private static readonly string ThwargFolder = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ThwargLauncher");
-
-    private static readonly string LoginCommandsFolder = Path.Combine(ThwargFolder, "LoginCommands");
-    private static readonly string CharactersFolder = Path.Combine(ThwargFolder, "characters");
+    private static readonly string LoginCommandsFolder = ShadowLauncherPaths.LoginCommandsFolder;
+    private static readonly string CharactersFolder = ShadowLauncherPaths.CharactersFolder;
 
     public LoginCommandsService(ILogger<LoginCommandsService> logger)
     {
@@ -62,6 +60,26 @@ public class LoginCommandsService
         WriteCommandFile(path, commands, waitMs);
     }
 
+    public void AppendGlobalCommand(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+            return;
+
+        var existing = GetGlobalCommands();
+        var combined = string.IsNullOrEmpty(existing) ? command : existing + Environment.NewLine + command;
+        SetGlobalCommands(combined);
+    }
+
+    public void AppendCharacterCommand(string accountName, string serverName, string characterName, string command)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+            return;
+
+        var existing = GetCharacterCommands(accountName, serverName, characterName);
+        var combined = string.IsNullOrEmpty(existing) ? command : existing + Environment.NewLine + command;
+        SetCharacterCommands(accountName, serverName, characterName, combined);
+    }
+
     private string GetCharacterFilePath(string accountName, string serverName, string characterName)
         => Path.Combine(LoginCommandsFolder, $"LoginCommands-{accountName}-{serverName}-{characterName}.txt");
 
@@ -98,8 +116,7 @@ public class LoginCommandsService
     }
 
     /// <summary>
-    /// Reads character names from ThwargFilter's character files for a given server+account.
-    /// Files are at %AppData%\ThwargLauncher\characters\characters_{Server}_{Account}.txt
+    /// Reads character names from ShadowFilter's character files for a given server+account.
     /// Searches case-insensitively and also tries partial matches.
     /// </summary>
     public List<string> GetKnownCharacters(string serverName, string accountName)
@@ -154,7 +171,7 @@ public class LoginCommandsService
 
     // ═══════ Default Character Per Account/Server ═══════
 
-    private static readonly string DefaultCharactersFile = Path.Combine(ThwargFolder, "DefaultCharacters.json");
+    private static readonly string DefaultCharactersFile = ShadowLauncherPaths.DefaultCharactersFile;
 
     /// <summary>
     /// Gets the default character for an account/server combo.
@@ -217,7 +234,7 @@ public class LoginCommandsService
     // ═══════ Profile Snapshot / Apply ═══════
 
     /// <summary>
-    /// Reads all current ThwargFilter command files and default character selections
+    /// Reads all current login command files and default character selections
     /// into the given profile object so they can be persisted.
     /// </summary>
     public void SnapshotIntoProfile(LaunchProfile profile)
@@ -255,8 +272,7 @@ public class LoginCommandsService
     }
 
     /// <summary>
-    /// Writes a profile's stored commands and default character selections back to
-    /// ThwargFilter's files, replacing whatever was there.
+    /// Writes a profile's stored commands and default character selections back to disk,
     /// </summary>
     public void ApplyFromProfile(LaunchProfile profile)
     {

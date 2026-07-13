@@ -7,7 +7,12 @@ public interface IGameLauncher
     Task<LaunchResult> LaunchGameAsync(Account account, Server server);
     Task TerminateGameAsync(int processId);
     Task<bool> IsGameProcessRunningAsync(int processId);
-    void CleanupThwargFilterLaunchFile(string accountName, string serverName);
+    void CleanupShadowFilterLaunchFile(string accountName, string serverName);
+    void CleanupShadowFilterLaunchFileIfUnused(
+        string accountName,
+        string serverName,
+        IEnumerable<GameSession> activeSessions,
+        int exceptProcessId);
 }
 
 public class LaunchResult
