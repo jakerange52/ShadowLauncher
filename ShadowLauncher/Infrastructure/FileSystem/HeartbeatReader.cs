@@ -14,12 +14,8 @@ public class HeartbeatReader : IHeartbeatReader
 {
     public async Task<HeartbeatData?> ReadHeartbeatAsync(int processId)
     {
-        var shadowPath = ShadowLauncherPaths.GetHeartbeatFilePath(processId);
-        var data = await TryReadAsync(shadowPath);
-        if (data is not null)
-            return data;
-
-        return await TryReadAsync(ShadowLauncherPaths.GetThwargFilterHeartbeatFilePath(processId));
+        var data = await TryReadAsync(ShadowLauncherPaths.GetHeartbeatFilePath(processId));
+        return data ?? await TryReadAsync(ShadowLauncherPaths.GetThwargFilterHeartbeatFilePath(processId));
     }
 
     private static async Task<HeartbeatData?> TryReadAsync(string path)
@@ -34,9 +30,7 @@ public class HeartbeatReader : IHeartbeatReader
             string text;
             using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             using (var reader = new StreamReader(stream))
-            {
                 text = await reader.ReadToEndAsync();
-            }
 
             if (string.IsNullOrWhiteSpace(text))
                 return null;
@@ -73,42 +67,36 @@ public class HeartbeatReader : IHeartbeatReader
             if (fileVersion is not null && !fileVersion.StartsWith("1."))
                 return null;
 
-            var resolvedCharacterName = actualCharacterName ?? characterName ?? string.Empty;
+            // InGame from ActualCharacterName only — launch-file CharacterName is echoed while
+            // stuck on account-in-use and must not count as in-world.
+            var actual = NormalizeName(actualCharacterName);
+            var intended = NormalizeName(characterName);
+            var online = isOnlineStr is not null && bool.TryParse(isOnlineStr, out var on) && on;
 
-            var heartbeat = new HeartbeatData
+            return new HeartbeatData
             {
-                CharacterName = resolvedCharacterName,
+                ActualCharacterName = actual,
+                CharacterName = !string.IsNullOrEmpty(actual) ? actual : intended,
                 TeamList = teamList ?? string.Empty,
                 UptimeSeconds = int.TryParse(uptimeSeconds, out var up) ? up : 0,
-                // Prefer file write time so kill timers measure real silence, not "now".
-                Timestamp = lastWriteUtc
+                Timestamp = lastWriteUtc,
+                Status = online
+                    ? (!string.IsNullOrEmpty(actual) ? GameSessionStatus.InGame : GameSessionStatus.CharacterSelection)
+                    : GameSessionStatus.LoginScreen
             };
+        }
+        catch (FileNotFoundException) { return null; }
+        catch (DirectoryNotFoundException) { return null; }
+        catch { return null; }
+    }
 
-            if (isOnlineStr is not null && bool.TryParse(isOnlineStr, out var isOnline) && isOnline)
-            {
-                heartbeat.Status = !string.IsNullOrEmpty(resolvedCharacterName)
-                    ? GameSessionStatus.InGame
-                    : GameSessionStatus.CharacterSelection;
-            }
-            else
-            {
-                heartbeat.Status = GameSessionStatus.LoginScreen;
-            }
-
-            return heartbeat;
-        }
-        catch (FileNotFoundException)
-        {
-            return null;
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return null;
-        }
-        catch
-        {
-            return null;
-        }
+    private static string NormalizeName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return string.Empty;
+        if (string.Equals(name, "LoginNotComplete", StringComparison.OrdinalIgnoreCase))
+            return string.Empty;
+        return name.Trim();
     }
 
     public static void DeleteHeartbeatFile(int processId)
@@ -124,9 +112,6 @@ public class HeartbeatReader : IHeartbeatReader
             if (File.Exists(path))
                 File.Delete(path);
         }
-        catch
-        {
-            // Best effort.
-        }
+        catch { }
     }
 }

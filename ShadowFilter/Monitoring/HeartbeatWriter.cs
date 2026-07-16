@@ -28,6 +28,7 @@ internal static class HeartbeatWriter
     private static string _accountName = string.Empty;
     private static string _characterName = string.Empty;
     private static string _teamList = string.Empty;
+    private static bool _loginFailureActive;
 
     public static void BindServerDispatchTracker(Func<DateTime> tracker) => _lastServerDispatchUtc = tracker;
 
@@ -36,6 +37,14 @@ internal static class HeartbeatWriter
     public static void RecordServer(string serverName) => _serverName = serverName ?? string.Empty;
     public static void RecordAccount(string accountName) => _accountName = accountName ?? string.Empty;
     public static void RecordCharacterName(string characterName) => _characterName = characterName ?? string.Empty;
+
+    /// <summary>
+    /// OrderedDialog (0xF659) — e.g. "can't log on to the same account twice".
+    /// Keeps refreshing ServerDispatch so IsOnline would stay true without this flag.
+    /// </summary>
+    public static void RecordLoginFailure() => _loginFailureActive = true;
+
+    public static void ClearLoginFailure() => _loginFailureActive = false;
 
     public static void SendCommand(string commandString)
     {
@@ -73,6 +82,8 @@ internal static class HeartbeatWriter
     {
         lock (Locker)
         {
+            _loginFailureActive = false;
+
             if (_channel != null)
             {
                 var writer = new ChannelWriter();
@@ -256,10 +267,16 @@ internal static class HeartbeatWriter
     private static void WriteHeartbeat()
     {
         var lastDispatch = _lastServerDispatchUtc?.Invoke() ?? DateTime.MinValue;
-        var isOnline = lastDispatch == DateTime.MinValue
-            || (DateTime.UtcNow - lastDispatch).TotalSeconds < OfflineTimeoutSeconds;
+        // Login-failure dialogs still receive OrderedDialog (0xF659) traffic, which would
+        // keep IsOnline true forever while AutoRetryLogin hammers OK — force offline.
+        var isOnline = !_loginFailureActive
+            && (lastDispatch == DateTime.MinValue
+                || (DateTime.UtcNow - lastDispatch).TotalSeconds < OfflineTimeoutSeconds);
         var uptime = (int)(DateTime.Now - Process.GetCurrentProcess().StartTime).TotalSeconds;
-        var actualCharacter = CharacterFilterTools.SafeCharacterName(_characterName);
+        // Do not fall back to the launch-file character — that makes stuck login look InGame.
+        var actualCharacter = CharacterFilterTools.SafeCharacterName();
+        if (string.Equals(actualCharacter, "LoginNotComplete", StringComparison.OrdinalIgnoreCase))
+            actualCharacter = string.Empty;
         var assembly = Assembly.GetExecutingAssembly();
 
         var sb = new StringBuilder();
@@ -274,6 +291,7 @@ internal static class HeartbeatWriter
         sb.AppendLine($"ShadowFilterFilePath:{assembly.Location}");
         sb.AppendLine($"LogFilepath:{PluginLog.LogFilePath}");
         sb.AppendLine($"IsOnline:{isOnline.ToString().ToLowerInvariant()}");
+        sb.AppendLine($"LoginFailure:{_loginFailureActive.ToString().ToLowerInvariant()}");
         sb.AppendLine($"LastServerDispatchSecondsAgo:{(int)(DateTime.UtcNow - lastDispatch).TotalSeconds}");
         sb.AppendLine($"ActualServerName:{SafeServerName()}");
         sb.AppendLine($"ActualAccountName:{SafeAccountName()}");
