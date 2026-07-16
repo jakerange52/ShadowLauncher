@@ -44,7 +44,6 @@ internal sealed class FilterCommandParser
     private const string CmdJoinTeam2 = "jt ";
     private const string CmdLeaveTeam = "leaveteam ";
     private const string CmdLeaveTeam2 = "lt ";
-    private const string CmdTest = "test ";
     private const string CmdSetWindowTitle = "swt ";
     private const string CmdKillClient = "killclient";
     private const string CmdKillClient2 = "kc";
@@ -78,7 +77,6 @@ internal sealed class FilterCommandParser
         _handlers.Add(new CommandEntry(CmdJoinTeam2, JoinTeamHandler, null));
         _handlers.Add(new CommandEntry(CmdLeaveTeam, LeaveTeamHandler, "Leave a team"));
         _handlers.Add(new CommandEntry(CmdLeaveTeam2, LeaveTeamHandler, null));
-        _handlers.Add(new CommandEntry(CmdTest, TestHandler, "Execute raw command"));
         _handlers.Add(new CommandEntry(CmdSetWindowTitle, SetWindowTitleHandler, "Set window title"));
         _handlers.Add(new CommandEntry(CmdKillClient, KillClientHandler, "Kill current client"));
         _handlers.Add(new CommandEntry(CmdKillClient2, KillClientHandler, null));
@@ -190,12 +188,6 @@ internal sealed class FilterCommandParser
     {
         foreach (var team in command.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
             _teams.Remove(team);
-    }
-
-    private void TestHandler(string command)
-    {
-        if (!string.IsNullOrEmpty(command))
-            _executor.ExecuteCommand(command);
     }
 
     private void SetWindowTitleHandler(string command)

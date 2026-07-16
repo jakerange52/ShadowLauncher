@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using ShadowLauncher.Core.Interfaces;
-using ShadowLauncher.Infrastructure.Decal;
 using ShadowLauncher.Infrastructure.Paths;
 using ShadowLauncher.Infrastructure.Persistence;
 
@@ -34,12 +33,6 @@ public class FirstRunService
         @"C:\Program Files\Asheron's Call\acclient.exe",
     ];
 
-    private static readonly string[] ShadowLauncherInstallCandidates =
-    [
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "ShadowLauncher"),
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "ShadowLauncher"),
-    ];
-
     private static readonly string LegacyThwargAppDataFolder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "ThwargLauncher");
@@ -63,7 +56,6 @@ public class FirstRunService
         TryDetectGameClient();
         await TryImportThwargAccountsAsync();
         TryImportLegacyThwargFilterData();
-        TryEnsureShadowFilterRegistered();
     }
 
     /// <summary>
@@ -297,31 +289,6 @@ public class FirstRunService
             var dest = Path.Combine(destDir, Path.GetFileName(file));
             if (!File.Exists(dest))
                 File.Copy(file, dest, overwrite: false);
-        }
-    }
-
-    private void TryEnsureShadowFilterRegistered()
-    {
-        try
-        {
-            if (ShadowFilterDecalRegistration.IsRegisteredAndEnabled())
-                return;
-
-            foreach (var installDir in ShadowLauncherInstallCandidates)
-            {
-                if (ShadowFilterDecalRegistration.TryInstallFromShadowLauncherFolder(installDir))
-                {
-                    _logger.LogInformation("First-run: registered ShadowFilter with Decal from {InstallDir}", installDir);
-                    return;
-                }
-            }
-
-            _logger.LogDebug(
-                "First-run: ShadowFilter is not registered with Decal (elevated reinstall or add manually in Decal Agent)");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "First-run: could not register ShadowFilter with Decal");
         }
     }
 }

@@ -6,6 +6,7 @@ namespace ShadowFilter.Commands;
 
 internal sealed class LoginCommandExecutor
 {
+    private const string LogCategory = nameof(LoginCommandExecutor);
     private bool _freshLogin;
     private LoginCommands _commands = new();
     private DateTime _loginCompleteTime = DateTime.MaxValue;
@@ -35,7 +36,14 @@ internal sealed class LoginCommandExecutor
 
         _commands = LoginCommandLoader.ReadCombined(accountName, serverName, characterName);
         if (_commands.Commands.Count == 0)
+        {
+            PluginLog.Info(LogCategory,
+                $"No login commands for {serverName}/{accountName}/{characterName}");
             return;
+        }
+
+        PluginLog.Info(LogCategory,
+            $"Loaded {_commands.Commands.Count} login command(s) for {characterName}, wait={_commands.WaitMilliseconds}ms");
 
         _loginCompleteTime = DateTime.Now;
         if (!_renderHooked)
@@ -54,15 +62,18 @@ internal sealed class LoginCommandExecutor
 
             if (_commands.Commands.Count == 0)
             {
+                PluginLog.Info(LogCategory, "Login commands complete");
                 Detach();
                 return;
             }
 
             var cmd = _commands.Commands.Dequeue();
+            PluginLog.Info(LogCategory, $"Dispatching login command: {cmd}");
             DecalProxy.DispatchChatToBoxWithPluginIntercept(cmd);
         }
-        catch
+        catch (Exception ex)
         {
+            PluginLog.Error(LogCategory, "Login command dispatch failed", ex);
             Detach();
         }
     }

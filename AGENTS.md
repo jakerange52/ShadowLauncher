@@ -93,11 +93,11 @@ ShadowLauncher/
 
 **Launch pipeline:**
 
-1. `WriteShadowFilterLaunchFile()` — before process creation
+1. Dual-write launch files (ShadowFilter + ThwargFilter) — before process creation
 2. `ResolveInstancePathAsync()` — ensure DAT cache, call `IInstancePreparer`
 3. `HardLinkLauncher.PrepareInstanceAsync()` — build instance dir
 4. `DecalInjector.LaunchSuspendedAndInject()` — suspended start + inject
-5. Post-launch — `WindowTitleSetter`, instance cleanup watcher (intro/char-select clicks owned by ShadowFilter)
+5. Post-launch — `WindowTitleSetter`, instance cleanup watcher (intro/char-select: ThwargFilter if loaded, else ShadowFilter)
 
 DI wiring: `Application/ServiceBootstrapper.cs`.
 
@@ -134,7 +134,7 @@ Output: `ShadowLauncher.Installer.Bundle\bin\ShadowLauncher-Setup.exe`
 | ACBase copy | `Application/FirstRunService.cs` |
 | Server DAT config | `Core/Models/Server.cs` |
 | Instance strategy toggle | `Application/ServiceBootstrapper.cs` |
-| ShadowFilter | `ShadowFilter/` (Decal plugin), `Services/Launching/GameLauncher.cs`, `Infrastructure/Decal/ShadowFilterDecalRegistration.cs` |
+| Filter launch files / char select | `Services/Launching/GameLauncher.cs` (dual-write), `ShadowFilter/` (optional), HelpWindow (ThwargFilter welcome) |
 | DAT Manager UI | `Presentation/ViewModels/DatFetchViewModel.cs` |
 
 ## Manual verification (no test suite)
@@ -144,7 +144,8 @@ Output: `ShadowLauncher.Installer.Bundle\bin\ShadowLauncher-Setup.exe`
 3. **Multi-box (2+ clients, same server)** — distinct instance dirs, both Decal-loaded, both VTank/ShadowFilter functional
 4. **Program Files AC install** — ACBase copy once, hard links succeed after
 5. **No Decal** — single client via `Process.Start`, clear log message
-6. **ShadowFilter login commands** — fire on auto-login (launch file written pre-process)
+6. **ThwargFilter-only auto-login** — default character enters world without ShadowFilter registered
+7. **Optional ShadowFilter** — heartbeats under LocalAppData when registered; defers char-select if ThwargFilter also loaded
 
 Logs: `%LocalAppData%\ShadowLauncher\Logs\`
 

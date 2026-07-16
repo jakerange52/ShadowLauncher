@@ -147,7 +147,7 @@ public class GameMonitor : IGameMonitor
                     // Sampling unconditionally here loses the value the moment the AC window
                     // is replaced by the un-minimized "Connection lost" dialog.
 
-                    // Try to read heartbeat from ShadowFilter
+                    // ShadowFilter Running\ first, then ThwargFilter fallback
                     var heartbeat = await _heartbeatReader.ReadHeartbeatAsync(session.ProcessId);
 
                     if (heartbeat is not null)
@@ -199,7 +199,7 @@ public class GameMonitor : IGameMonitor
                     }
                     else
                     {
-                        // No file yet / unreadable — do not kill until ShadowFilter has written
+                        // No file yet / unreadable — do not kill until a filter has written
                         // at least once. Startup and plugin-load lag are normal.
                         if (!_seenHeartbeat.Contains(session.Id))
                             continue;

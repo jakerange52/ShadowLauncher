@@ -58,11 +58,11 @@ App.xaml.cs
 
 ```
 GameSessionService → GameLauncher.LaunchGameAsync()
-  → WriteShadowFilterLaunchFile()     ← MUST precede CreateProcess (4-tick window)
+  → Dual-write launch files           ← ShadowFilter + ThwargFilter (4-tick window)
   → ResolveInstancePathAsync()        ← DAT cache check + instance dir
   → LaunchWithDecal()                 ← DecalInjector or Process.Start fallback
   → WindowTitleSetter (taskbar identification)
-  → ShadowFilter (intro skip + char select when Decal injected)
+  → ThwargFilter and/or ShadowFilter  ← char select (ThwargFilter wins if both loaded)
   → WatchAndCleanupAsync()            ← delete instance dir on exit
 ```
 
@@ -101,11 +101,12 @@ Built in `GameLauncher.BuildLaunchArguments()`:
 - Legacy ThwargFilter LoginCommands/characters/DefaultCharacters.json imported once from `%AppData%\ThwargLauncher\` if ShadowLauncher copies don't exist
 - Warns if ThwargLauncher is already running (Decal/plugin conflicts)
 
-## ShadowFilter (first-party Decal plugin)
+## Decal filters (ThwargFilter welcome, ShadowFilter optional)
 
-- Built from `ShadowFilter/` — no ThwargLauncher dependency
-- IPC under `%LocalAppData%\ShadowLauncher\` (not `%AppData%\ThwargLauncher\`)
-- Setup registers as a Decal **network filter**: `HKLM\...\Decal\NetworkFilters\{guid}` with Path=`INSTALLFOLDER\ShadowFilter\` (ThwargFilter-compatible)
+- Users who already have **ThwargFilter** should keep it — ShadowLauncher dual-writes `%AppData%\ThwargLauncher\LaunchFiles\launch_ThwargFilter_*.txt` for character auto-login. Do not push ShadowFilter as required.
+- **ShadowFilter** is optional first-party plugin from `ShadowFilter/`; ships under `INSTALLFOLDER\ShadowFilter\`. Register only if wanted (**Settings → Help**).
+- ShadowFilter IPC: `%LocalAppData%\ShadowLauncher\`. Heartbeat reader also falls back to ThwargFilter `%AppData%\ThwargLauncher\Running\`.
+- When both filters load, ShadowFilter defers character-select clicks to ThwargFilter (`ParallelFilterGuard`).
 - Auto-login parity: ThwargFilter `LauncherChooseCharacterManager` — 4-tick timer on `0xF7EA`, Decal.Hwnd mouse clicks, exact-path launch file on `0xF7E1`
 
 ### Deploy updated ShadowFilter.dll
@@ -114,13 +115,13 @@ After building, copy with Decal and all clients closed (otherwise the Decal Agen
 
 ```powershell
 dotnet build ShadowFilter/ShadowFilter.csproj -c Release
-# Prefer installer registration (HKLM NetworkFilters → install dir).
-# For manual/dev: copy to a stable folder, then Add Filter in Decal Agent — never point at bin\Debug.
+# Add in Decal Agent: browse to INSTALLFOLDER\ShadowFilter\ShadowFilter.dll (see Settings → Help).
+# For dev: copy to a stable folder — never point Decal at bin\Debug.
 Copy-Item ShadowFilter\bin\Release\net472\ShadowFilter.dll, ShadowFilter\bin\Release\net472\Newtonsoft.Json.dll `
   "$env:USERPROFILE\Documents\Decal Plugins\ShadowFilter\" -Force
 ```
 
-Or run the full installer (`.\Build-Installer.ps1`) which registers NetworkFilters automatically.
+Or run `.\Build-Installer.ps1` and register via Decal Agent using **Settings → Help**.
 
 ### Manual auto-login checks
 

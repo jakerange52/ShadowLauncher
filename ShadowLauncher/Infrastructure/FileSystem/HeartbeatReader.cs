@@ -6,8 +6,9 @@ using ShadowLauncher.Services.GameSessions;
 namespace ShadowLauncher.Infrastructure.FileSystem;
 
 /// <summary>
-/// Reads heartbeat status files written by ShadowFilter (Decal plugin).
-/// ShadowFilter writes to: %LocalAppData%\ShadowLauncher\Running\game_{pid}.txt
+/// Reads heartbeat status files from ShadowFilter or ThwargFilter.
+/// Prefers %LocalAppData%\ShadowLauncher\Running\, then falls back to
+/// %AppData%\ThwargLauncher\Running\ so ThwargFilter-only installs still monitor.
 /// </summary>
 public class HeartbeatReader : IHeartbeatReader
 {
@@ -16,8 +17,16 @@ public class HeartbeatReader : IHeartbeatReader
 
     public async Task<HeartbeatData?> ReadHeartbeatAsync(int processId)
     {
-        var path = GetHeartbeatFilePath(processId);
+        var shadowPath = ShadowLauncherPaths.GetHeartbeatFilePath(processId);
+        var data = await TryReadAsync(shadowPath);
+        if (data is not null)
+            return data;
 
+        return await TryReadAsync(ShadowLauncherPaths.GetThwargFilterHeartbeatFilePath(processId));
+    }
+
+    private static async Task<HeartbeatData?> TryReadAsync(string path)
+    {
         try
         {
             if (!File.Exists(path))
@@ -107,9 +116,14 @@ public class HeartbeatReader : IHeartbeatReader
 
     public static void DeleteHeartbeatFile(int processId)
     {
+        TryDelete(ShadowLauncherPaths.GetHeartbeatFilePath(processId));
+        TryDelete(ShadowLauncherPaths.GetThwargFilterHeartbeatFilePath(processId));
+    }
+
+    private static void TryDelete(string path)
+    {
         try
         {
-            var path = ShadowLauncherPaths.GetHeartbeatFilePath(processId);
             if (File.Exists(path))
                 File.Delete(path);
         }

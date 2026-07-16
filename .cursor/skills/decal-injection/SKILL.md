@@ -91,7 +91,7 @@ Do not try to share one acclient process across accounts. That's not how Decal p
 
 ShadowFilter is a first-party Decal plugin (`ShadowFilter/`). It reads the launch file written by `GameLauncher.WriteShadowFilterLaunchFile()` and acts on first server connect. Its timer runs **four ticks** (states 0–3) then stops permanently. The launch file must exist before `CreateProcess` — same constraint ThwargLauncher/optimshi enforced.
 
-Without Decal injection, ShadowFilter never loads and login commands are dead code. Setup registers ShadowFilter with Decal automatically; FirstRun retries registration if Decal was installed later.
+Without Decal injection, ShadowFilter never loads and login commands are dead code. Players add ShadowFilter in Decal Agent manually — **Settings → Help** in ShadowLauncher has step-by-step instructions.
 
 ## Debugging — veteran checklist
 
@@ -129,7 +129,7 @@ Export a Decal log (Decal tray → Help → export) when plugin issues persist p
 |------|------|
 | `Infrastructure/Native/DecalInjector.cs` | P/Invoke, injection |
 | `Services/Launching/GameLauncher.cs` | Orchestration, ShadowFilter launch file, fallback |
-| `Infrastructure/Decal/ShadowFilterDecalRegistration.cs` | First-run Decal plugin registration |
+| `Presentation/Views/HelpWindow.xaml` | Manual ShadowFilter + Decal setup steps |
 | `Infrastructure/Configuration/AppConfiguration.cs` | `DecalPath` |
 | `Presentation/ViewModels/SettingsViewModel.cs` | Decal path UI |
 | `Infrastructure/Native/HardLinkLauncher.cs` | Instance CWD for custom DATs |

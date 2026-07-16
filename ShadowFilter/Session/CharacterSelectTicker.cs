@@ -17,20 +17,11 @@ internal sealed class CharacterSelectTicker
         _timer.Tick += OnTimerTick;
     }
 
-    public bool IsRunning => _timer.Enabled;
-
     public void Start(Action onLogin)
     {
         _state = 0;
         _onLogin = onLogin;
         _timer.Start();
-    }
-
-    public void Stop()
-    {
-        _timer.Stop();
-        _state = 0;
-        _onLogin = null;
     }
 
     private void OnTimerTick(object? sender, EventArgs e)
@@ -48,8 +39,9 @@ internal sealed class CharacterSelectTicker
 
             _state++;
         }
-        catch
+        catch (Exception ex)
         {
+            PluginLog.Error(nameof(CharacterSelectTicker), "Ticker tick failed", ex);
             _timer.Stop();
         }
     }

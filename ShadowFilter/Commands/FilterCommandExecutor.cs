@@ -1,5 +1,3 @@
-using Decal.Adapter;
-
 namespace ShadowFilter.Commands;
 
 internal sealed class FilterCommandExecutor

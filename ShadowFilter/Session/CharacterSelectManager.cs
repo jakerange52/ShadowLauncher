@@ -5,12 +5,12 @@ namespace ShadowFilter.Session;
 
 /// <summary>
 /// Auto-selects the character named in the ShadowLauncher launch file on 0xF7EA.
+/// Defers to ThwargFilter when both filters are loaded (ShadowLauncher dual-writes its launch files).
 /// </summary>
 internal sealed class CharacterSelectManager
 {
     private readonly LoginCharacterTools _loginCharacterTools;
     private readonly CharacterSelectTicker _ticker = new();
-    private string _zoneName = string.Empty;
     private string _serverName = string.Empty;
     private Func<LaunchInfo>? _getLaunchInfo;
 
@@ -23,9 +23,6 @@ internal sealed class CharacterSelectManager
 
     public void OnServerDispatch(NetworkMessageEventArgs e)
     {
-        if (e.Message.Type == 0xF658)
-            _zoneName = Convert.ToString(e.Message["zonename"]) ?? string.Empty;
-
         if (e.Message.Type == 0xF7E1)
         {
             _serverName = Convert.ToString(e.Message["server"]) ?? string.Empty;
@@ -40,19 +37,49 @@ internal sealed class CharacterSelectManager
 
     private void TryStartLaunchFileSelect()
     {
-        var launchInfo = _getLaunchInfo?.Invoke() ?? new LaunchInfo();
-        if (!launchInfo.IsValid ||
-            !launchInfo.HasValidCharacterName ||
-            !launchInfo.IsRecentLaunch ||
-            !string.Equals(launchInfo.ServerName, _serverName, StringComparison.OrdinalIgnoreCase))
+        if (ParallelFilterGuard.IsThwargFilterLoaded())
         {
+            PluginLog.Info(nameof(CharacterSelectManager),
+                "Deferring character select to ThwargFilter (both filters loaded)");
             return;
         }
+
+        var launchInfo = _getLaunchInfo?.Invoke() ?? new LaunchInfo();
+        if (!launchInfo.IsValid)
+        {
+            PluginLog.Info(nameof(CharacterSelectManager), "Skipping launch-file select: no valid launch file");
+            return;
+        }
+
+        if (!launchInfo.HasValidCharacterName)
+        {
+            PluginLog.Info(nameof(CharacterSelectManager), "Skipping launch-file select: no character in launch file");
+            return;
+        }
+
+        if (!string.Equals(launchInfo.ServerName, _serverName, StringComparison.OrdinalIgnoreCase))
+        {
+            PluginLog.Info(nameof(CharacterSelectManager),
+                $"Skipping launch-file select: server mismatch (launch={launchInfo.ServerName}, packet={_serverName})");
+            return;
+        }
+
+        PluginLog.Info(nameof(CharacterSelectManager),
+            $"Starting 4-tick char select for {launchInfo.CharacterName} on {launchInfo.ServerName}");
 
         _ticker.Start(() =>
         {
             if (_loginCharacterTools.LoginCharacter(launchInfo.CharacterName))
+            {
+                PluginLog.Info(nameof(CharacterSelectManager),
+                    $"Logged in character {launchInfo.CharacterName}");
                 Monitoring.HeartbeatWriter.RecordCharacterName(launchInfo.CharacterName);
+            }
+            else
+            {
+                PluginLog.Warn(nameof(CharacterSelectManager),
+                    $"LoginCharacter failed for {launchInfo.CharacterName}");
+            }
         });
     }
 }

@@ -7,6 +7,7 @@ internal static class FilterPaths
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "ShadowLauncher");
 
+    public static string LogsFolder => Ensure(Path.Combine(AppFolder, "Logs", "ShadowFilter"));
     public static string LaunchFilesFolder => Ensure(Path.Combine(AppFolder, "LaunchFiles"));
     public static string RunningFolder => Ensure(Path.Combine(AppFolder, "Running"));
     public static string LoginCommandsFolder => Ensure(Path.Combine(AppFolder, "LoginCommands"));
@@ -31,6 +32,7 @@ internal static class FilterPaths
 
     public static void EnsureDataFoldersExist()
     {
+        _ = LogsFolder;
         _ = LaunchFilesFolder;
         _ = RunningFolder;
         _ = LoginCommandsFolder;

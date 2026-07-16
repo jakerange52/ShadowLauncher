@@ -4,7 +4,6 @@ namespace ShadowFilter.Launch;
 
 internal sealed class LaunchInfo
 {
-    public const string MasterFileVersion = "1.2";
     public const string MasterFileVersionCompat = "1";
 
     public bool IsValid { get; set; }
@@ -17,12 +16,11 @@ internal sealed class LaunchInfo
     public bool HasValidCharacterName =>
         !string.IsNullOrEmpty(CharacterName) &&
         !string.Equals(CharacterName, "None", StringComparison.OrdinalIgnoreCase);
-
-    public bool IsRecentLaunch => DateTime.UtcNow - LaunchTimeUtc < TimeSpan.FromMinutes(5);
 }
 
 internal static class LaunchFileReader
 {
+    private const string LogCategory = nameof(LaunchFileReader);
     private static readonly TimeSpan MaxLatency = TimeSpan.FromSeconds(45);
 
     /// <summary>
@@ -42,13 +40,21 @@ internal static class LaunchFileReader
                 var info = ReadFile(path);
                 if (!info.IsValid)
                 {
-                    try { File.Delete(path); } catch { /* best effort */ }
+                    try
+                    {
+                        File.Delete(path);
+                        PluginLog.Info(LogCategory, $"Deleted stale launch file: {Path.GetFileName(path)}");
+                    }
+                    catch (Exception ex)
+                    {
+                        PluginLog.Warn(LogCategory, $"Failed to delete stale launch file: {path}", ex);
+                    }
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Non-fatal.
+            PluginLog.Warn(LogCategory, "DeleteStaleLaunchFiles failed", ex);
         }
     }
 
@@ -57,9 +63,19 @@ internal static class LaunchFileReader
         if (string.IsNullOrWhiteSpace(serverName) || string.IsNullOrWhiteSpace(accountName))
             return new LaunchInfo();
 
-        var info = ReadFile(FilterPaths.GetLaunchFilePath(serverName, accountName));
+        var path = FilterPaths.GetLaunchFilePath(serverName, accountName);
+        var info = ReadFile(path);
         if (info.IsValid)
+        {
+            PluginLog.Info(LogCategory,
+                $"Launch file valid for {serverName}/{accountName}, character={info.CharacterName}");
             return info;
+        }
+
+        if (File.Exists(path))
+            PluginLog.Info(LogCategory, $"Launch file stale or invalid: {Path.GetFileName(path)}");
+        else
+            PluginLog.Info(LogCategory, $"No launch file at {Path.GetFileName(path)}");
 
         // Exact path only — never scan the launch folder; with multiple clients a scan
         // can return another account's file (most recent wins).
@@ -91,9 +107,9 @@ internal static class LaunchFileReader
             info.CharacterName = KeyValueFile.GetString(settings, "CharacterName");
             info.IsValid = true;
         }
-        catch
+        catch (Exception ex)
         {
-            // Invalid launch file — treat as missing.
+            PluginLog.Warn(LogCategory, $"Failed to read launch file: {path}", ex);
         }
 
         return info;

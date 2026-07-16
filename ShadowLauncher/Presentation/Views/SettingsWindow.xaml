@@ -56,7 +56,7 @@
             <Button Content="Global Login Commands" HorizontalAlignment="Left"
                     Padding="12,4" Margin="0,0,8,0"
                     Click="OpenLoginCommands_Click"
-                    ToolTip="Edit global login commands sent after login via ShadowFilter (all characters)"/>
+                    ToolTip="Edit global login commands sent after character login (requires ShadowFilter or ThwargFilter)"/>
             <Button Content="&#x1F464; Per Character" HorizontalAlignment="Left"
                     Padding="12,4" Margin="0,0,8,0"
                     Click="OpenPerCharacterLoginCommands_Click"
@@ -99,7 +99,7 @@
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right"
                         VerticalAlignment="Center">
                 <Button Content="&#x2753; Help" Padding="12,6" Margin="0,0,8,0"
-                        Click="OpenHelp_Click" ToolTip="Setup instructions for multi-clienting"/>
+                        Click="OpenHelp_Click" ToolTip="Setup instructions (ThwargFilter welcome; ShadowFilter optional)"/>
                 <Button Content="Cancel" Padding="16,6" Margin="0,0,8,0" IsCancel="True"/>
                 <Button Content="Save" Padding="16,6" FontWeight="Bold"
                         Command="{Binding SaveCommand}"/>

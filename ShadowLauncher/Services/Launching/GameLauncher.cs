@@ -83,10 +83,11 @@ public class GameLauncher : IGameLauncher
             var defaultChar = _loginCommandsService.GetDefaultCharacter(account.Name, server.Name);
             var launchCharacter = (string.IsNullOrEmpty(defaultChar) || defaultChar == "any") ? "None" : defaultChar;
 
-            // Write ShadowFilter launch file BEFORE starting the process.
-            // ShadowFilter's timer starts on first server connect and only runs 4 ticks (states 0-3)
-            // before stopping permanently. The file must exist by then.
+            // Write launch files BEFORE starting the process (4-tick window after connect).
+            // ThwargFilter path: users who already have ThwargFilter need no ShadowFilter.
+            // ShadowFilter path: optional first-party filter; defers char-select if Thwarg is loaded.
             WriteShadowFilterLaunchFile(account.Name, server.Name, launchCharacter);
+            WriteThwargFilterLaunchFile(account.Name, server.Name, launchCharacter);
 
             // ── Resolve which exe/directory to launch from ──────────────────────
             var env = await ResolveInstancePathAsync(server, clientPath, result);
@@ -431,6 +432,20 @@ public class GameLauncher : IGameLauncher
         {
             _logger.LogWarning(ex, "Failed to remove ShadowFilter launch file");
         }
+
+        try
+        {
+            var thwargPath = ShadowLauncherPaths.GetThwargFilterLaunchFilePath(serverName, accountName);
+            if (File.Exists(thwargPath))
+            {
+                File.Delete(thwargPath);
+                _logger.LogDebug("Removed ThwargFilter launch file for {Account} on {Server}", accountName, serverName);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to remove ThwargFilter launch file");
+        }
     }
 
     /// <summary>
@@ -474,6 +489,31 @@ public class GameLauncher : IGameLauncher
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to write ShadowFilter launch file");
+        }
+    }
+
+    /// <summary>
+    /// Dual-writes a ThwargFilter launch file so ThwargFilter can auto-login when loaded
+    /// alongside ShadowFilter. Same key/value format ThwargLauncher uses.
+    /// </summary>
+    private void WriteThwargFilterLaunchFile(string accountName, string serverName, string characterName)
+    {
+        try
+        {
+            Directory.CreateDirectory(ShadowLauncherPaths.ThwargLaunchFilesFolder);
+            var filePath = ShadowLauncherPaths.GetThwargFilterLaunchFilePath(serverName, accountName);
+            using var writer = new StreamWriter(filePath, append: false);
+            writer.WriteLine("FileVersion:1.2");
+            writer.WriteLine($"Timestamp=TimeUtc:'{DateTime.UtcNow:o}'");
+            writer.WriteLine($"ServerName:{serverName}");
+            writer.WriteLine($"AccountName:{accountName}");
+            writer.WriteLine($"CharacterName:{characterName}");
+
+            _logger.LogDebug("Wrote ThwargFilter launch file for {Account} on {Server}", accountName, serverName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to write ThwargFilter launch file");
         }
     }
 }

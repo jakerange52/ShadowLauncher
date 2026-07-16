@@ -163,12 +163,9 @@ internal sealed class LoginCharacterTools
         {
 
             if (string.Equals(_characters[i].Name, name, StringComparison.OrdinalIgnoreCase))
-
                 return LoginByIndex(i);
 
         }
-
-
 
         return false;
 

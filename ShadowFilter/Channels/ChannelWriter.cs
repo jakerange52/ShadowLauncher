@@ -4,41 +4,58 @@ namespace ShadowFilter.Channels;
 
 internal sealed class ChannelWriter
 {
+    private const string LogCategory = nameof(ChannelWriter);
+
     public void WriteCommandsToFile(Channel channel)
     {
         channel.NeedsToWrite = false;
         var filepath = GetChannelOutboundFilepath(channel);
-        var writer = new CommandWriter();
-        var cmdset = new CommandSet(channel.GetOutboundCommands(), channel.LastInboundProcessedUtc);
-        writer.WriteCommandsToFile(cmdset, filepath);
+        try
+        {
+            var writer = new CommandWriter();
+            var cmdset = new CommandSet(channel.GetOutboundCommands(), channel.LastInboundProcessedUtc);
+            writer.WriteCommandsToFile(cmdset, filepath);
+        }
+        catch (Exception ex)
+        {
+            PluginLog.Warn(LogCategory, $"Failed to write outbound commands: {filepath}", ex);
+            channel.NeedsToWrite = true;
+        }
     }
 
     public void ReadCommandsFromFile(Channel channel)
     {
         var filepath = GetChannelInboundFilepath(channel);
-        var writer = new CommandWriter();
-        var cmdset = writer.ReadCommandsFromFile(filepath);
-        if (cmdset == null)
-            return;
-
-        channel.ProcessAcknowledgement(cmdset.Acknowledgement);
-
-        var latestUtc = channel.LastInboundProcessedUtc;
-        foreach (var cmd in cmdset.Commands)
+        try
         {
-            if (cmd.TimeStampUtc <= channel.LastInboundProcessedUtc)
-                continue;
+            var writer = new CommandWriter();
+            var cmdset = writer.ReadCommandsFromFile(filepath);
+            if (cmdset == null)
+                return;
 
-            if (cmd.TimeStampUtc > latestUtc)
-                latestUtc = cmd.TimeStampUtc;
+            channel.ProcessAcknowledgement(cmdset.Acknowledgement);
 
-            channel.EnqueueInbound(cmd);
+            var latestUtc = channel.LastInboundProcessedUtc;
+            foreach (var cmd in cmdset.Commands)
+            {
+                if (cmd.TimeStampUtc <= channel.LastInboundProcessedUtc)
+                    continue;
+
+                if (cmd.TimeStampUtc > latestUtc)
+                    latestUtc = cmd.TimeStampUtc;
+
+                channel.EnqueueInbound(cmd);
+            }
+
+            if (channel.LastInboundProcessedUtc < latestUtc)
+            {
+                channel.LastInboundProcessedUtc = latestUtc;
+                channel.NeedsToWrite = true;
+            }
         }
-
-        if (channel.LastInboundProcessedUtc < latestUtc)
+        catch (Exception ex)
         {
-            channel.LastInboundProcessedUtc = latestUtc;
-            channel.NeedsToWrite = true;
+            PluginLog.Warn(LogCategory, $"Failed to read inbound commands: {filepath}", ex);
         }
     }
 
@@ -57,10 +74,17 @@ internal sealed class ChannelWriter
     public void StartWatcher(Channel channel)
     {
         var cmdFilepath = GetChannelInboundFilepath(channel);
-        channel.FileWatcher.Path = Path.GetDirectoryName(cmdFilepath)!;
-        channel.FileWatcher.Filter = Path.GetFileName(cmdFilepath);
-        channel.FileWatcher.NotifyFilter = NotifyFilters.LastWrite;
-        channel.FileWatcher.EnableRaisingEvents = true;
+        try
+        {
+            channel.FileWatcher.Path = Path.GetDirectoryName(cmdFilepath)!;
+            channel.FileWatcher.Filter = Path.GetFileName(cmdFilepath);
+            channel.FileWatcher.NotifyFilter = NotifyFilters.LastWrite;
+            channel.FileWatcher.EnableRaisingEvents = true;
+        }
+        catch (Exception ex)
+        {
+            PluginLog.Warn(LogCategory, $"Failed to start channel watcher: {cmdFilepath}", ex);
+        }
     }
 
     public void StopWatcher(Channel channel)

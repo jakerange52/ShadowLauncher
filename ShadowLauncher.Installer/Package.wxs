@@ -3,24 +3,6 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
-  <!--
-    WiX 5 requires util:RegistrySearch and util:FileSearch to live in a Fragment,
-    not directly inside Package.
-  -->
-  <Fragment>
-    <!--
-      Detect ShadowFilter already registered as a Decal network filter (FilterBase).
-      Used for upgrade/repair diagnostics only.
-    -->
-    <util:RegistrySearch Id="DetectShadowFilterDecal"
-                         Root="HKLM"
-                         Key="Software\Decal\NetworkFilters\A8F3C2D1-4E5B-6A7C-8D9E-0F1A2B3C4D5E"
-                         Value="Enabled"
-                         Variable="SHADOWFILTERINSTALLED"
-                         Result="exists"
-                         Bitness="always32" />
-  </Fragment>
-
   <Package Name="ShadowLauncher"
            Manufacturer="Jake Range"
            Version="$(var.Version)"
@@ -176,8 +158,8 @@
     </ComponentGroup>
 
     <!--
-      ShadowFilter DLLs land in INSTALLFOLDER\ShadowFilter\ on every install.
-      Privileges.wxs registers HKLM NetworkFilters against that folder (elevated MSI).
+      Optional ShadowFilter DLLs land in INSTALLFOLDER\ShadowFilter\.
+      Not required if the user already has ThwargFilter — see Settings → Help.
     -->
     <ComponentGroup Id="ShadowFilterFileComponents" Directory="ShadowFilterFolder">
       <Component Id="ShadowFilterDll" Guid="F1E2D3C4-B5A6-7890-1234-ABCDEF012345">

@@ -11,7 +11,7 @@ A multi-boxing launcher for Asheron's Call private servers. Launch and manage mu
 - **Server browser** — fetch and browse community server listings, add servers in one click
 - **DAT management** — servers can require alternate DAT files (e.g. expansion content, custom worlds); ShadowLauncher fetches and caches them automatically from a community DAT registry, then uses hard links to point each client at the correct set — no manual file swapping required
 - **Decal support** — inject [Decal](http://decaldev.com) into each client for plugin support
-- **Login commands** — send ShadowFilter login commands globally or per-character after login
+- **Login commands** — send login commands globally or per-character after login (via ThwargFilter or optional ShadowFilter)
 - **Auto-update** — checks GitHub Releases and installs updates in-app
 
 ---
@@ -22,9 +22,9 @@ A multi-boxing launcher for Asheron's Call private servers. Launch and manage mu
 - [.NET 10 Desktop Runtime (x86)](https://dotnet.microsoft.com/download/dotnet/10.0) — installed automatically by the setup wizard
 - An Asheron's Call client (`acclient.exe`) and associated DAT files
 - **[Decal](http://decaldev.com)** — required for login automation and plugin support
-- **Decal + ShadowFilter** — required for login commands, heartbeat monitoring, and per-character automation. Setup installs `ShadowFilter.dll` under `ShadowLauncher\ShadowFilter\` and registers it with Decal automatically (or add it manually in Decal Agent if Decal was installed later)
+- **A Decal network filter for automation** — if you already have **ThwargFilter**, keep using it (ShadowLauncher writes its launch files). **ShadowFilter** is optional and ships under `ShadowLauncher\ShadowFilter\` for users who want the first-party filter — see **Settings → Help**
 
-> **Note:** Basic launching and server browsing work without Decal/ShadowFilter. Account auto-login, login commands, and per-character scripting require Decal with ShadowFilter enabled.
+> **Note:** Basic launching and server browsing work without Decal. Character auto-login, login commands, and heartbeat monitoring need Decal with ThwargFilter and/or ShadowFilter enabled.
 
 ---
 
