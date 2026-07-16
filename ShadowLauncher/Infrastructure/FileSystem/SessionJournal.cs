@@ -71,6 +71,7 @@ public class SessionJournal
     /// <summary>
     /// Returns all sessions found on disk. Corrupt or unreadable files are deleted
     /// and skipped rather than propagated as errors.
+    /// Relaunch preference sidecars (<c>relaunch_*.json</c>) are not session journals.
     /// </summary>
     public IReadOnlyList<GameSession> ReadAll()
     {
@@ -79,12 +80,20 @@ public class SessionJournal
         {
             foreach (var file in Directory.GetFiles(_directory, "*.json"))
             {
+                var name = Path.GetFileName(file);
+                // Preference sidecars share this folder; deserializing them as GameSession
+                // yields ProcessId=0 (System Idle) and crashes reconcile with Access Denied.
+                if (name.StartsWith("relaunch_", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
                 try
                 {
                     var text = File.ReadAllText(file);
                     var session = JsonSerializer.Deserialize<GameSession>(text, JsonOptions);
-                    if (session is not null)
-                        results.Add(session);
+                    if (session is null || string.IsNullOrWhiteSpace(session.Id) || session.ProcessId <= 0)
+                        continue;
+
+                    results.Add(session);
                 }
                 catch (Exception ex)
                 {

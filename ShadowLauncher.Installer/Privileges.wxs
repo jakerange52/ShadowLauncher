@@ -13,25 +13,26 @@
                   Impersonate="yes"
                   Return="ignore" />
 
+    <!-- Impersonate=no: must write HKLM\...\Decal\NetworkFilters (FilterBase registration). -->
     <CustomAction Id="InstallShadowFilterDecalPlugin"
                   BinaryRef="CustomActionsDll"
                   DllEntry="InstallShadowFilterDecalPlugin"
                   Execute="deferred"
-                  Impersonate="yes"
+                  Impersonate="no"
                   Return="ignore" />
 
     <CustomAction Id="UninstallShadowFilterDecalPlugin"
                   BinaryRef="CustomActionsDll"
                   DllEntry="UninstallShadowFilterDecalPlugin"
                   Execute="deferred"
-                  Impersonate="yes"
+                  Impersonate="no"
                   Return="ignore" />
 
     <SetProperty Id="InstallShadowFilterDecalPlugin"
                  Value="SOURCE_DIR=[INSTALLFOLDER]ShadowFilter\"
                  Before="InstallShadowFilterDecalPlugin"
                  Sequence="execute"
-                 Condition="&amp;MultiboxingFeature=3 AND NOT REMOVE" />
+                 Condition="NOT REMOVE" />
 
     <InstallUISequence>
     </InstallUISequence>
@@ -42,10 +43,10 @@
                Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
       <Custom Action="InstallShadowFilterDecalPlugin"
                After="InstallFiles"
-               Condition="&amp;MultiboxingFeature=3 AND NOT REMOVE" />
+               Condition="NOT REMOVE" />
       <Custom Action="UninstallShadowFilterDecalPlugin"
                Before="RemoveFiles"
-               Condition="REMOVE~=&quot;ALL&quot; AND (&amp;MultiboxingFeature=3 OR SHADOWFILTERINSTALLED)" />
+               Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
 
   </Fragment>

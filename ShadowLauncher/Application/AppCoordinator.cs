@@ -90,7 +90,7 @@ public class AppCoordinator
             catch (Exception ex) { _logger.LogWarning(ex, "Could not remove empty Instances directory"); }
         }
 
-        // Silently detect AC client and import ThwargLauncher data on first launch.
+        // Silently detect AC client and import legacy launcher data on first launch.
         await _firstRunService.RunAsync();
 
         // If HardLinkLauncher is active, ensure ACBase is ready before any launch is attempted.

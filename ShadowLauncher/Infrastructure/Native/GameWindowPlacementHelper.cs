@@ -4,7 +4,7 @@ using System.Text;
 namespace ShadowLauncher.Infrastructure.Native;
 
 /// <summary>
-/// Win32 WINDOWPLACEMENT capture/restore for per-account game window layout (Thwarg parity).
+/// Win32 WINDOWPLACEMENT capture/restore for per-account game window layout.
 /// </summary>
 public static class GameWindowPlacementHelper
 {

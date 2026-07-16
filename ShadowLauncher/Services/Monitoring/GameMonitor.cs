@@ -26,8 +26,8 @@ public class GameMonitor : IGameMonitor
     public event EventHandler<GameExitedEventArgs>? GameExited;
 
     // Tracks the first time a session was observed at the login screen *after* having
-    // been in-game. Used to treat "Connection to the server has been lost" (which the
-    // ThwargFilter reports as IsOnline=false / LoginScreen, indistinguishable from the
+    // been in-game. Used to treat "Connection to the server has been lost" (which
+    // ShadowFilter reports as IsOnline=false / LoginScreen, indistinguishable from the
     // real login screen) as a disconnect for the Kill-disconnected-client setting.
     private readonly Dictionary<string, (DateTime Since, bool WasEverInGame)> _disconnectTracking = [];
 
@@ -147,7 +147,7 @@ public class GameMonitor : IGameMonitor
                     // Sampling unconditionally here loses the value the moment the AC window
                     // is replaced by the un-minimized "Connection lost" dialog.
 
-                    // Try to read heartbeat from ThwargFilter/ShadowFilter
+                    // Try to read heartbeat from ShadowFilter
                     var heartbeat = await _heartbeatReader.ReadHeartbeatAsync(session.ProcessId);
 
                     if (heartbeat is not null)
@@ -167,7 +167,7 @@ public class GameMonitor : IGameMonitor
                         _windowPlacement.ProcessSession(session, heartbeat.Status);
 
                         // Track in-game → login-screen transition as a disconnect signal.
-                        // ThwargFilter cannot distinguish the post-disconnect "Connection lost"
+                        // ShadowFilter cannot distinguish the post-disconnect "Connection lost"
                         // dialog from the real login screen, so we infer it: if a session was
                         // ever in-game and is now back on the login screen, treat continued time
                         // there as a missing heartbeat for the kill timer.

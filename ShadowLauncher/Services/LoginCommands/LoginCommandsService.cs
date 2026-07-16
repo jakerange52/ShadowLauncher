@@ -91,7 +91,7 @@ public class LoginCommandsService
         {
             if (line.StartsWith("Command") && !line.StartsWith("CommandCount"))
             {
-                // ThwargFilter format uses ':' as separator (e.g., Command0:/say hello)
+                // Login command format uses ':' as separator (e.g., Command0:/say hello)
                 var sepIndex = line.IndexOf(':');
                 if (sepIndex < 0) sepIndex = line.IndexOf('=');
                 if (sepIndex < 0) continue;

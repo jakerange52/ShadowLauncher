@@ -22,7 +22,7 @@ A multi-boxing launcher for Asheron's Call private servers. Launch and manage mu
 - [.NET 10 Desktop Runtime (x86)](https://dotnet.microsoft.com/download/dotnet/10.0) — installed automatically by the setup wizard
 - An Asheron's Call client (`acclient.exe`) and associated DAT files
 - **[Decal](http://decaldev.com)** — required for login automation and plugin support
-- **Decal + ShadowFilter** — required for login commands, heartbeat monitoring, and per-character automation (included in Full Install)
+- **Decal + ShadowFilter** — required for login commands, heartbeat monitoring, and per-character automation. Setup installs `ShadowFilter.dll` under `ShadowLauncher\ShadowFilter\` and registers it with Decal automatically (or add it manually in Decal Agent if Decal was installed later)
 
 > **Note:** Basic launching and server browsing work without Decal/ShadowFilter. Account auto-login, login commands, and per-character scripting require Decal with ShadowFilter enabled.
 

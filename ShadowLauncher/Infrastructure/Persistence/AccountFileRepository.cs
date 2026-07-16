@@ -4,9 +4,10 @@ using ShadowLauncher.Core.Models;
 namespace ShadowLauncher.Infrastructure.Persistence;
 
 /// <summary>
-/// Reads and writes accounts in ThwargLauncher's Accounts.txt format.
+/// Reads and writes accounts in Accounts.txt (key=value lines).
 /// Format: Version=2, then one line per account: Name=xxx,Password=xxx[,Alias=xxx,LaunchPath=xxx,PreferencePath=xxx]
 /// Encoding: ^c = comma, ^e = equals, ^u = caret.
+/// Still accepts legacy ThwargLauncher Accounts.txt on first-run import.
 /// </summary>
 public sealed class AccountFileRepository : IRepository<Account>, IDisposable
 {
@@ -75,7 +76,7 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
                 if (trimmed.StartsWith("Version="))
                     continue;
 
-                var properties = ThwargLineParser.Parse(trimmed);
+                var properties = AccountLineParser.Parse(trimmed);
                 if (!properties.TryGetValue("Name", out var name) || string.IsNullOrEmpty(name))
                     continue;
                 if (!properties.TryGetValue("Password", out var password))
@@ -118,13 +119,13 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
             {
                 var parts = new List<string>
                 {
-                    $"Name={ThwargLineParser.Encode(a.Name)}",
-                    $"Password={ThwargLineParser.Encode(a.PasswordHash)}"
+                    $"Name={AccountLineParser.Encode(a.Name)}",
+                    $"Password={AccountLineParser.Encode(a.PasswordHash)}"
                 };
                 if (!string.IsNullOrEmpty(a.Notes))
-                    parts.Add($"Alias={ThwargLineParser.Encode(a.Notes)}");
+                    parts.Add($"Alias={AccountLineParser.Encode(a.Notes)}");
                 if (!string.IsNullOrEmpty(a.PreferencePath))
-                    parts.Add($"PreferencePath={ThwargLineParser.Encode(a.PreferencePath)}");
+                    parts.Add($"PreferencePath={AccountLineParser.Encode(a.PreferencePath)}");
 
                 lines.Add(string.Join(",", parts));
             }

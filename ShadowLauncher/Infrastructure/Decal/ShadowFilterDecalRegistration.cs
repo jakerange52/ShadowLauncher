@@ -3,8 +3,9 @@ using Microsoft.Win32;
 namespace ShadowLauncher.Infrastructure.Decal;
 
 /// <summary>
-/// Installs ShadowFilter into the user's Decal Plugins folder and registers it with Decal.
-/// Used by first-run fallback when MSI registration did not run or Decal was installed later.
+/// Registers ShadowFilter with Decal as a network filter (HKLM NetworkFilters), matching
+/// ThwargFilter / Mag-Filter. Used by first-run fallback when MSI registration did not run
+/// or Decal was installed later. HKLM writes require elevation — failures are non-fatal.
 /// </summary>
 public static class ShadowFilterDecalRegistration
 {
@@ -12,17 +13,19 @@ public static class ShadowFilterDecalRegistration
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(ShadowFilterPluginInfo.RegistryKeyPath, writable: false);
+            using var key = OpenNetworkFiltersKey(writable: false);
             if (key is null)
                 return false;
 
-            var enabled = key.GetValue("Enabled");
-            if (enabled is int i)
-                return i != 0;
-            if (enabled is not null && int.TryParse(enabled.ToString(), out var parsed))
-                return parsed != 0;
+            if (!IsEnabledValue(key.GetValue("Enabled")))
+                return false;
 
-            return key.GetValue("File") is string path && File.Exists(path);
+            var path = key.GetValue("Path") as string;
+            var assembly = key.GetValue("Assembly") as string ?? ShadowFilterPluginInfo.AssemblyFileName;
+            if (string.IsNullOrWhiteSpace(path))
+                return false;
+
+            return File.Exists(Path.Combine(path, assembly));
         }
         catch
         {
@@ -30,30 +33,34 @@ public static class ShadowFilterDecalRegistration
         }
     }
 
+    /// <summary>
+    /// Registers <c>installFolder\ShadowFilter\</c> with Decal (Path = that folder, like Thwarg).
+    /// If HKLM write fails (no elevation), stages DLLs under Documents\Decal Plugins for a manual Decal Agent add.
+    /// </summary>
     public static bool TryInstallFromShadowLauncherFolder(string installFolder)
     {
         try
         {
             var sourceDir = Path.Combine(installFolder, ShadowFilterPluginInfo.FilterName);
-            if (!Directory.Exists(sourceDir))
-                return false;
-
-            var destDir = GetDecalPluginsFolder();
-            Directory.CreateDirectory(destDir);
-
-            foreach (var file in Directory.GetFiles(sourceDir, "*.dll"))
-            {
-                var dest = Path.Combine(destDir, Path.GetFileName(file));
-                File.Copy(file, dest, overwrite: true);
-                TryUnblock(dest);
-            }
-
-            var pluginDll = Path.Combine(destDir, $"{ShadowFilterPluginInfo.FilterName}.dll");
+            var pluginDll = Path.Combine(sourceDir, ShadowFilterPluginInfo.AssemblyFileName);
             if (!File.Exists(pluginDll))
                 return false;
 
-            Register(pluginDll);
-            return true;
+            try
+            {
+                Register(sourceDir);
+                return true;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                StageDocumentsCopy(sourceDir);
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                StageDocumentsCopy(sourceDir);
+                return false;
+            }
         }
         catch
         {
@@ -61,23 +68,50 @@ public static class ShadowFilterDecalRegistration
         }
     }
 
-    public static void Register(string pluginDllPath)
+    /// <summary>
+    /// Registers <paramref name="pluginFolder"/> with Decal as a network filter.
+    /// Folder must contain ShadowFilter.dll. Requires elevation for HKLM.
+    /// </summary>
+    public static void Register(string pluginFolder)
     {
-        using var key = Registry.CurrentUser.CreateSubKey(ShadowFilterPluginInfo.RegistryKeyPath, writable: true)
-            ?? throw new InvalidOperationException("Could not open Decal plugin registry key.");
+        if (string.IsNullOrWhiteSpace(pluginFolder) || !Directory.Exists(pluginFolder))
+            throw new InvalidOperationException("ShadowFilter plugin folder is missing.");
 
-        key.SetValue("File", pluginDllPath, RegistryValueKind.String);
+        var pluginDll = Path.Combine(pluginFolder, ShadowFilterPluginInfo.AssemblyFileName);
+        if (!File.Exists(pluginDll))
+            throw new InvalidOperationException($"Missing {ShadowFilterPluginInfo.AssemblyFileName} in {pluginFolder}.");
+
+        var normalized = pluginFolder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        using var key = OpenNetworkFiltersKey(writable: true)
+            ?? throw new UnauthorizedAccessException("Could not open Decal NetworkFilters registry key (elevation required).");
+
+        key.SetValue(null, ShadowFilterPluginInfo.FilterName, RegistryValueKind.String);
+        key.SetValue("Path", normalized, RegistryValueKind.String);
+        key.SetValue("Assembly", ShadowFilterPluginInfo.AssemblyFileName, RegistryValueKind.String);
+        key.SetValue("Object", ShadowFilterPluginInfo.ObjectTypeName, RegistryValueKind.String);
+        key.SetValue("Surrogate", ShadowFilterPluginInfo.SurrogateGuid, RegistryValueKind.String);
         key.SetValue("Enabled", 1, RegistryValueKind.DWord);
-        key.SetValue("Name", ShadowFilterPluginInfo.FilterName, RegistryValueKind.String);
-        key.SetValue("Version", "1.0.0.0", RegistryValueKind.String);
-        TryUnblock(pluginDllPath);
+        TryUnblock(pluginDll);
+        TryRemoveLegacyPluginsKey();
     }
 
     public static void Unregister()
     {
         try
         {
-            Registry.CurrentUser.DeleteSubKeyTree(ShadowFilterPluginInfo.RegistryKeyPath, throwOnMissingSubKey: false);
+            using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32);
+            baseKey.DeleteSubKeyTree(ShadowFilterPluginInfo.NetworkFiltersKeyPath, throwOnMissingSubKey: false);
+        }
+        catch
+        {
+            // Best effort — may lack elevation.
+        }
+
+        TryRemoveLegacyPluginsKey();
+
+        try
+        {
             var destDir = GetDecalPluginsFolder();
             if (Directory.Exists(destDir))
                 Directory.Delete(destDir, recursive: true);
@@ -92,6 +126,61 @@ public static class ShadowFilterDecalRegistration
     {
         var documents = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
         return Path.Combine(documents, "Decal Plugins", ShadowFilterPluginInfo.FilterName);
+    }
+
+    private static void StageDocumentsCopy(string sourceDir)
+    {
+        try
+        {
+            var destDir = GetDecalPluginsFolder();
+            Directory.CreateDirectory(destDir);
+            foreach (var file in Directory.GetFiles(sourceDir, "*.dll"))
+            {
+                var dest = Path.Combine(destDir, Path.GetFileName(file));
+                File.Copy(file, dest, overwrite: true);
+                TryUnblock(dest);
+            }
+        }
+        catch
+        {
+            // Best effort — Decal Agent can still be pointed at INSTALLFOLDER\ShadowFilter\.
+        }
+    }
+
+    private static RegistryKey? OpenNetworkFiltersKey(bool writable)
+    {
+        var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32);
+        try
+        {
+            return writable
+                ? baseKey.CreateSubKey(ShadowFilterPluginInfo.NetworkFiltersKeyPath, writable: true)
+                : baseKey.OpenSubKey(ShadowFilterPluginInfo.NetworkFiltersKeyPath, writable: false);
+        }
+        finally
+        {
+            baseKey.Dispose();
+        }
+    }
+
+    private static void TryRemoveLegacyPluginsKey()
+    {
+        try
+        {
+            Registry.CurrentUser.DeleteSubKeyTree(ShadowFilterPluginInfo.LegacyPluginsKeyPath, throwOnMissingSubKey: false);
+        }
+        catch
+        {
+            // Non-fatal.
+        }
+    }
+
+    private static bool IsEnabledValue(object? enabled)
+    {
+        if (enabled is int i)
+            return i != 0;
+        if (enabled is not null && int.TryParse(enabled.ToString(), out var parsed))
+            return parsed != 0;
+        return false;
     }
 
     private static void TryUnblock(string path)

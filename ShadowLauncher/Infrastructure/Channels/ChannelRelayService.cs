@@ -10,7 +10,7 @@ using ShadowLauncher.Services.Monitoring;
 namespace ShadowLauncher.Infrastructure.Channels;
 
 /// <summary>
-/// ThwargLauncher CommandManager parity — relay ShadowFilter channel commands between clients.
+/// Relays ShadowFilter channel commands between clients.
 /// </summary>
 public sealed class ChannelRelayService
 {

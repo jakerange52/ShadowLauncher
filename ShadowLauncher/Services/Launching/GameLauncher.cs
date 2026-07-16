@@ -92,7 +92,7 @@ public class GameLauncher : IGameLauncher
             var env = await ResolveInstancePathAsync(server, clientPath, result);
             if (env is null) return result;
 
-            // Swap per-account UserPreferences.ini into the default location (ThwargLauncher PreferencePath).
+            // Swap per-account UserPreferences.ini into the default location (PreferencePath).
             ApplyPreferencePath(account);
 
             // ── Start the process ───────────────────────────────────────────────
@@ -249,12 +249,28 @@ public class GameLauncher : IGameLauncher
 
     public Task<bool> IsGameProcessRunningAsync(int processId)
     {
+        if (processId <= 0)
+            return Task.FromResult(false);
+
         try
         {
             using var process = Process.GetProcessById(processId);
-            return Task.FromResult(!process.HasExited);
+            try
+            {
+                return Task.FromResult(!process.HasExited);
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                // Process exists but we lack rights to query exit status (Idle/System/elevated).
+                // Treat as still running so we don't drop a live journaled session.
+                return Task.FromResult(true);
+            }
         }
         catch (ArgumentException)
+        {
+            return Task.FromResult(false);
+        }
+        catch (System.ComponentModel.Win32Exception)
         {
             return Task.FromResult(false);
         }
@@ -319,7 +335,7 @@ public class GameLauncher : IGameLauncher
 
     /// <summary>
     /// Copies the account's <see cref="Account.PreferencePath"/> ini into the default
-    /// Documents\UserPreferences.ini location immediately before launch, matching ThwargLauncher.
+    /// Documents\Asheron's Call\UserPreferences.ini location immediately before launch.
     /// acclient reads that file once at startup; stagger multi-launch via MultiLaunchDelaySeconds
     /// to avoid two clients racing on the same default file.
     /// </summary>

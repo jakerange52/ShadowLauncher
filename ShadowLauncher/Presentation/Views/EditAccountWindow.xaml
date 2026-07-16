@@ -30,7 +30,7 @@
                  Padding="4,3" Margin="0,0,0,10"/>
 
         <TextBlock Grid.Row="2" Text="UserPreferences.ini (optional)" FontWeight="SemiBold" Foreground="#AAA" Margin="0,0,0,4"
-                   ToolTip="Per-account UserPreferences.ini copied into Documents\Asheron's Call before launch (ThwargLauncher PreferencePath)."/>
+                   ToolTip="Per-account UserPreferences.ini copied into Documents\Asheron's Call before launch."/>
         <Grid Grid.Row="3" Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>

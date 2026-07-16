@@ -8,7 +8,7 @@ public class Account : IEquatable<Account>
     public string Notes { get; set; } = string.Empty;
 
     /// <summary>
-    /// Optional path to a per-account UserPreferences.ini file (ThwargLauncher PreferencePath).
+    /// Optional path to a per-account UserPreferences.ini file.
     /// Copied into the default Documents location immediately before launch.
     /// </summary>
     public string PreferencePath { get; set; } = string.Empty;

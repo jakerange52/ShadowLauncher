@@ -9,50 +9,16 @@
   -->
   <Fragment>
     <!--
-      Detect Decal 3.0 by its MSI uninstall registry key (written by the Decal installer).
-      Populates DECALINSTALLED with the DisplayName string if found, empty if not.
-
-      NOTE: This product GUID is specific to the known Decal 3.0 release. If Decal ships
-      a new version with a different product code this search will miss it. It is unclear
-      how much longer Decal will be actively maintained or distributed Ã¯Â¿Â½ if it is abandoned
-      or superseded this entire detection block may need revisiting.
-    -->
-    <util:RegistrySearch Id="DetectDecal"
-                         Root="HKLM"
-                         Key="SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{341F2D27-9E68-478E-828D-7A4EAD48289F}"
-                         Value="DisplayName"
-                         Variable="DECALINSTALLED"
-                         Result="value"
-                         Bitness="always32" />
-
-    <!--
-      Fallback: detect Decal by the presence of Decal.Adapter.dll in its default install
-      directory. Catches cases where a future Decal version ships a different MSI product
-      code and the registry search above comes up empty.
-    -->
-    <util:FileSearch Id="DetectDecalByFile"
-                     Path="[CommonFilesX86Folder]Decal\Decal.Adapter.dll"
-                     Variable="DECALINSTALLED"
-                     Result="exists"
-                     Condition="NOT DECALINSTALLED" />
-
-    <!--
-      Detect ShadowFilter already registered to Decal.
+      Detect ShadowFilter already registered as a Decal network filter (FilterBase).
+      Used for upgrade/repair diagnostics only.
     -->
     <util:RegistrySearch Id="DetectShadowFilterDecal"
-                         Root="HKCU"
-                         Key="Software\Decal\Plugins\A8F3C2D1-4E5B-6A7C-8D9E-0F1A2B3C4D5E"
+                         Root="HKLM"
+                         Key="Software\Decal\NetworkFilters\A8F3C2D1-4E5B-6A7C-8D9E-0F1A2B3C4D5E"
                          Value="Enabled"
                          Variable="SHADOWFILTERINSTALLED"
-                         Result="exists" />
-
-    <util:RegistrySearch Id="DetectShadowFilterFlag"
-                         Root="HKLM"
-                         Key="Software\ShadowLauncher"
-                         Value="FullInstall"
-                         Variable="SHADOWFILTERINSTALLED"
                          Result="exists"
-                         Condition="NOT SHADOWFILTERINSTALLED" />
+                         Bitness="always32" />
   </Fragment>
 
   <Package Name="ShadowLauncher"
@@ -93,49 +59,10 @@
     <SetProperty Id="DesktopShortcutFeature" Value="1" After="CostFinalize"
                  Sequence="both" Condition="DESKTOPSHORTCUT" />
 
-    <!-- Feature-tree UI so users can choose Launcher Only or Full install -->
+    <!-- Feature-tree UI (desktop shortcut opt-in via DESKTOPSHORTCUT on exit dialog). -->
     <ui:WixUI Id="WixUI_FeatureTree" />
     <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseFile)" />
 
-    <!--
-      Block the full install if Decal is not present.
-      Condition is on the Custom scheduling elements, not here Ã¯Â¿Â½ WiX 5 does not allow
-      Condition as an attribute on error-type CustomAction elements.
-    -->
-    <CustomAction Id="BlockIfNoDecal"
-                  Error="The Full install requires Decal 3.0 to be installed first. Please install Decal from https://www.decaldev.com and re-run setup." />
-
-    <!--
-      Warn when ShadowFilter is already registered to Decal and the user picks Full install.
-    -->
-    <CustomAction Id="WarnShadowFilterAlreadyInstalled"
-                  Error="ShadowFilter is already registered with Decal on this machine. You can use the Normal install instead unless you are upgrading or repairing the Full install option." />
-
-    <!--
-      Error-type CustomActions must be in both sequences:
-        InstallUISequence  = shows the error dialog to the user before anything executes.
-        InstallExecuteSequence = safety net for silent/elevated installs.
-      Conditions live here on the Custom elements, not on the CustomAction definitions.
-    -->
-    <InstallUISequence>
-      <Custom Action="WarnShadowFilterAlreadyInstalled" Before="BlockIfNoDecal"
-              Condition="&amp;MultiboxingFeature=3 AND SHADOWFILTERINSTALLED AND NOT Installed" />
-      <Custom Action="BlockIfNoDecal" Before="ExecuteAction"
-              Condition="&amp;MultiboxingFeature=3 AND NOT DECALINSTALLED AND NOT Installed" />
-    </InstallUISequence>
-
-    <InstallExecuteSequence>
-      <Custom Action="WarnShadowFilterAlreadyInstalled" Before="BlockIfNoDecal"
-              Condition="&amp;MultiboxingFeature=3 AND SHADOWFILTERINSTALLED AND NOT Installed" />
-      <Custom Action="BlockIfNoDecal" Before="InstallFiles"
-              Condition="&amp;MultiboxingFeature=3 AND NOT DECALINSTALLED AND NOT Installed" />
-    </InstallExecuteSequence>
-
-    <!--
-      When the Full install feature is selected, recommend a logoff so the symlink privilege
-      takes effect. Condition attribute removed Ã¯Â¿Â½ not valid on RestartResource in WiX 5.
-      The restart recommendation is harmless on Normal installs.
-    -->
     <util:RestartResource ProcessName="explorer" />
 
     <!-- Directory structure -->
@@ -249,31 +176,20 @@
     </ComponentGroup>
 
     <!--
-      Multiboxing optional components — ShadowFilter Decal plugin.
-      Files land in INSTALLFOLDER\ShadowFilter\ and are registered with Decal by custom action.
+      ShadowFilter DLLs land in INSTALLFOLDER\ShadowFilter\ on every install.
+      Privileges.wxs registers HKLM NetworkFilters against that folder (elevated MSI).
     -->
-    <ComponentGroup Id="MultiboxingComponents" Directory="ShadowFilterFolder">
-
+    <ComponentGroup Id="ShadowFilterFileComponents" Directory="ShadowFilterFolder">
       <Component Id="ShadowFilterDll" Guid="F1E2D3C4-B5A6-7890-1234-ABCDEF012345">
         <File Id="ShadowFilterDllFile"
               Source="$(var.ThirdPartyDir)ShadowFilter\ShadowFilter.dll"
               KeyPath="yes" />
+        <RemoveFolder Id="RemoveShadowFilterFolder" Directory="ShadowFilterFolder" On="uninstall" />
       </Component>
 
       <Component Id="NewtonsoftJsonDll" Guid="E2D3C4B5-A697-8901-2345-BCDEF0123456">
         <File Source="$(var.ThirdPartyDir)ShadowFilter\Newtonsoft.Json.dll" KeyPath="yes" />
       </Component>
-
-      <!-- Registry flag so we know full install was chosen on repair/uninstall -->
-      <Component Id="MultiboxingFlag" Guid="B6E04D27-91A3-4F5C-8E72-1D3A7C504F89">
-        <RegistryValue Root="HKLM"
-                       Key="Software\ShadowLauncher"
-                       Name="FullInstall"
-                       Type="integer" Value="1"
-                       KeyPath="yes" />
-        <RemoveFolder Id="RemoveShadowFilterFolder" Directory="ShadowFilterFolder" On="uninstall" />
-      </Component>
-
     </ComponentGroup>
 
     <!-- Feature tree -->
@@ -289,6 +205,7 @@
              AllowAbsent="no"
              Display="expand">
       <ComponentGroupRef Id="AppComponents" />
+      <ComponentGroupRef Id="ShadowFilterFileComponents" />
       <ComponentGroupRef Id="ShortcutComponents" />
 
       <!-- Desktop shortcut feature: Level 0 (off) by default.
@@ -299,19 +216,6 @@
                Level="0"
                AllowAbsent="yes">
         <ComponentGroupRef Id="DesktopShortcutComponents" />
-      </Feature>
-
-      <!--
-        Full install: Decal + ShadowFilter for multi-boxing support.
-        Level="2" = NOT selected by default (opt-in).
-        Users must explicitly check this to get the full install.
-      -->
-      <Feature Id="MultiboxingFeature"
-               Title="Full install (includes ShadowFilter for multi-boxing — requires Decal 3.0)"
-               Description="Builds and registers the ShadowFilter Decal plugin. Enables in-game heartbeat monitoring, character tracking, and login commands. Requires Decal 3.0 to already be installed — setup will abort if Decal is not found."
-               Level="2"
-               Display="expand">
-        <ComponentGroupRef Id="MultiboxingComponents" />
       </Feature>
 
     </Feature>

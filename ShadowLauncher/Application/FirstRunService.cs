@@ -230,7 +230,7 @@ public class FirstRunService
                 if (trimmed.StartsWith("Version=", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                var props = ThwargLineParser.Parse(trimmed);
+                var props = AccountLineParser.Parse(trimmed);
                 if (!props.TryGetValue("Name", out var name) || string.IsNullOrWhiteSpace(name))
                     continue;
                 props.TryGetValue("Password", out var password);
@@ -316,7 +316,8 @@ public class FirstRunService
                 }
             }
 
-            _logger.LogDebug("First-run: ShadowFilter is not registered with Decal");
+            _logger.LogDebug(
+                "First-run: ShadowFilter is not registered with Decal (elevated reinstall or add manually in Decal Agent)");
         }
         catch (Exception ex)
         {

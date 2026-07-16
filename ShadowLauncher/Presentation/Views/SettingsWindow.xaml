@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:converters="clr-namespace:ShadowLauncher.Presentation.Converters"
-        Title="Settings" Height="360" Width="640"
+        Title="Settings" Height="280" Width="640"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         Background="{DynamicResource BgBrush}" WindowStyle="None" AllowsTransparency="True">
     <Window.Resources>
@@ -22,7 +22,6 @@
         </DockPanel>
     <Grid Margin="0,20,0,0">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -68,29 +67,16 @@
                     ToolTip="Rename or delete launch profiles"/>
         </StackPanel>
 
-<!-- Open DAT Cache -->
-<StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,8">
-    <Button Content="Open DAT Cache" Padding="12,4" Margin="0,0,12,0"
-            Click="OpenDatCache_Click"
-            ToolTip="Open the folder where downloaded DAT files are cached"/>
-</StackPanel>
-
-        <!-- Game window placement -->
-        <StackPanel Grid.Row="4" Orientation="Vertical" Margin="0,0,0,12">
-            <TextBlock Text="Game Window Positions" FontWeight="SemiBold" Foreground="#AAA" Margin="0,0,0,4"/>
-            <CheckBox IsChecked="{Binding SaveGameWindows}"
-                      Content="Save game window positions per account/server"
-                      Foreground="#CCC" FontSize="11" Margin="0,0,0,4"
-                      ToolTip="When enabled, ShadowLauncher remembers each client's window size, position, and minimized state."/>
-            <CheckBox IsChecked="{Binding RestoreGameWindows}"
-                      Content="Restore saved game window positions on launch"
-                      Foreground="#CCC" FontSize="11"
-                      ToolTip="When enabled, relaunched clients return to their last saved layout. Use /tf lwp, /tf ulwp, or /tf dwp in-game to adjust behavior."/>
+        <!-- Open DAT Cache -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="Open DAT Cache" Padding="12,4" Margin="0,0,12,0"
+                    Click="OpenDatCache_Click"
+                    ToolTip="Open the folder where downloaded DAT files are cached"/>
         </StackPanel>
 
-        <!-- Footer -->
-        <DockPanel Grid.Row="5">
-            <StackPanel DockPanel.Dock="Left" Orientation="Vertical" Margin="0,0,8,0">
+        <!-- Footer: keep on Auto row so buttons don't stretch into the * spacer above -->
+        <DockPanel Grid.Row="5" VerticalAlignment="Bottom">
+            <StackPanel DockPanel.Dock="Left" Orientation="Vertical" Margin="0,0,8,0" VerticalAlignment="Center">
                 <TextBlock Text="{Binding StatusText}" Foreground="Gray"
                            VerticalAlignment="Center" FontSize="11" Margin="0,0,0,4"/>
                 <StackPanel Orientation="Horizontal">
@@ -110,7 +96,8 @@
                              Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVisibility}}"
                              ToolTip="{Binding StatusText}"/>
             </StackPanel>
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Center">
                 <Button Content="&#x2753; Help" Padding="12,6" Margin="0,0,8,0"
                         Click="OpenHelp_Click" ToolTip="Setup instructions for multi-clienting"/>
                 <Button Content="Cancel" Padding="16,6" Margin="0,0,8,0" IsCancel="True"/>

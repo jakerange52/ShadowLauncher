@@ -5,11 +5,11 @@ using ShadowLauncher.Core.Models;
 namespace ShadowLauncher.Infrastructure.Persistence;
 
 /// <summary>
-/// Reads and writes servers in ThwargLauncher's UserServerList.xml format.
+/// Reads and writes servers in UserServerList.xml.
 /// XML format: &lt;ArrayOfServerItem&gt; containing &lt;ServerItem&gt; elements with
 /// id, name, alias, description, emu, connect_string, discord_url, website_url,
 /// default_rodat, default_secure, visibility.
-/// This allows direct drag/drop of ThwargLauncher's server file.
+/// Compatible with legacy ThwargLauncher server lists for easy migration.
 /// </summary>
 public sealed class ServerFileRepository : IRepository<Server>, IDisposable
 {

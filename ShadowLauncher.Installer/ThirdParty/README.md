@@ -1,6 +1,6 @@
 # Third-Party Installer Binaries
 
-Place the following file in this directory before building the Full Install MSI:
+Place the following file in this directory before building the MSI (if bundling Decal):
 
 | File | Source |
 |---|---|

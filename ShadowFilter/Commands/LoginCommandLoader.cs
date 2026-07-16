@@ -18,7 +18,7 @@ internal static class LoginCommandLoader
         var global = ReadFile(GetGlobalPath());
         var specific = ReadFile(GetCharacterPath(accountName, serverName, characterName));
 
-        // Thwarg parity: per-character wait wins when explicitly set in the character file.
+        // Per-character wait wins when explicitly set in the character file.
         if (specific.HasExplicitWait)
             global.WaitMilliseconds = specific.WaitMilliseconds;
         else if (!global.HasExplicitWait)

@@ -105,7 +105,7 @@ Built in `GameLauncher.BuildLaunchArguments()`:
 
 - Built from `ShadowFilter/` — no ThwargLauncher dependency
 - IPC under `%LocalAppData%\ShadowLauncher\` (not `%AppData%\ThwargLauncher\`)
-- Full Install registers plugin under `%Personal%\Decal Plugins\ShadowFilter\` + HKCU Decal registry
+- Setup registers as a Decal **network filter**: `HKLM\...\Decal\NetworkFilters\{guid}` with Path=`INSTALLFOLDER\ShadowFilter\` (ThwargFilter-compatible)
 - Auto-login parity: ThwargFilter `LauncherChooseCharacterManager` — 4-tick timer on `0xF7EA`, Decal.Hwnd mouse clicks, exact-path launch file on `0xF7E1`
 
 ### Deploy updated ShadowFilter.dll
@@ -114,11 +114,13 @@ After building, copy with Decal and all clients closed (otherwise the Decal Agen
 
 ```powershell
 dotnet build ShadowFilter/ShadowFilter.csproj -c Release
+# Prefer installer registration (HKLM NetworkFilters → install dir).
+# For manual/dev: copy to a stable folder, then Add Filter in Decal Agent — never point at bin\Debug.
 Copy-Item ShadowFilter\bin\Release\net472\ShadowFilter.dll, ShadowFilter\bin\Release\net472\Newtonsoft.Json.dll `
   "$env:USERPROFILE\Documents\Decal Plugins\ShadowFilter\" -Force
 ```
 
-Or run the full installer (`.\Build-Installer.ps1`) which registers and copies automatically.
+Or run the full installer (`.\Build-Installer.ps1`) which registers NetworkFilters automatically.
 
 ### Manual auto-login checks
 

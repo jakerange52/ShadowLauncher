@@ -65,7 +65,7 @@ public class ServerService : IServerService
 
     /// <summary>
     /// Sends an AC-protocol UDP connect/login probe and waits for any response.
-    /// This is how ThwargLauncher detects server status — works even when ICMP is blocked.
+    /// TCP login probe for server status — works even when ICMP is blocked.
     /// </summary>
     private static async Task<bool> IsUdpServerUpAsync(string address, int port, int timeoutMs = 3000)
     {
@@ -74,7 +74,7 @@ public class ServerService : IServerService
         {
             udpClient.Connect(address, port);
 
-            // AC protocol login probe packet (matches ThwargLauncher's Packet.MakeLoginPacket)
+            // AC protocol login probe packet
             byte[] loginPacket =
             [
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,

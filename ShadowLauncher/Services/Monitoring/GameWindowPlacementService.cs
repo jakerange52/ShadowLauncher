@@ -7,7 +7,7 @@ using ShadowLauncher.Infrastructure.Persistence;
 namespace ShadowLauncher.Services.Monitoring;
 
 /// <summary>
-/// Thwarg-style per-account game window placement save/restore.
+/// Per-account game window placement save/restore.
 /// </summary>
 public sealed class GameWindowPlacementService
 {

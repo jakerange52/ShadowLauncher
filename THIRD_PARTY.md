@@ -1,7 +1,6 @@
 # Third-Party Acknowledgements
 
-ShadowLauncher optionally integrates the following third-party software in its
-**Full Install** configuration. We are grateful to their authors for making
+ShadowLauncher optionally integrates the following third-party software. We are grateful to their authors for making
 these tools available to the Asheron's Call emulation community.
 
 ---
@@ -15,16 +14,19 @@ these tools available to the Asheron's Call emulation community.
   Redistribution should be verified with the current maintainers before
   bundling in a public installer.
 - **Purpose:** Decal is the plugin framework required to run ShadowFilter
-  (and other AC client plugins). The Full Install option registers ShadowFilter
-  with Decal so heartbeat monitoring, character tracking, and login commands work.
+  (and other AC client plugins). ShadowFilter.dll is always installed under the
+  ShadowLauncher folder; setup registers it with Decal so heartbeat
+  monitoring, character tracking, and login commands work.
 
 ---
 
 ## ShadowFilter
 
 ShadowFilter is a **first-party Decal plugin** built from source in this repository.
-It replaces the former ThwargFilter dependency and communicates with ShadowLauncher
-via files under `%LocalAppData%\ShadowLauncher\`.
+It is installed to `ShadowLauncher\ShadowFilter\` with every setup. The installer
+registers it as a Decal network filter; if Decal was installed later, ShadowLauncher
+retries on first run or you can add that folder in Decal Agent manually. It communicates with ShadowLauncher via files under
+`%LocalAppData%\ShadowLauncher\`.
 
 ---
 
