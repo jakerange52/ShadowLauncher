@@ -3,6 +3,7 @@
 BeforeAll {
     . "$PSScriptRoot/TestHelpers.ps1"
     $script:PrepareScript = Join-Path $PSScriptRoot "../prepare-decal-adapter.ps1"
+    $script:DecalAdapterSource = "${env:ProgramFiles(x86)}\Decal 3.0\Decal.Adapter.dll"
 }
 
 Describe "prepare-decal-adapter.ps1" {
@@ -21,28 +22,22 @@ Describe "prepare-decal-adapter.ps1" {
         }
     }
 
-    It "copies from Decal 3.0 when missing" {
+    It "copies from Decal 3.0 when missing" -Skip:(-not (Test-Path $script:DecalAdapterSource)) {
         $root = New-TestProjectRoot
-        $source = "${env:ProgramFiles(x86)}\Decal 3.0\Decal.Adapter.dll"
-        if (-not (Test-Path $source)) {
-            Set-ItResult -Inconclusive "Decal 3.0 not installed at $source"
-            return
-        }
-
         try {
             & $script:PrepareScript -ProjectRoot $root
             $LASTEXITCODE | Should -Be 0
 
             $dest = Join-Path $root "externals\Decal\Decal.Adapter.dll"
             Test-Path $dest | Should -BeTrue
-            (Get-Item $dest).Length | Should -Be (Get-Item $source).Length
+            (Get-Item $dest).Length | Should -Be (Get-Item $script:DecalAdapterSource).Length
         }
         finally {
             Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 
-    It "throws when no source is available" {
+    It "throws when no source is available" -Skip:(Test-Path $script:DecalAdapterSource) {
         $root = New-TestProjectRoot
         try {
             { & $script:PrepareScript -ProjectRoot $root } |
