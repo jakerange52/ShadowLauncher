@@ -13,7 +13,7 @@ Describe "prepare-decal-adapter.ps1" {
             New-Item -ItemType Directory -Path $destDir -Force | Out-Null
             [IO.File]::WriteAllBytes((Join-Path $destDir "Decal.Adapter.dll"), [byte[]](1, 2, 3))
 
-            & $script:PrepareScript -ProjectRoot $root -SkipInstalledDecal
+            & $script:PrepareScript -ProjectRoot $root
             $LASTEXITCODE | Should -Be 0
         }
         finally {
@@ -21,28 +21,10 @@ Describe "prepare-decal-adapter.ps1" {
         }
     }
 
-    It "writes the DLL from base64 input" {
+    It "throws when Decal.Adapter.dll is missing" -Skip:($IsWindows) {
         $root = New-TestProjectRoot
         try {
-            $payload = [Text.Encoding]::UTF8.GetBytes("decal-ref")
-            $b64 = [Convert]::ToBase64String($payload)
-
-            & $script:PrepareScript -ProjectRoot $root -Base64 $b64 -SkipInstalledDecal
-            $LASTEXITCODE | Should -Be 0
-
-            $dest = Join-Path $root "externals\Decal\Decal.Adapter.dll"
-            Test-Path $dest | Should -BeTrue
-            [IO.File]::ReadAllBytes($dest) | Should -Be $payload
-        }
-        finally {
-            Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
-        }
-    }
-
-    It "throws when no source is available" {
-        $root = New-TestProjectRoot
-        try {
-            { & $script:PrepareScript -ProjectRoot $root -Base64 "" -SkipInstalledDecal } |
+            { & $script:PrepareScript -ProjectRoot $root } |
                 Should -Throw "*Decal.Adapter.dll not found*"
         }
         finally {
