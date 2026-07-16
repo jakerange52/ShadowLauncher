@@ -43,11 +43,7 @@ Step "Checking prerequisites"
 if (-not (Get-Command "wix" -ErrorAction SilentlyContinue)) { throw "WiX CLI not found. Run: dotnet tool install --global wix --version 5.0.2" }
 if (-not (Test-Path $balDll)) { throw "WiX Bal extension not found at: $balDll" }
 if (-not (Test-Path $decalAdapter)) {
-    throw @"
-Decal.Adapter.dll not found at: $decalAdapter
-Copy it from your Decal install before building ShadowFilter.
-See externals/Decal/README.md
-"@
+    throw "Decal.Adapter.dll not found at: $decalAdapter — copy from C:\Program Files (x86)\Decal 3.0\Decal.Adapter.dll (see externals/Decal/README.md)"
 }
 Write-Host "  All prerequisites found." -ForegroundColor Green
 
