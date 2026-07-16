@@ -73,10 +73,10 @@ You should carry this mental model when reading or changing launch code:
 | acclient.exe | Native Win32, x86 | Turbine client, patched by emulators |
 | Decal Inject.dll | Native C++ DLL | Loaded into acclient; exports `DecalStartup` |
 | Decal Agent | .NET Framework | CLR host inside game process; plugin loader |
-| Decal plugins | .NET 2.0 → 4.8 | VTank, UtilityBelt, ThwargFilter, etc. — compiled against Decal's plugin API |
+| Decal plugins | .NET 2.0 → 4.8 | VTank, UtilityBelt, ShadowFilter, etc. — compiled against Decal's plugin API |
 | ShadowLauncher | .NET 10 WPF, x86 | External launcher; never loads into acclient |
 
-**ThwargFilter timing:** the launch file at `%AppData%\ThwargLauncher\LaunchFiles\launch_ThwargFilter_{Server}_{Account}.txt` must exist **before** `CreateProcess`. ThwargFilter's post-connect timer runs four ticks and stops permanently — miss the window and login commands silently fail. This is ThwargLauncher/optimshi behavior we preserved exactly.
+**ShadowFilter timing:** the launch file at `%LocalAppData%\ShadowLauncher\LaunchFiles\launch_ShadowFilter_{Server}_{Account}.txt` must exist **before** `CreateProcess`. ShadowFilter's post-connect timer runs four ticks and stops permanently — miss the window and login commands silently fail. This is ThwargLauncher/optimshi behavior we preserved exactly.
 
 **Command line:** `-rodat on|off` per server (`Server.DefaultRodat`). GDLE uses `-a user:pass`; ACE uses `-a user -v pass` or `-glsticketdirect` for secure logon.
 
@@ -93,11 +93,11 @@ ShadowLauncher/
 
 **Launch pipeline:**
 
-1. `WriteThwargFilterLaunchFile()` — before process creation
+1. Dual-write launch files (ShadowFilter + ThwargFilter) — before process creation
 2. `ResolveInstancePathAsync()` — ensure DAT cache, call `IInstancePreparer`
 3. `HardLinkLauncher.PrepareInstanceAsync()` — build instance dir
 4. `DecalInjector.LaunchSuspendedAndInject()` — suspended start + inject
-5. Post-launch — `MovieSkipper`, `WindowTitleSetter`, instance cleanup watcher
+5. Post-launch — `WindowTitleSetter`, instance cleanup watcher (intro/char-select: ThwargFilter if loaded, else ShadowFilter)
 
 DI wiring: `Application/ServiceBootstrapper.cs`.
 
@@ -110,6 +110,7 @@ DI wiring: `Application/ServiceBootstrapper.cs`.
 
 ```powershell
 dotnet build ShadowLauncher/ShadowLauncher.csproj
+dotnet build ShadowFilter/ShadowFilter.csproj -c Release   # requires externals/Decal/Decal.Adapter.dll
 .\Build-Installer.ps1
 .\Build-Installer.ps1 -Version 0.2.0
 ```
@@ -120,7 +121,7 @@ Output: `ShadowLauncher.Installer.Bundle\bin\ShadowLauncher-Setup.exe`
 
 - Match existing C#/WPF patterns. This codebase favors directness over abstraction — same instinct you'd use writing a Decal plugin where every hook registration has side effects.
 - P/Invoke lives in `Infrastructure/Native/`. Win32 errors should be logged with decimal and hex codes.
-- Document non-obvious invariants: inode sharing, suspended inject ordering, ThwargFilter tick window.
+- Document non-obvious invariants: inode sharing, suspended inject ordering, ShadowFilter tick window.
 - Do not introduce helper classes for one-liners. Do not "modernize" working Win32 interop unless asked.
 
 ## Key files
@@ -133,17 +134,18 @@ Output: `ShadowLauncher.Installer.Bundle\bin\ShadowLauncher-Setup.exe`
 | ACBase copy | `Application/FirstRunService.cs` |
 | Server DAT config | `Core/Models/Server.cs` |
 | Instance strategy toggle | `Application/ServiceBootstrapper.cs` |
-| ThwargFilter | `Services/Launching/GameLauncher.cs` |
+| Filter launch files / char select | `Services/Launching/GameLauncher.cs` (dual-write), `ShadowFilter/` (optional), HelpWindow (ThwargFilter welcome) |
 | DAT Manager UI | `Presentation/ViewModels/DatFetchViewModel.cs` |
 
 ## Manual verification (no test suite)
 
 1. **Retail server, Decal installed** — inject succeeds, no `Instances\` dir
 2. **Custom-DAT server** — cache populated, instance dir created, correct world loads
-3. **Multi-box (2+ clients, same server)** — distinct instance dirs, both Decal-loaded, both VTank/ThwargFilter functional
+3. **Multi-box (2+ clients, same server)** — distinct instance dirs, both Decal-loaded, both VTank/ShadowFilter functional
 4. **Program Files AC install** — ACBase copy once, hard links succeed after
 5. **No Decal** — single client via `Process.Start`, clear log message
-6. **ThwargFilter login commands** — fire on auto-login (launch file written pre-process)
+6. **ThwargFilter-only auto-login** — default character enters world without ShadowFilter registered
+7. **Optional ShadowFilter** — heartbeats under LocalAppData when registered; defers char-select if ThwargFilter also loaded
 
 Logs: `%LocalAppData%\ShadowLauncher\Logs\`
 

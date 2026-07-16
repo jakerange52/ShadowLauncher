@@ -51,8 +51,8 @@ public class UpdateChecker
             if (!Version.TryParse(versionStr, out var remote))
                 return UpdateCheckResult.Faulted($"Could not parse remote version: '{tagName}'");
 
-            var notes = root.TryGetProperty("body", out var bodyProp)
-                ? bodyProp.GetString() ?? string.Empty
+            var releaseUrl = root.TryGetProperty("html_url", out var urlProp)
+                ? urlProp.GetString() ?? string.Empty
                 : string.Empty;
 
             // Find the ShadowLauncher-Setup.exe asset in the release.
@@ -82,7 +82,7 @@ public class UpdateChecker
                 RemoteVersion  = remote,
                 UpdateAvailable = remote > current,
                 DownloadUrl    = downloadUrl,
-                ReleaseNotes   = notes,
+                ReleaseUrl     = releaseUrl,
             };
         }
         catch (HttpRequestException ex)
@@ -139,7 +139,7 @@ public class UpdateCheckResult
     public Version? CurrentVersion { get; init; }
     public Version? RemoteVersion { get; init; }
     public string DownloadUrl { get; init; } = string.Empty;
-    public string ReleaseNotes { get; init; } = string.Empty;
+    public string ReleaseUrl { get; init; } = string.Empty;
     public string ErrorMessage { get; init; } = string.Empty;
 
     public static UpdateCheckResult Faulted(string message) =>

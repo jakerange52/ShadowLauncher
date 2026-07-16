@@ -20,8 +20,11 @@ public interface IConfigurationProvider
     bool AutoRelaunch { get; set; }
     int AutoRelaunchDelaySeconds { get; set; }
     int MultiLaunchDelaySeconds { get; set; }
+    bool NeverKillClients { get; set; }
     bool DatDeveloperMode { get; set; }
     bool AttemptDecalInjection { get; set; }
+    bool SaveGameWindows { get; set; }
+    bool RestoreGameWindows { get; set; }
     void Load();
     void Save();
     string GetSetting(string key, string defaultValue = "");

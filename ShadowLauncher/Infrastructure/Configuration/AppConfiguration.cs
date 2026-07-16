@@ -65,6 +65,12 @@ public class AppConfiguration : IConfigurationProvider
         set => SetSetting(nameof(MultiLaunchDelaySeconds), Math.Max(1, value).ToString());
     }
 
+    public bool NeverKillClients
+    {
+        get => GetBool(nameof(NeverKillClients));
+        set => SetSetting(nameof(NeverKillClients), value.ToString());
+    }
+
     public bool KillOnMissingHeartbeat
     {
         get => GetBool(nameof(KillOnMissingHeartbeat));
@@ -87,6 +93,18 @@ public class AppConfiguration : IConfigurationProvider
     {
         get => GetBool(nameof(AttemptDecalInjection), true);
         set => SetSetting(nameof(AttemptDecalInjection), value.ToString());
+    }
+
+    public bool SaveGameWindows
+    {
+        get => GetBool(nameof(SaveGameWindows), true);
+        set => SetSetting(nameof(SaveGameWindows), value.ToString());
+    }
+
+    public bool RestoreGameWindows
+    {
+        get => GetBool(nameof(RestoreGameWindows), true);
+        set => SetSetting(nameof(RestoreGameWindows), value.ToString());
     }
 
     public void Load()

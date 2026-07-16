@@ -1,23 +1,24 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Models;
+using ShadowLauncher.Infrastructure.Paths;
 
 namespace ShadowLauncher.Services.LoginCommands;
 
 /// <summary>
-/// Manages login commands that ThwargFilter executes after a character logs in.
-/// Writes files to %AppData%\ThwargLauncher\LoginCommands\ in ThwargFilter's format.
+/// Manages login commands executed after character login by ThwargFilter and/or ShadowFilter.
+/// Dual-writes to %LocalAppData%\ShadowLauncher\LoginCommands\ and
+/// %AppData%\ThwargLauncher\LoginCommands\ so ThwargFilter-only installs work.
 /// Also manages default character selections per account/server.
 /// </summary>
 public class LoginCommandsService
 {
     private readonly ILogger<LoginCommandsService> _logger;
 
-    private static readonly string ThwargFolder = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ThwargLauncher");
-
-    private static readonly string LoginCommandsFolder = Path.Combine(ThwargFolder, "LoginCommands");
-    private static readonly string CharactersFolder = Path.Combine(ThwargFolder, "characters");
+    private static readonly string LoginCommandsFolder = ShadowLauncherPaths.LoginCommandsFolder;
+    private static readonly string ThwargLoginCommandsFolder = ShadowLauncherPaths.ThwargLoginCommandsFolder;
+    private static readonly string CharactersFolder = ShadowLauncherPaths.CharactersFolder;
+    private static readonly string ThwargCharactersFolder = ShadowLauncherPaths.ThwargCharactersFolder;
 
     public LoginCommandsService(ILogger<LoginCommandsService> logger)
     {
@@ -38,9 +39,7 @@ public class LoginCommandsService
     /// </summary>
     public void SetGlobalCommands(string commands, int waitMs = 3000)
     {
-        Directory.CreateDirectory(LoginCommandsFolder);
-        var path = Path.Combine(LoginCommandsFolder, "LoginCommandsGlobal.txt");
-        WriteCommandFile(path, commands, waitMs);
+        WriteCommandFileToBoth("LoginCommandsGlobal.txt", commands, waitMs);
     }
 
     /// <summary>
@@ -57,13 +56,48 @@ public class LoginCommandsService
     /// </summary>
     public void SetCharacterCommands(string accountName, string serverName, string characterName, string commands, int waitMs = 3000)
     {
-        Directory.CreateDirectory(LoginCommandsFolder);
-        var path = GetCharacterFilePath(accountName, serverName, characterName);
-        WriteCommandFile(path, commands, waitMs);
+        var fileName = $"LoginCommands-{accountName}-{serverName}-{characterName}.txt";
+        WriteCommandFileToBoth(fileName, commands, waitMs);
+    }
+
+    public void AppendGlobalCommand(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+            return;
+
+        var existing = GetGlobalCommands();
+        var combined = string.IsNullOrEmpty(existing) ? command : existing + Environment.NewLine + command;
+        SetGlobalCommands(combined);
+    }
+
+    public void AppendCharacterCommand(string accountName, string serverName, string characterName, string command)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+            return;
+
+        var existing = GetCharacterCommands(accountName, serverName, characterName);
+        var combined = string.IsNullOrEmpty(existing) ? command : existing + Environment.NewLine + command;
+        SetCharacterCommands(accountName, serverName, characterName, combined);
     }
 
     private string GetCharacterFilePath(string accountName, string serverName, string characterName)
         => Path.Combine(LoginCommandsFolder, $"LoginCommands-{accountName}-{serverName}-{characterName}.txt");
+
+    private void WriteCommandFileToBoth(string fileName, string commands, int waitMs)
+    {
+        Directory.CreateDirectory(LoginCommandsFolder);
+        WriteCommandFile(Path.Combine(LoginCommandsFolder, fileName), commands, waitMs);
+
+        try
+        {
+            Directory.CreateDirectory(ThwargLoginCommandsFolder);
+            WriteCommandFile(Path.Combine(ThwargLoginCommandsFolder, fileName), commands, waitMs);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not dual-write login commands to ThwargFilter folder");
+        }
+    }
 
     private static string ParseCommandsFromFile(string path)
     {
@@ -73,7 +107,7 @@ public class LoginCommandsService
         {
             if (line.StartsWith("Command") && !line.StartsWith("CommandCount"))
             {
-                // ThwargFilter format uses ':' as separator (e.g., Command0:/say hello)
+                // Login command format uses ':' as separator (e.g., Command0:/say hello)
                 var sepIndex = line.IndexOf(':');
                 if (sepIndex < 0) sepIndex = line.IndexOf('=');
                 if (sepIndex < 0) continue;
@@ -98,22 +132,28 @@ public class LoginCommandsService
     }
 
     /// <summary>
-    /// Reads character names from ThwargFilter's character files for a given server+account.
-    /// Files are at %AppData%\ThwargLauncher\characters\characters_{Server}_{Account}.txt
+    /// Reads character names from ShadowFilter or ThwargFilter character list files.
     /// Searches case-insensitively and also tries partial matches.
     /// </summary>
     public List<string> GetKnownCharacters(string serverName, string accountName)
     {
-        var characters = new List<string>();
-        if (!Directory.Exists(CharactersFolder)) return characters;
+        var fromShadow = TryReadCharactersFromFolder(CharactersFolder, serverName, accountName);
+        if (fromShadow.Count > 0)
+            return fromShadow;
 
-        // Try exact match first, then case-insensitive search
+        return TryReadCharactersFromFolder(ThwargCharactersFolder, serverName, accountName);
+    }
+
+    private static List<string> TryReadCharactersFromFolder(string folder, string serverName, string accountName)
+    {
+        var characters = new List<string>();
+        if (!Directory.Exists(folder)) return characters;
+
         var expectedFileName = $"characters_{serverName}_{accountName}.txt";
-        var files = Directory.GetFiles(CharactersFolder, "characters_*_*.txt");
+        var files = Directory.GetFiles(folder, "characters_*_*.txt");
         var matchingFile = files.FirstOrDefault(f =>
             Path.GetFileName(f).Equals(expectedFileName, StringComparison.OrdinalIgnoreCase));
 
-        // If no exact match, try partial (server name might be slightly different)
         if (matchingFile is null)
         {
             matchingFile = files.FirstOrDefault(f =>
@@ -137,9 +177,7 @@ public class LoginCommandsService
                     foreach (var charEntry in charList.EnumerateArray())
                     {
                         if (charEntry.TryGetProperty("Name", out var name) && name.GetString() is string charName)
-                        {
                             characters.Add(charName);
-                        }
                     }
                 }
             }
@@ -154,7 +192,7 @@ public class LoginCommandsService
 
     // ═══════ Default Character Per Account/Server ═══════
 
-    private static readonly string DefaultCharactersFile = Path.Combine(ThwargFolder, "DefaultCharacters.json");
+    private static readonly string DefaultCharactersFile = ShadowLauncherPaths.DefaultCharactersFile;
 
     /// <summary>
     /// Gets the default character for an account/server combo.
@@ -217,7 +255,7 @@ public class LoginCommandsService
     // ═══════ Profile Snapshot / Apply ═══════
 
     /// <summary>
-    /// Reads all current ThwargFilter command files and default character selections
+    /// Reads all current login command files and default character selections
     /// into the given profile object so they can be persisted.
     /// </summary>
     public void SnapshotIntoProfile(LaunchProfile profile)
@@ -255,8 +293,7 @@ public class LoginCommandsService
     }
 
     /// <summary>
-    /// Writes a profile's stored commands and default character selections back to
-    /// ThwargFilter's files, replacing whatever was there.
+    /// Writes a profile's stored commands and default character selections back to disk,
     /// </summary>
     public void ApplyFromProfile(LaunchProfile profile)
     {
@@ -264,22 +301,8 @@ public class LoginCommandsService
         SetGlobalCommands(profile.GlobalLoginCommands, profile.GlobalLoginCommandsWaitMs);
 
         // Remove old per-character files first so stale ones don't linger.
-        // Best-effort: log and skip any file that can't be deleted (locked/read-only)
-        // rather than leaving the app in a half-applied state.
-        if (Directory.Exists(LoginCommandsFolder))
-        {
-            foreach (var file in Directory.GetFiles(LoginCommandsFolder, "LoginCommands-*-*-*.txt"))
-            {
-                try
-                {
-                    File.Delete(file);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Could not delete stale login-command file '{File}' during profile switch; skipping.", file);
-                }
-            }
-        }
+        ClearPerCharacterCommandFiles(LoginCommandsFolder);
+        ClearPerCharacterCommandFiles(ThwargLoginCommandsFolder);
 
         // Write per-character commands from profile
         foreach (var (key, entry) in profile.CharacterLoginCommands)
@@ -291,6 +314,24 @@ public class LoginCommandsService
 
         // Default character selections
         SaveDefaultCharacters(profile.DefaultCharacters);
+    }
+
+    private void ClearPerCharacterCommandFiles(string folder)
+    {
+        if (!Directory.Exists(folder))
+            return;
+
+        foreach (var file in Directory.GetFiles(folder, "LoginCommands-*-*-*.txt"))
+        {
+            try
+            {
+                File.Delete(file);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not delete stale login-command file '{File}' during profile switch; skipping.", file);
+            }
+        }
     }
 
     private static int ReadWaitMs(string filePath)

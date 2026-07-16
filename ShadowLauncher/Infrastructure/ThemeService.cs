@@ -29,7 +29,6 @@ public class ThemeService
     }
 
     public string CurrentThemeName => Themes[_currentIndex].Name;
-    public int ThemeCount => Themes.Length;
 
     public event Action<string>? ThemeChanged;
 

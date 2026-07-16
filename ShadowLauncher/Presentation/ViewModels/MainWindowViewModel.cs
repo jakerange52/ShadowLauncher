@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Core.Interfaces;
@@ -17,6 +18,7 @@ using ShadowLauncher.Services.Dats;
 using ShadowLauncher.Services.Profiles;
 using ShadowLauncher.Services.LoginCommands;
 using ShadowLauncher.Services.Servers;
+using ShadowLauncher.Presentation.Views;
 
 namespace ShadowLauncher.Presentation.ViewModels;
 
@@ -46,6 +48,9 @@ public class MainWindowViewModel : ViewModelBase
     private bool _applyingProfile;
     private string? _updateBannerText;
     private string? _updateDownloadUrl;
+    private string? _updateReleaseUrl;
+    private Version? _updateCurrentVersion;
+    private Version? _updateRemoteVersion;
 
     /// <summary>Tracks PID → (Account, Server) for auto-relaunch.</summary>
     private readonly Dictionary<int, (Account Account, Server Server)> _launchedSessions = [];
@@ -56,6 +61,8 @@ public class MainWindowViewModel : ViewModelBase
     /// window that's still on the login/character-select screen).
     /// </summary>
     private readonly HashSet<int> _pendingMinimizeOnInGame = [];
+
+    private readonly DispatcherTimer _activeTimeTimer;
 
     /// <summary>
     /// Raised when the VM needs the view to show a file-browse dialog.
@@ -100,7 +107,7 @@ public class MainWindowViewModel : ViewModelBase
         _themeService.ThemeChanged += name =>
             System.Windows.Application.Current.Dispatcher.Invoke(() => CurrentThemeName = name);
 
-        _logger.LogInformation("MainWindowViewModel initializing");
+        _logger.LogDebug("MainWindowViewModel initializing");
 
         _accountService.AccountsChanged += (_, _) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(ReloadAccountsAsync);
@@ -112,6 +119,10 @@ public class MainWindowViewModel : ViewModelBase
             System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnGameExited(e.ProcessId, e.WasMinimized));
         _gameMonitor.HeartbeatReceived += (_, e) =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnHeartbeatReceived(e));
+
+        _activeTimeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _activeTimeTimer.Tick += (_, _) => RefreshActiveTimeDisplay();
+        _activeTimeTimer.Start();
 
         _gameClientPath = _config.GameClientPath;
 
@@ -175,13 +186,8 @@ public class MainWindowViewModel : ViewModelBase
     {
         if (string.IsNullOrEmpty(_updateDownloadUrl)) return;
 
-        var answer = MessageBox.Show(
-            $"Download and install the new version now? The app will restart automatically.",
-            "Install Update",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Information);
-
-        if (answer != MessageBoxResult.Yes) return;
+        if (!UpdateAvailableWindow.PromptInstall(_updateCurrentVersion, _updateRemoteVersion, _updateReleaseUrl ?? string.Empty))
+            return;
 
         DismissUpdateBanner();
 
@@ -431,7 +437,7 @@ public class MainWindowViewModel : ViewModelBase
 
     public async Task LoadAsync()
     {
-        _logger.LogInformation("Loading accounts, servers, and sessions...");
+        _logger.LogDebug("Loading accounts, servers, and sessions...");
 
         IsLoading = true;
         StatusText = "Loading...";
@@ -448,7 +454,7 @@ public class MainWindowViewModel : ViewModelBase
             ActiveSessions.Clear();
             foreach (var session in await _sessionService.GetActiveSessionsAsync())
             {
-                ActiveSessions.Add(session);
+                ActiveSessions.Add(CloneSessionForUi(session));
 
                 // Adopted (journaled) sessions weren't launched by this process, so
                 // _launchedSessions is empty for them. Seed it by ID lookup so that
@@ -503,6 +509,9 @@ public class MainWindowViewModel : ViewModelBase
             if (result.Success && result.UpdateAvailable)
             {
                 _updateDownloadUrl = result.DownloadUrl;
+                _updateReleaseUrl = result.ReleaseUrl;
+                _updateCurrentVersion = result.CurrentVersion;
+                _updateRemoteVersion = result.RemoteVersion;
                 UpdateBannerText = $"\u2B06 New version available: v{result.RemoteVersion} \u2014 you have v{result.CurrentVersion}";
             }
         }
@@ -514,7 +523,7 @@ public class MainWindowViewModel : ViewModelBase
 
     private async Task ReloadAccountsAsync()
     {
-        _logger.LogInformation("Reloading accounts from file...");
+        _logger.LogDebug("Reloading accounts from file...");
         Accounts.Clear();
         foreach (var account in await _accountService.GetAllAccountsAsync())
             Accounts.Add(account);
@@ -575,11 +584,11 @@ public class MainWindowViewModel : ViewModelBase
                 if (result.Success)
                 {
                     var newSession = await _sessionService.CreateSessionAsync(info.Account, info.Server, result.ProcessId);
-                    ActiveSessions.Add(newSession);
+                    ActiveSessions.Add(CloneSessionForUi(newSession));
                     _launchedSessions[result.ProcessId] = info;
                     StatusText = $"Auto-relaunched {info.Account.Name} (PID {result.ProcessId})";
 
-                    if (wasMinimized)
+                    if (_sessionService.GetRelaunchWasMinimized(info.Account.Id, info.Server.Id))
                     {
                         var character = _loginCommandsService.GetDefaultCharacter(info.Account.Name, info.Server.Name);
                         var hasAutoLoginCharacter = !string.IsNullOrWhiteSpace(character)
@@ -587,13 +596,13 @@ public class MainWindowViewModel : ViewModelBase
 
                         if (hasAutoLoginCharacter)
                         {
-                            _logger.LogInformation("Will re-minimize PID {Pid} after character '{Char}' reaches in-game",
+                            _logger.LogDebug("Will re-minimize PID {Pid} after character '{Char}' reaches in-game",
                                 result.ProcessId, character);
                             _pendingMinimizeOnInGame.Add(result.ProcessId);
                         }
                         else
                         {
-                            _logger.LogInformation("Previous client was minimized — will re-minimize relaunched PID {Pid}", result.ProcessId);
+                            _logger.LogDebug("Previous client was minimized — will re-minimize relaunched PID {Pid}", result.ProcessId);
                             _ = MinimizeWhenReadyAsync(result.ProcessId);
                         }
                     }
@@ -623,67 +632,132 @@ public class MainWindowViewModel : ViewModelBase
     /// </summary>
     private async Task MinimizeWhenReadyAsync(int processId)
     {
-        const int totalMs = 30_000;   // keep watching for 30s after relaunch
+        const int totalMs = 30_000;
         const int intervalMs = 500;
-        int elapsed = 0;
-        bool everMinimized = false;
+        var elapsed = 0;
+        var everMinimized = false;
         while (elapsed < totalMs)
         {
             await Task.Delay(intervalMs);
             elapsed += intervalMs;
-            try
-            {
-                using var p = System.Diagnostics.Process.GetProcessById(processId);
-                if (p.HasExited) return;
-            }
-            catch (ArgumentException) { return; }
 
-            var n = WindowFocusHelper.MinimizeAllWindows(processId);
-            if (n > 0)
+            var exited = await Task.Run(() =>
+            {
+                try
+                {
+                    using var p = System.Diagnostics.Process.GetProcessById(processId);
+                    return p.HasExited;
+                }
+                catch (ArgumentException)
+                {
+                    return true;
+                }
+            });
+            if (exited)
+                return;
+
+            var minimized = await Task.Run(() => WindowFocusHelper.MinimizeAllWindows(processId));
+            if (minimized > 0)
             {
                 everMinimized = true;
-                _logger.LogInformation("Restored minimized state for relaunched PID {Pid}", processId);
+                _logger.LogDebug("Restored minimized state for relaunched PID {Pid}", processId);
                 return;
             }
         }
+
         if (!everMinimized)
             _logger.LogWarning("Gave up minimizing PID {Pid}: no visible window appeared within {Ms}ms", processId, totalMs);
     }
 
     private void OnHeartbeatReceived(HeartbeatReceivedEventArgs e)
     {
-        var session = ActiveSessions.FirstOrDefault(s => s.Id == e.SessionId);
-        if (session is not null)
+        var session = ActiveSessions.FirstOrDefault(s => s.Id == e.SessionId)
+            ?? ActiveSessions.FirstOrDefault(s =>
+                _sessionService.FindSessionByProcessId(s.ProcessId)?.Id == e.SessionId);
+        if (session is null)
+            return;
+
+        ApplySessionSnapshot(session, e.Data.CharacterName, e.Data.Status, e.Data.Timestamp);
+    }
+
+    private void RefreshActiveTimeDisplay()
+    {
+        if (ActiveSessions.Count == 0)
+            return;
+
+        for (var i = 0; i < ActiveSessions.Count; i++)
         {
-            var wasSelected = SelectedSession?.Id == session.Id;
-            var idx = ActiveSessions.IndexOf(session);
-            // Create a new object so ObservableCollection detects the change
-            var updated = new Core.Models.GameSession
+            var displayed = ActiveSessions[i];
+            if (displayed.Status is GameSessionStatus.Offline or GameSessionStatus.Exiting)
+                continue;
+
+            var live = _sessionService.FindSessionByProcessId(displayed.ProcessId);
+            if (live is null)
+                continue;
+
+            var aliveSeconds = live.GetAliveSeconds();
+            if (displayed.Status == live.Status
+                && displayed.CharacterName == live.CharacterName
+                && displayed.UptimeSeconds == aliveSeconds)
             {
-                Id = session.Id,
-                AccountId = session.AccountId,
-                AccountName = session.AccountName,
-                ServerId = session.ServerId,
-                ServerName = session.ServerName,
-                CharacterName = e.Data.CharacterName,
-                ProcessId = session.ProcessId,
-                Status = e.Data.Status,
-                LastHeartbeatTime = e.Data.Timestamp,
-                UptimeSeconds = e.Data.UptimeSeconds
-            };
-            ActiveSessions[idx] = updated;
+                continue;
+            }
+
+            var wasSelected = SelectedSession?.Id == displayed.Id;
+            var updated = CloneSessionForUi(live);
+            updated.UptimeSeconds = aliveSeconds;
+            ActiveSessions[i] = updated;
             if (wasSelected)
                 SelectedSession = updated;
-
-            if (updated.Status == GameSessionStatus.InGame
-                && _pendingMinimizeOnInGame.Remove(updated.ProcessId))
-            {
-                _logger.LogInformation("Character '{Char}' reached in-game on PID {Pid} — minimizing now",
-                    updated.CharacterName, updated.ProcessId);
-                _ = MinimizeWhenReadyAsync(updated.ProcessId);
-            }
         }
     }
+
+    private void ApplySessionSnapshot(
+        GameSession session,
+        string characterName,
+        GameSessionStatus status,
+        DateTime lastHeartbeatUtc)
+    {
+        if (session.CharacterName == characterName && session.Status == status)
+            return;
+
+        var live = _sessionService.FindSessionByProcessId(session.ProcessId);
+        var wasSelected = SelectedSession?.Id == session.Id;
+        var idx = ActiveSessions.IndexOf(session);
+        var updated = CloneSessionForUi(live ?? session);
+        updated.CharacterName = characterName;
+        updated.Status = status;
+        updated.LastHeartbeatTime = lastHeartbeatUtc;
+        updated.UptimeSeconds = updated.GetAliveSeconds();
+        ActiveSessions[idx] = updated;
+        if (wasSelected)
+            SelectedSession = updated;
+
+        if (updated.Status == GameSessionStatus.InGame
+            && _pendingMinimizeOnInGame.Remove(updated.ProcessId))
+        {
+            _logger.LogInformation("Character '{Char}' reached in-game on PID {Pid} — minimizing now",
+                updated.CharacterName, updated.ProcessId);
+            _ = MinimizeWhenReadyAsync(updated.ProcessId);
+        }
+    }
+
+    private static GameSession CloneSessionForUi(GameSession source) =>
+        new()
+        {
+            Id = source.Id,
+            AccountId = source.AccountId,
+            AccountName = source.AccountName,
+            ServerId = source.ServerId,
+            ServerName = source.ServerName,
+            CharacterName = source.CharacterName,
+            ProcessId = source.ProcessId,
+            Status = source.Status,
+            StartedAtUtc = source.StartedAtUtc,
+            WasMinimized = source.WasMinimized,
+            LastHeartbeatTime = source.LastHeartbeatTime,
+            UptimeSeconds = source.GetAliveSeconds()
+        };
 
     private async Task LaunchGameAsync()
     {
@@ -691,7 +765,7 @@ public class MainWindowViewModel : ViewModelBase
         var servers = SelectedServers.ToList();
         if (accounts.Count == 0 || servers.Count == 0) return;
 
-        _logger.LogInformation("Launch requested: {AccountCount} accounts × {ServerCount} servers",
+        _logger.LogDebug("Launch requested: {AccountCount} accounts × {ServerCount} servers",
             accounts.Count, servers.Count);
 
         var serversNeedingDats = new List<(Server Server, string DatSetId)>();
@@ -722,7 +796,7 @@ public class MainWindowViewModel : ViewModelBase
                 // Registry-sourced DAT sets
                 foreach (var (fetchServer, datSetId) in serversNeedingDats)
                 {
-                    _logger.LogInformation("Fetching DAT set '{Id}' for server '{Server}'",
+                    _logger.LogDebug("Fetching DAT set '{Id}' for server '{Server}'",
                         datSetId, fetchServer.Name);
 
                     var progress = new Progress<Services.Dats.DatDownloadProgress>(
@@ -734,7 +808,7 @@ public class MainWindowViewModel : ViewModelBase
                 // Custom-source DAT servers (local path or hosted zip URL)
                 foreach (var fetchServer in serversNeedingCustomDats)
                 {
-                    _logger.LogInformation("Ensuring custom DAT source for server '{Server}'", fetchServer.Name);
+                    _logger.LogDebug("Ensuring custom DAT source for server '{Server}'", fetchServer.Name);
 
                     var progress = new Progress<Services.Dats.DatDownloadProgress>(
                         p => fetchWindow.ViewModel.Apply(p));
@@ -792,7 +866,7 @@ public class MainWindowViewModel : ViewModelBase
                     if (result.Success)
                     {
                         var session = await _sessionService.CreateSessionAsync(account, server, result.ProcessId);
-                        ActiveSessions.Add(session);
+                        ActiveSessions.Add(CloneSessionForUi(session));
                         _launchedSessions[result.ProcessId] = (account, server);
                         launched++;
 
@@ -859,7 +933,7 @@ public class MainWindowViewModel : ViewModelBase
         {
             try
             {
-                var account = await _accountService.CreateAccountAsync(vm.Username, vm.Password);
+                var account = await _accountService.CreateAccountAsync(vm.Username, vm.Password, vm.PreferencePath);
                 Accounts.Add(account);
                 StatusText = $"Account '{account.Name}' added.";
             }
@@ -998,6 +1072,29 @@ public class MainWindowViewModel : ViewModelBase
     {
         await _accountService.UpdateAccountAsync(account);
         await ReloadAccountsAsync();
+    }
+
+    public async Task EditAccountAsync(Account account)
+    {
+        var vm = new EditAccountViewModel(account);
+        var window = new Presentation.Views.EditAccountWindow(vm)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+
+        if (window.ShowDialog() == true)
+        {
+            try
+            {
+                await _accountService.UpdateAccountAsync(account);
+                await ReloadAccountsAsync();
+                StatusText = $"Account '{account.Name}' updated.";
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"Error updating account: {ex.Message}";
+            }
+        }
     }
 
     private void BrowseServers()

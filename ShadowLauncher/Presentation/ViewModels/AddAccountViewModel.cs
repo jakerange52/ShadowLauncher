@@ -6,14 +6,17 @@ public class AddAccountViewModel : ViewModelBase
 {
     private string _username = string.Empty;
     private string _password = string.Empty;
+    private string _preferencePath = string.Empty;
     private string _errorText = string.Empty;
 
     public AddAccountViewModel()
     {
         SaveCommand = new RelayCommand(Save, () => CanSave);
+        BrowsePreferencePathCommand = new RelayCommand(() => BrowseRequested?.Invoke(this, nameof(PreferencePath)));
     }
 
     public event EventHandler? SaveCompleted;
+    public event EventHandler<string>? BrowseRequested;
 
     public string Username
     {
@@ -35,6 +38,12 @@ public class AddAccountViewModel : ViewModelBase
         }
     }
 
+    public string PreferencePath
+    {
+        get => _preferencePath;
+        set => SetProperty(ref _preferencePath, value);
+    }
+
     public string ErrorText
     {
         get => _errorText;
@@ -44,6 +53,7 @@ public class AddAccountViewModel : ViewModelBase
     public bool CanSave => !string.IsNullOrWhiteSpace(Username) && !string.IsNullOrWhiteSpace(Password);
 
     public ICommand SaveCommand { get; }
+    public ICommand BrowsePreferencePathCommand { get; }
 
     private void Save()
     {

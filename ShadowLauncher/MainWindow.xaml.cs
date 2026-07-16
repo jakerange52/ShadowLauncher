@@ -147,6 +147,12 @@ public partial class MainWindow : Window
             await _viewModel.RemoveAccountAsync(account);
     }
 
+    private async void EditAccount_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: Account account })
+            await _viewModel.EditAccountAsync(account);
+    }
+
     private async void EditNote_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: Account account })

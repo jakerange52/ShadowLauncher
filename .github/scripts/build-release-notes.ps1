@@ -3,8 +3,7 @@ param(
     [Parameter(Mandatory)][string]$Version,
     [Parameter(Mandatory)][string]$Tag,
     [string]$PreviousTag = "",
-    [string]$Repo = $env:GITHUB_REPOSITORY,
-    [int]$MaxLines = 25
+    [string]$Repo = $env:GITHUB_REPOSITORY
 )
 
 Set-StrictMode -Version Latest
@@ -12,23 +11,13 @@ $ErrorActionPreference = "Stop"
 
 if (-not $Repo) { throw "GITHUB_REPOSITORY is not set." }
 
-$apiArgs = @(
-    "repos/$Repo/releases/generate-notes",
-    "-f", "tag_name=$Tag",
-    "-f", "target_commitish=master"
-)
+$baseUrl = "https://github.com/$Repo"
 if ($PreviousTag) {
-    $apiArgs += @("-f", "previous_tag_name=$PreviousTag")
+    $changelog = "$baseUrl/compare/$PreviousTag...$Tag"
+    $generatedBody = "Full changelog: $changelog"
 }
-
-$generatedBody = gh api @apiArgs --jq .body
-if (-not $generatedBody) {
-    $generatedBody = "Release $Tag"
-}
-
-$lines = $generatedBody -split "`r?`n"
-if ($lines.Count -gt $MaxLines) {
-    $generatedBody = (($lines | Select-Object -First $MaxLines) -join "`n") + "`n`n..."
+else {
+    $generatedBody = "Initial release. Commits: $baseUrl/commits/$Tag"
 }
 
 $finalBody = "## What's New in v$Version`n`n$generatedBody"

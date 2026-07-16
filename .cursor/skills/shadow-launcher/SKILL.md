@@ -37,7 +37,7 @@ ShadowLauncher.exe          acclient.exe (x86, suspended → injected → runnin
   .NET 10 WPF                 Native Win32 game client
   External process            Inject.dll loaded in-process
                               Decal Agent (.NET Framework CLR)
-                                └─ plugins: VTank, ThwargFilter, UtilityBelt, ...
+                                └─ plugins: VTank, ShadowFilter, UtilityBelt, ...
 ```
 
 The launcher never hosts Decal. It only gets Inject.dll into acclient before the main thread runs. All plugin code executes inside the game process under Decal's .NET Framework host — typically 4.x for modern plugins, but Decal itself has roots in 2.0-era interop.
@@ -58,11 +58,11 @@ App.xaml.cs
 
 ```
 GameSessionService → GameLauncher.LaunchGameAsync()
-  → WriteThwargFilterLaunchFile()     ← MUST precede CreateProcess (4-tick window)
+  → Dual-write launch files           ← ShadowFilter + ThwargFilter (4-tick window)
   → ResolveInstancePathAsync()        ← DAT cache check + instance dir
   → LaunchWithDecal()                 ← DecalInjector or Process.Start fallback
-  → MovieSkipper (auto-login only)
   → WindowTitleSetter (taskbar identification)
+  → ThwargFilter and/or ShadowFilter  ← char select (ThwargFilter wins if both loaded)
   → WatchAndCleanupAsync()            ← delete instance dir on exit
 ```
 
@@ -77,6 +77,10 @@ GameSessionService → GameLauncher.LaunchGameAsync()
 | `DatSets\{id}\` | Downloaded DAT caches |
 | `ACBase\` | Writable AC copy for hard-link base |
 | `Instances\{guid}\` | Ephemeral per-launch hard-link trees |
+| `LaunchFiles\` | ShadowFilter launch files (pre-CreateProcess) |
+| `Running\` | ShadowFilter heartbeat files (`game_{pid}.txt`) |
+| `LoginCommands\` | Login command files for ShadowFilter |
+| `characters\` | Character list JSON from ShadowFilter |
 | `Logs\` | 7-day rolling logs |
 
 ## Emulator command-line variants
@@ -94,13 +98,44 @@ Built in `GameLauncher.BuildLaunchArguments()`:
 ## ThwargLauncher compatibility
 
 - Accounts imported from `%LocalAppData%\ThwargLauncher\Accounts.txt` on first run
-- ThwargFilter launch files use the same path/format as ThwargLauncher
+- Legacy ThwargFilter LoginCommands/characters/DefaultCharacters.json imported once from `%AppData%\ThwargLauncher\` if ShadowLauncher copies don't exist
 - Warns if ThwargLauncher is already running (Decal/plugin conflicts)
+
+## Decal filters (ThwargFilter welcome, ShadowFilter optional)
+
+- Users who already have **ThwargFilter** should keep it — ShadowLauncher dual-writes `%AppData%\ThwargLauncher\LaunchFiles\launch_ThwargFilter_*.txt` for character auto-login. Do not push ShadowFilter as required.
+- **ShadowFilter** is optional first-party plugin from `ShadowFilter/`; ships under `INSTALLFOLDER\ShadowFilter\`. Register only if wanted (**Settings → Help**).
+- ShadowFilter IPC: `%LocalAppData%\ShadowLauncher\`. Heartbeat reader also falls back to ThwargFilter `%AppData%\ThwargLauncher\Running\`.
+- When both filters load, ShadowFilter defers character-select clicks to ThwargFilter (`ParallelFilterGuard`).
+- Auto-login parity: ThwargFilter `LauncherChooseCharacterManager` — 4-tick timer on `0xF7EA`, Decal.Hwnd mouse clicks, exact-path launch file on `0xF7E1`
+
+### Deploy updated ShadowFilter.dll
+
+After building, copy with Decal and all clients closed (otherwise the Decal Agent locks the DLL):
+
+```powershell
+dotnet build ShadowFilter/ShadowFilter.csproj -c Release
+# Add in Decal Agent: browse to INSTALLFOLDER\ShadowFilter\ShadowFilter.dll (see Settings → Help).
+# For dev: copy to a stable folder — never point Decal at bin\Debug.
+Copy-Item ShadowFilter\bin\Release\net472\ShadowFilter.dll, ShadowFilter\bin\Release\net472\Newtonsoft.Json.dll `
+  "$env:USERPROFILE\Documents\Decal Plugins\ShadowFilter\" -Force
+```
+
+Or run `.\Build-Installer.ps1` and register via Decal Agent using **Settings → Help**.
+
+### Manual auto-login checks
+
+1. Set a default character (Per Character login commands → `DefaultCharacters.json`).
+2. Launch with Decal injected — intro skip at ~1–2s after connect, character enters world at ~3s.
+3. Default `"any"` / `None` — stays on character select (Thwarg calls `LoginCharacter("None")` which no-ops).
+4. Multi-box two accounts on the same server — each picks its own default character (exact-path launch files, no folder scan).
+5. Clicks target `CoreManager.Current.Decal.Hwnd` at fixed pixels (350,100 intro; 121/Y char list) — standard 800×600-style client.
 
 ## Build
 
 ```powershell
 dotnet build ShadowLauncher/ShadowLauncher.csproj   # x86, net10.0-windows
+dotnet build ShadowFilter/ShadowFilter.csproj -c Release   # requires externals/Decal/Decal.Adapter.dll
 .\Build-Installer.ps1
 ```
 

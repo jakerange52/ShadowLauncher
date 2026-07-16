@@ -10,7 +10,7 @@
     <Border Background="{DynamicResource BgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
     <Grid Margin="16">
         <DockPanel VerticalAlignment="Top" Margin="0,-8,0,0" Height="28">
-            <TextBlock Text="Login Commands (ThwargFilter)" Foreground="#888" VerticalAlignment="Center" FontWeight="SemiBold"/>
+            <TextBlock Text="Login Commands" Foreground="#888" VerticalAlignment="Center" FontWeight="SemiBold"/>
             <Button DockPanel.Dock="Right" Content="&#x2715;" Padding="8,2" FontSize="11" Click="Close_Click"
                     Style="{DynamicResource IconButton}" Foreground="#888" HorizontalAlignment="Right"
                     WindowChrome.IsHitTestVisibleInChrome="True"/>
@@ -25,7 +25,7 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Foreground="#AAA" FontSize="11" Margin="0,0,0,8" TextWrapping="Wrap"
-                   Text="Commands are sent as chat messages after login (one per line). Uses ThwargFilter. Example: /allegiance recall"/>
+                   Text="Commands are sent as chat messages after login (one per line). Requires ThwargFilter or ShadowFilter. Example: /allegiance recall"/>
 
         <TextBlock Grid.Row="1" Text="Global Commands (all characters)" FontWeight="SemiBold" Foreground="#AAA" Margin="0,0,0,4"/>
         <TextBox Grid.Row="2" x:Name="CommandsTextBox" AcceptsReturn="True" TextWrapping="Wrap"

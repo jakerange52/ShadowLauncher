@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
@@ -67,6 +68,12 @@ public class AppCoordinator
         // Ensure data directories exist
         Directory.CreateDirectory(_config.DataDirectory);
         Directory.CreateDirectory(_config.LogDirectory);
+        Directory.CreateDirectory(ShadowLauncher.Infrastructure.Paths.ShadowLauncherPaths.LaunchFilesFolder);
+        Directory.CreateDirectory(ShadowLauncher.Infrastructure.Paths.ShadowLauncherPaths.RunningFolder);
+
+        // Drop stale ShadowFilter launch files so a leftover auto-login target cannot
+        // surprise the next client start (especially Decal tray / manual launches).
+        CleanupStaleShadowFilterLaunchFiles();
 
         // Delete any leftover update installer from a previous update run.
         // This retroactively cleans up %TEMP%\ShadowLauncher-Setup-Update.exe
@@ -83,7 +90,7 @@ public class AppCoordinator
             catch (Exception ex) { _logger.LogWarning(ex, "Could not remove empty Instances directory"); }
         }
 
-        // Silently detect AC client and import ThwargLauncher data on first launch.
+        // Silently detect AC client and import legacy launcher data on first launch.
         await _firstRunService.RunAsync();
 
         // If HardLinkLauncher is active, ensure ACBase is ready before any launch is attempted.
@@ -114,7 +121,7 @@ public class AppCoordinator
             try
             {
                 await _datSetService.RefreshRegistryAsync(_appCts.Token);
-                _logger.LogInformation("DatRegistry refreshed successfully");
+                _logger.LogDebug("DatRegistry refreshed successfully");
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
@@ -147,7 +154,7 @@ public class AppCoordinator
         try
         {
             File.Delete(tempInstaller);
-            _logger.LogInformation("Cleaned up stale temp installer: {Path}", tempInstaller);
+            _logger.LogDebug("Cleaned up stale temp installer: {Path}", tempInstaller);
         }
         catch (Exception ex)
         {
@@ -155,10 +162,37 @@ public class AppCoordinator
         }
     }
 
+    private void CleanupStaleShadowFilterLaunchFiles()
+    {
+        try
+        {
+            var folder = ShadowLauncher.Infrastructure.Paths.ShadowLauncherPaths.LaunchFilesFolder;
+            if (!Directory.Exists(folder)) return;
+
+            var cutoff = DateTime.UtcNow - TimeSpan.FromSeconds(45);
+            foreach (var file in Directory.GetFiles(folder, "launch_ShadowFilter_*.txt"))
+            {
+                try
+                {
+                    if (File.GetLastWriteTimeUtc(file) < cutoff)
+                        File.Delete(file);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Could not delete stale launch file {File}", file);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Stale ShadowFilter launch file cleanup failed");
+        }
+    }
+
     /// <summary>
     /// Reads the on-disk session journal written by a previous launcher run and for
     /// each entry either re-adopts the session (if the game process is still alive) or
-    /// performs cleanup (ThwargFilter launch file + journal entry) if the process is gone.
+    /// performs cleanup (ShadowFilter launch file + journal entry) if the process is gone.
     /// This is what keeps tracking correct across launcher restarts and handles the case
     /// where the game outlives the launcher.
     /// </summary>
@@ -167,17 +201,21 @@ public class AppCoordinator
         var journaled = _sessionJournal.ReadAll();
         if (journaled.Count == 0) return;
 
-        _logger.LogInformation("Session journal: reconciling {Count} persisted session(s)", journaled.Count);
+        _logger.LogDebug("Session journal: reconciling {Count} persisted session(s)", journaled.Count);
 
         foreach (var session in journaled)
         {
             var alive = await _gameLauncher.IsGameProcessRunningAsync(session.ProcessId);
             if (alive)
             {
+                if (session.StartedAtUtc == default)
+                    session.StartedAtUtc = TryGetProcessStartUtc(session.ProcessId) ?? session.LastHeartbeatTime;
+
                 // Process is still running — restore the session so the monitor loop
                 // picks it up and starts tracking heartbeat / exit as normal.
                 session.Status = GameSessionStatus.InGame;
                 session.LastHeartbeatTime = DateTime.UtcNow;
+                session.UptimeSeconds = session.GetAliveSeconds();
                 await _sessionService.RestoreSessionAsync(session);
                 _logger.LogInformation(
                     "Restored live session {Id} — PID {Pid} ({Account} on {Server})",
@@ -185,8 +223,12 @@ public class AppCoordinator
             }
             else
             {
-                // Process is gone — clean up any remnants and discard the journal entry.
-                _gameLauncher.CleanupThwargFilterLaunchFile(session.AccountName, session.ServerName);
+                // Process is gone — persist minimized preference, then clean up remnants.
+                _sessionJournal.WriteRelaunchMinimized(session.AccountId, session.ServerId, session.WasMinimized);
+                var active = (await _sessionService.GetActiveSessionsAsync()).ToList();
+                _gameLauncher.CleanupShadowFilterLaunchFileIfUnused(
+                    session.AccountName, session.ServerName, active, session.ProcessId);
+                HeartbeatReader.DeleteHeartbeatFile(session.ProcessId);
                 _sessionJournal.Delete(session.Id);
                 _logger.LogInformation(
                     "Dead session {Id} cleaned up — PID {Pid} was no longer running",
@@ -246,5 +288,18 @@ public class AppCoordinator
         _config.Save();
 
         _logger.LogInformation("ShadowLauncher shutdown complete");
+    }
+
+    private static DateTime? TryGetProcessStartUtc(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return process.StartTime.ToUniversalTime();
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
     }
 }

@@ -1,61 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
-     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
-     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
-
-  <!--
-    WiX 5 requires util:RegistrySearch and util:FileSearch to live in a Fragment,
-    not directly inside Package.
-  -->
-  <Fragment>
-    <!--
-      Detect Decal 3.0 by its MSI uninstall registry key (written by the Decal installer).
-      Populates DECALINSTALLED with the DisplayName string if found, empty if not.
-
-      NOTE: This product GUID is specific to the known Decal 3.0 release. If Decal ships
-      a new version with a different product code this search will miss it. It is unclear
-      how much longer Decal will be actively maintained or distributed Ã¯Â¿Â½ if it is abandoned
-      or superseded this entire detection block may need revisiting.
-    -->
-    <util:RegistrySearch Id="DetectDecal"
-                         Root="HKLM"
-                         Key="SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{341F2D27-9E68-478E-828D-7A4EAD48289F}"
-                         Value="DisplayName"
-                         Variable="DECALINSTALLED"
-                         Result="value"
-                         Bitness="always32" />
-
-    <!--
-      Fallback: detect Decal by the presence of Decal.Adapter.dll in its default install
-      directory. Catches cases where a future Decal version ships a different MSI product
-      code and the registry search above comes up empty.
-    -->
-    <util:FileSearch Id="DetectDecalByFile"
-                     Path="[CommonFilesX86Folder]Decal\Decal.Adapter.dll"
-                     Variable="DECALINSTALLED"
-                     Result="exists"
-                     Condition="NOT DECALINSTALLED" />
-
-    <!--
-      Detect ThwargFilter already registered to Decal via two signals:
-        1. The FullInstall registry flag written by a previous ShadowLauncher full install.
-        2. ThwargFilter.dll in ThwargLauncher's default install directory.
-      Either signal sets THWARGFILTERALREADYINSTALLED so the warning fires.
-    -->
-    <util:RegistrySearch Id="DetectThwargFilterFlag"
-                         Root="HKLM"
-                         Key="Software\ShadowLauncher"
-                         Value="FullInstall"
-                         Variable="THWARGFILTERALREADYINSTALLED"
-                         Result="exists"
-                         Condition="NOT THWARGFILTERALREADYINSTALLED" />
-
-    <util:FileSearch Id="DetectThwargFilterExe"
-                     Path="[ProgramFilesX86Folder]ThwargLauncher\ThwargFilter.dll"
-                     Variable="THWARGFILTERALREADYINSTALLED"
-                     Result="exists"
-                     Condition="NOT THWARGFILTERALREADYINSTALLED" />
-  </Fragment>
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
 
   <Package Name="ShadowLauncher"
            Manufacturer="Jake Range"
@@ -73,77 +18,31 @@
                   Schedule="afterInstallInitialize" />
 
     <!--
-      Post-install options surfaced as checkboxes on the custom ExitDialog.
-      LAUNCHAFTERINSTALL defaults to 1 (checked). DESKTOPSHORTCUT defaults to empty (unchecked).
+      Launch-after-install via stock ExitDialog optional checkbox (WiX UI docs).
+      Checkbox defaults checked; Finish runs WixShellExec when still checked.
     -->
-    <Property Id="LAUNCHAFTERINSTALL" Value="1" />
-    <Property Id="DESKTOPSHORTCUT" Secure="yes" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch ShadowLauncher" />
+    <Property Id="WixShellExecTarget" Value="[#ShadowLauncherExe]" />
+    <CustomAction Id="LaunchApplication"
+                  BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
+                  DllEntry="WixShellExec"
+                  Impersonate="yes" />
 
-    <!--
-      Launch ShadowLauncher after install completes.
-      util:WixShellExecTarget fires from the Finish button in ExitDialog — no deferred
-      custom action needed, avoiding MSI error 2762.
-      SetProperty is used instead of Property so INSTALLFOLDER is resolved after
-      CostFinalize, avoiding WIX1077.
-    -->
-    <SetProperty Id="WixShellExecTarget"
-                 Value="[INSTALLFOLDER]ShadowLauncher.exe"
-                 After="CostFinalize"
-                 Sequence="execute" />
-
-    <!-- Raises the desktop shortcut feature level from 0 to 1 when checkbox is ticked -->
-    <SetProperty Id="DesktopShortcutFeature" Value="1" After="CostFinalize"
-                 Sequence="both" Condition="DESKTOPSHORTCUT" />
-
-    <!-- Feature-tree UI so users can choose Launcher Only or Full install -->
     <ui:WixUI Id="WixUI_FeatureTree" />
+    <UI>
+      <Publish Dialog="ExitDialog"
+               Control="Finish"
+               Event="DoAction"
+               Value="LaunchApplication"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+    </UI>
     <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseFile)" />
-
-    <!--
-      Block the full install if Decal is not present.
-      Condition is on the Custom scheduling elements, not here Ã¯Â¿Â½ WiX 5 does not allow
-      Condition as an attribute on error-type CustomAction elements.
-    -->
-    <CustomAction Id="BlockIfNoDecal"
-                  Error="The Full install requires Decal 3.0 to be installed first. Please install Decal from https://www.decaldev.com and re-run setup." />
-
-    <!--
-      Warn when ThwargFilter is already registered to Decal and the user picks Full install.
-    -->
-    <CustomAction Id="WarnThwargFilterAlreadyInstalled"
-                  Error="ThwargFilter is already registered with Decal on this machine (installed by ThwargLauncher or a previous ShadowLauncher setup). You should use the Normal install instead Ã¯Â¿Â½ the Full install is only needed when ThwargFilter is not already present. Cancel this installer, re-run it, and uncheck the Full install option." />
-
-    <!--
-      Error-type CustomActions must be in both sequences:
-        InstallUISequence  = shows the error dialog to the user before anything executes.
-        InstallExecuteSequence = safety net for silent/elevated installs.
-      Conditions live here on the Custom elements, not on the CustomAction definitions.
-    -->
-    <InstallUISequence>
-      <Custom Action="WarnThwargFilterAlreadyInstalled" Before="BlockIfNoDecal"
-              Condition="&amp;MultiboxingFeature=3 AND THWARGFILTERALREADYINSTALLED AND NOT Installed" />
-      <Custom Action="BlockIfNoDecal" Before="ExecuteAction"
-              Condition="&amp;MultiboxingFeature=3 AND NOT DECALINSTALLED AND NOT Installed" />
-    </InstallUISequence>
-
-    <InstallExecuteSequence>
-      <Custom Action="WarnThwargFilterAlreadyInstalled" Before="BlockIfNoDecal"
-              Condition="&amp;MultiboxingFeature=3 AND THWARGFILTERALREADYINSTALLED AND NOT Installed" />
-      <Custom Action="BlockIfNoDecal" Before="InstallFiles"
-              Condition="&amp;MultiboxingFeature=3 AND NOT DECALINSTALLED AND NOT Installed" />
-    </InstallExecuteSequence>
-
-    <!--
-      When the Full install feature is selected, recommend a logoff so the symlink privilege
-      takes effect. Condition attribute removed Ã¯Â¿Â½ not valid on RestartResource in WiX 5.
-      The restart recommendation is harmless on Normal installs.
-    -->
-    <util:RestartResource ProcessName="explorer" />
 
     <!-- Directory structure -->
     <StandardDirectory Id="ProgramFilesFolder">
       <Directory Id="INSTALLFOLDER" Name="ShadowLauncher">
-        <Directory Id="ThwargFilterFolder" Name="ThwargFilter" />
+        <Directory Id="ShadowFilterFolder" Name="ShadowFilter" />
       </Directory>
     </StandardDirectory>
 
@@ -234,7 +133,7 @@
       </Component>
     </ComponentGroup>
 
-    <!-- Desktop shortcut — only created when DESKTOPSHORTCUT property is set -->
+    <!-- Desktop shortcut — FeatureTree opt-in (Level 0 / off by default). -->
     <ComponentGroup Id="DesktopShortcutComponents" Directory="DesktopFolder">
       <Component Id="DesktopShortcut" Guid="3F7A2C1E-84B6-4D09-A531-7E2C0F9D4B82">
         <Shortcut Id="DesktopShortcut"
@@ -251,44 +150,20 @@
     </ComponentGroup>
 
     <!--
-      Multiboxing optional components
-      Decal must already be installed (it provides Decal.Adapter.dll at runtime).
-      Decal discovers ThwargFilter through its own plugin registry at runtime Ã¯Â¿Â½
-      util:RegisterAssembly (regasm) is not used; Decal does not require COM registration.
-
-      Files land in: INSTALLFOLDER\ThwargFilter\
+      Optional ShadowFilter DLLs land in INSTALLFOLDER\ShadowFilter\.
+      Not required if the user already has ThwargFilter — see Settings → Help.
     -->
-    <ComponentGroup Id="MultiboxingComponents" Directory="ThwargFilterFolder">
-
-      <Component Id="ThwargFilterDll" Guid="F1E2D3C4-B5A6-7890-1234-ABCDEF012345">
-        <File Id="ThwargFilterDllFile"
-              Source="$(var.ThirdPartyDir)ThwargFilter\ThwargFilter.dll"
+    <ComponentGroup Id="ShadowFilterFileComponents" Directory="ShadowFilterFolder">
+      <Component Id="ShadowFilterDll" Guid="F1E2D3C4-B5A6-7890-1234-ABCDEF012345">
+        <File Id="ShadowFilterDllFile"
+              Source="$(var.ThirdPartyDir)ShadowFilter\ShadowFilter.dll"
               KeyPath="yes" />
+        <RemoveFolder Id="RemoveShadowFilterFolder" Directory="ShadowFilterFolder" On="uninstall" />
       </Component>
 
       <Component Id="NewtonsoftJsonDll" Guid="E2D3C4B5-A697-8901-2345-BCDEF0123456">
-        <File Source="$(var.ThirdPartyDir)ThwargFilter\Newtonsoft.Json.dll" KeyPath="yes" />
+        <File Source="$(var.ThirdPartyDir)ShadowFilter\Newtonsoft.Json.dll" KeyPath="yes" />
       </Component>
-
-      <Component Id="VCS5Dll" Guid="7A3F1C6E-2B94-4D80-A517-3E8C0F2D9B45">
-        <File Source="$(var.ThirdPartyDir)ThwargFilter\VCS5.dll" KeyPath="yes" />
-      </Component>
-
-      <Component Id="VirindiViewServiceDll" Guid="C4B5A6F7-E8D9-0123-4567-DEF012345678">
-        <File Source="$(var.ThirdPartyDir)ThwargFilter\VirindiViewService.dll" KeyPath="yes" />
-      </Component>
-
-      <!-- Registry flag so we know full install was chosen on repair/uninstall -->
-      <Component Id="MultiboxingFlag" Guid="B6E04D27-91A3-4F5C-8E72-1D3A7C504F89">
-        <RegistryValue Root="HKLM"
-                       Key="Software\ShadowLauncher"
-                       Name="FullInstall"
-                       Type="integer" Value="1"
-                       KeyPath="yes" />
-        <!-- Tell MSI to remove the ThwargFilter subdirectory on uninstall -->
-        <RemoveFolder Id="RemoveThwargFilterFolder" Directory="ThwargFilterFolder" On="uninstall" />
-      </Component>
-
     </ComponentGroup>
 
     <!-- Feature tree -->
@@ -304,29 +179,16 @@
              AllowAbsent="no"
              Display="expand">
       <ComponentGroupRef Id="AppComponents" />
+      <ComponentGroupRef Id="ShadowFilterFileComponents" />
       <ComponentGroupRef Id="ShortcutComponents" />
 
-      <!-- Desktop shortcut feature: Level 0 (off) by default.
-           SetDesktopShortcutLevel raises it to 1 when DESKTOPSHORTCUT is set. -->
+      <!-- Desktop shortcut: Level 0 (off) by default; enable in the FeatureTree UI. -->
       <Feature Id="DesktopShortcutFeature"
                Title="Desktop shortcut"
                Description="Creates a shortcut on the desktop."
                Level="0"
                AllowAbsent="yes">
         <ComponentGroupRef Id="DesktopShortcutComponents" />
-      </Feature>
-
-      <!--
-        Full install: Decal + ThwargFilter for multi-boxing support.
-        Level="2" = NOT selected by default (opt-in).
-        Users must explicitly check this to get the full install.
-      -->
-      <Feature Id="MultiboxingFeature"
-               Title="Full install (includes ThwargFilter for multi-boxing Ã¯Â¿Â½ requires Decal 3.0)"
-               Description="Installs the ThwargFilter plugin for Decal. Enables in-game heartbeat monitoring, character tracking, and login commands. Requires Decal 3.0 to already be installed Ã¯Â¿Â½ setup will abort if Decal is not found. Can be skipped if you do not use Decal or manage plugins separately. Note: a log off and back on is required after install to activate multi-boxing support (grants SeCreateSymbolicLinkPrivilege to your user account)."
-               Level="2"
-               Display="expand">
-        <ComponentGroupRef Id="MultiboxingComponents" />
       </Feature>
 
     </Feature>

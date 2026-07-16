@@ -5,6 +5,7 @@ using System.Windows.Input;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Infrastructure;
 using ShadowLauncher.Infrastructure.Updates;
+using ShadowLauncher.Presentation.Views;
 
 namespace ShadowLauncher.Presentation.ViewModels;
 
@@ -144,16 +145,8 @@ public class SettingsViewModel : ViewModelBase
             return;
         }
 
-        // Update available — ask the user whether to install now.
-        var answer = MessageBox.Show(
-            $"ShadowLauncher v{result.RemoteVersion} is available (you have v{result.CurrentVersion}).\n\n" +
-            (string.IsNullOrWhiteSpace(result.ReleaseNotes) ? string.Empty : result.ReleaseNotes.Trim() + "\n\n") +
-            "Download and install now? The app will restart automatically.",
-            "Update Available",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Information);
-
-        if (answer != MessageBoxResult.Yes) return;
+        if (!UpdateAvailableWindow.PromptInstall(result.CurrentVersion, result.RemoteVersion, result.ReleaseUrl))
+            return;
 
         if (string.IsNullOrWhiteSpace(result.DownloadUrl))
         {

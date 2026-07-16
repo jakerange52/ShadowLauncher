@@ -1,0 +1,56 @@
+<Window x:Class="ShadowLauncher.Presentation.Views.EditAccountWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Edit Account" Height="280" Width="460"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{DynamicResource BgBrush}" WindowStyle="None" AllowsTransparency="True">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CornerRadius="12" GlassFrameThickness="0" CaptionHeight="28" ResizeBorderThickness="0"/>
+    </WindowChrome.WindowChrome>
+    <Border Background="{DynamicResource BgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+    <Grid Margin="16">
+        <DockPanel VerticalAlignment="Top" Margin="0,-8,0,0" Height="28">
+            <TextBlock Text="{Binding AccountName, StringFormat=Edit Account — {0}}" Foreground="#888" VerticalAlignment="Center" FontWeight="SemiBold"/>
+            <Button DockPanel.Dock="Right" Content="&#x2715;" Padding="8,2" FontSize="11" Click="Close_Click"
+                    Style="{DynamicResource IconButton}" Foreground="#888" HorizontalAlignment="Right"
+                    WindowChrome.IsHitTestVisibleInChrome="True"/>
+        </DockPanel>
+    <Grid Margin="0,20,0,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Note" FontWeight="SemiBold" Foreground="#AAA" Margin="0,0,0,4"/>
+        <TextBox Grid.Row="1" Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}"
+                 Padding="4,3" Margin="0,0,0,10"/>
+
+        <TextBlock Grid.Row="2" Text="UserPreferences.ini (optional)" FontWeight="SemiBold" Foreground="#AAA" Margin="0,0,0,4"
+                   ToolTip="Per-account UserPreferences.ini copied into Documents\Asheron's Call before launch."/>
+        <Grid Grid.Row="3" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox Grid.Column="0" Text="{Binding PreferencePath, UpdateSourceTrigger=PropertyChanged}"
+                     Padding="4,3" VerticalContentAlignment="Center"/>
+            <Button Grid.Column="1" Content="Browse…" Margin="6,0,0,0" Padding="12,4"
+                    Command="{Binding BrowsePreferencePathCommand}"/>
+        </Grid>
+
+        <TextBlock Grid.Row="4" Text="{Binding ErrorText}" Foreground="#E53935"
+                   VerticalAlignment="Center"/>
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" Padding="16,6" Margin="0,0,8,0" IsCancel="True"/>
+            <Button Content="Save" Padding="16,6" FontWeight="Bold"
+                    Command="{Binding SaveCommand}"/>
+        </StackPanel>
+    </Grid>
+    </Grid>
+    </Border>
+</Window>

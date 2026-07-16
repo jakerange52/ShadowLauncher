@@ -25,7 +25,7 @@ public class AccountService : IAccountService
     public Task<IEnumerable<Account>> GetAllAccountsAsync()
         => _repository.GetAllAsync();
 
-    public async Task<Account> CreateAccountAsync(string name, string password)
+    public async Task<Account> CreateAccountAsync(string name, string password, string? preferencePath = null)
     {
         var existing = await _repository.FindAsync(a =>
             a.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
@@ -37,6 +37,7 @@ public class AccountService : IAccountService
             Id = name.ToLowerInvariant(),
             Name = name,
             PasswordHash = password,
+            PreferencePath = preferencePath?.Trim() ?? string.Empty,
         };
 
         await _repository.AddAsync(account);

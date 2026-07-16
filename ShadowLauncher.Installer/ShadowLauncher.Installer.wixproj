@@ -16,13 +16,11 @@
   <ItemGroup>
     <WixExtension Include="WixToolset.UI.wixext" />
     <WixExtension Include="WixToolset.Util.wixext" />
-    <WixExtension Include="WixToolset.Netfx.wixext" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="Package.wxs" />
     <Compile Include="Privileges.wxs" />
-    <Compile Include="ExitDialog.wxs" />
   </ItemGroup>
 
   <ItemGroup>

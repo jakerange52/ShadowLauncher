@@ -87,11 +87,11 @@ Each client is a separate process with its own Decal injection. Decal handles pe
 
 Do not try to share one acclient process across accounts. That's not how Decal plugins work — VTank meta, character lists, and hook state are all per-process.
 
-## ThwargFilter dependency
+## ShadowFilter dependency
 
-ThwargFilter is a Decal plugin. It reads the launch file written by `GameLauncher.WriteThwargFilterLaunchFile()` and acts on first server connect. Its timer runs **four ticks** (states 0–3) then stops permanently. The launch file must exist before `CreateProcess` — same constraint ThwargLauncher/optimshi enforced.
+ShadowFilter is a first-party Decal plugin (`ShadowFilter/`). It reads the launch file written by `GameLauncher.WriteShadowFilterLaunchFile()` and acts on first server connect. Its timer runs **four ticks** (states 0–3) then stops permanently. The launch file must exist before `CreateProcess` — same constraint ThwargLauncher/optimshi enforced.
 
-Without Decal injection, ThwargFilter never loads and login commands are dead code.
+Without Decal injection, ShadowFilter never loads and login commands are dead code. Players add ShadowFilter in Decal Agent manually — **Settings → Help** in ShadowLauncher has step-by-step instructions.
 
 ## Debugging — veteran checklist
 
@@ -128,7 +128,8 @@ Export a Decal log (Decal tray → Help → export) when plugin issues persist p
 | File | Role |
 |------|------|
 | `Infrastructure/Native/DecalInjector.cs` | P/Invoke, injection |
-| `Services/Launching/GameLauncher.cs` | Orchestration, ThwargFilter file, fallback |
+| `Services/Launching/GameLauncher.cs` | Orchestration, ShadowFilter launch file, fallback |
+| `Presentation/Views/HelpWindow.xaml` | Manual ShadowFilter + Decal setup steps |
 | `Infrastructure/Configuration/AppConfiguration.cs` | `DecalPath` |
 | `Presentation/ViewModels/SettingsViewModel.cs` | Decal path UI |
 | `Infrastructure/Native/HardLinkLauncher.cs` | Instance CWD for custom DATs |
@@ -140,6 +141,6 @@ Windows + Decal installed + AC client:
 
 1. Single launch — log shows inject path, PID > 0, Decal tray shows client
 2. Second launch same server — both clients running, both Decal-loaded
-3. VTank or ThwargFilter enabled — plugin hooks active in both (if configured)
+3. VTank or ShadowFilter enabled — plugin hooks active in both (if configured)
 4. Decal uninstalled — one client via Process.Start, no crash
 5. Custom-DAT server — injection with instance dir as CWD

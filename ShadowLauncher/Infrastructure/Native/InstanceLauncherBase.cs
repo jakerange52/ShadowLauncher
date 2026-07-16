@@ -61,11 +61,11 @@ public abstract class InstanceLauncherBase : IInstancePreparer
 
         foreach (var dir in Directory.GetDirectories(instancesRoot))
         {
-            if (IsInstanceStale(dir))
-            {
-                CleanupInstance(dir);
+            if (!IsInstanceStale(dir))
+                continue;
+
+            if (TryCleanupInstance(dir))
                 _logger.LogInformation("Cleaned up stale instance: {Dir}", dir);
-            }
         }
     }
 
@@ -79,9 +79,12 @@ public abstract class InstanceLauncherBase : IInstancePreparer
         return instanceDir;
     }
 
-    protected void CleanupInstance(string instanceDir)
+    protected void CleanupInstance(string instanceDir) => TryCleanupInstance(instanceDir);
+
+    /// <returns>True when the instance directory was fully removed.</returns>
+    protected bool TryCleanupInstance(string instanceDir)
     {
-        if (!Directory.Exists(instanceDir)) return;
+        if (!Directory.Exists(instanceDir)) return true;
 
         // Hard links share an inode with the source file. If any other acclient process is
         // running from the base dir, it holds a lock on shared DLL inodes and prevents deletion
@@ -113,6 +116,7 @@ public abstract class InstanceLauncherBase : IInstancePreparer
         {
             Directory.Delete(instanceDir);
             _logger.LogDebug("Instance cleaned up: {Dir} ({Deleted} files)", instanceDir, deleted);
+            return true;
         }
         catch
         {
@@ -120,6 +124,7 @@ public abstract class InstanceLauncherBase : IInstancePreparer
             // CleanupStaleInstances() will retry on next startup.
             _logger.LogDebug("Instance partially cleaned ({Deleted} deleted, {Skipped} locked — will retry): {Dir}",
                 deleted, skipped, instanceDir);
+            return false;
         }
     }
 

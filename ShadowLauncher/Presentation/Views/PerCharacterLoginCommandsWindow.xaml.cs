@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using ShadowLauncher.Infrastructure.Paths;
 using ShadowLauncher.Services.Accounts;
 using ShadowLauncher.Services.LoginCommands;
 using ShadowLauncher.Services.Servers;
@@ -52,9 +53,7 @@ public partial class PerCharacterLoginCommandsWindow : Window
 
     private void StartWatchingCharacterFiles()
     {
-        var charFolder = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "ThwargLauncher", "characters");
+        var charFolder = ShadowLauncherPaths.CharactersFolder;
 
         if (!Directory.Exists(charFolder))
             Directory.CreateDirectory(charFolder);
@@ -97,7 +96,7 @@ public partial class PerCharacterLoginCommandsWindow : Window
         {
             foreach (var server in servers)
             {
-                // Get known characters from ThwargFilter's character files
+                // Get known characters from ShadowFilter's character files
                 var knownChars = _loginService.GetKnownCharacters(server.Name, account.Name);
 
                 // Build the available list: "any" first, then known characters
