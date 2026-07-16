@@ -5,9 +5,7 @@ namespace ShadowLauncher.Services.Launching;
 public interface IGameLauncher
 {
     Task<LaunchResult> LaunchGameAsync(Account account, Server server);
-    Task TerminateGameAsync(int processId);
     Task<bool> IsGameProcessRunningAsync(int processId);
-    void CleanupShadowFilterLaunchFile(string accountName, string serverName);
     void CleanupShadowFilterLaunchFileIfUnused(
         string accountName,
         string serverName,

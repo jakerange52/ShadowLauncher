@@ -12,9 +12,6 @@ namespace ShadowLauncher.Infrastructure.FileSystem;
 /// </summary>
 public class HeartbeatReader : IHeartbeatReader
 {
-    public string GetHeartbeatFilePath(int processId)
-        => ShadowLauncherPaths.GetHeartbeatFilePath(processId);
-
     public async Task<HeartbeatData?> ReadHeartbeatAsync(int processId)
     {
         var shadowPath = ShadowLauncherPaths.GetHeartbeatFilePath(processId);

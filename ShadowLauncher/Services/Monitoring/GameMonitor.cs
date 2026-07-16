@@ -84,23 +84,6 @@ public class GameMonitor : IGameMonitor
         _logger.LogDebug("Game monitoring stopped");
     }
 
-    public async Task<HeartbeatStatus?> GetHeartbeatStatusAsync(int processId)
-    {
-        var session = await _sessionService.GetSessionByProcessIdAsync(processId);
-        if (session is null) return null;
-
-        var heartbeat = await _heartbeatReader.ReadHeartbeatAsync(processId);
-        if (heartbeat is null) return null;
-
-        return new HeartbeatStatus
-        {
-            IsResponding = true,
-            LastHeartbeat = heartbeat.Timestamp,
-            SecondsSinceLastHeartbeat = (int)(DateTime.UtcNow - heartbeat.Timestamp).TotalSeconds,
-            CurrentCharacter = heartbeat.CharacterName
-        };
-    }
-
     public Task<ProcessStatus?> GetProcessStatusAsync(int processId)
     {
         try

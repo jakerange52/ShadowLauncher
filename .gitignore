@@ -38,7 +38,7 @@ Thumbs.db
 desktop.ini
 
 # Third-party installer binaries � must be sourced locally before building Full Install
-# See ShadowLauncher.Installer/ThirdParty/README.md
+# Staged by Build-Installer.ps1 (not committed)
 ShadowLauncher.Installer/ThirdParty/*.exe
 ShadowLauncher.Installer/ThirdParty/*.msi
 

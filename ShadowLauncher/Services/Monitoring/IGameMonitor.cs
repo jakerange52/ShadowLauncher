@@ -7,19 +7,10 @@ public interface IGameMonitor
 {
     Task StartMonitoringAsync(CancellationToken cancellationToken = default);
     Task StopMonitoringAsync();
-    Task<HeartbeatStatus?> GetHeartbeatStatusAsync(int processId);
     Task<ProcessStatus?> GetProcessStatusAsync(int processId);
 
     event EventHandler<HeartbeatReceivedEventArgs>? HeartbeatReceived;
     event EventHandler<GameExitedEventArgs>? GameExited;
-}
-
-public class HeartbeatStatus
-{
-    public bool IsResponding { get; set; }
-    public DateTime LastHeartbeat { get; set; }
-    public int SecondsSinceLastHeartbeat { get; set; }
-    public string CurrentCharacter { get; set; } = string.Empty;
 }
 
 public class ProcessStatus

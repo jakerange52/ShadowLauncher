@@ -13,6 +13,7 @@ $filterDest      = "$root\ShadowLauncher.Installer\ThirdParty\ShadowFilter"
 $decalAdapter    = "$root\externals\Decal\Decal.Adapter.dll"
 $msiPkg          = "$root\ShadowLauncher.Installer\Package.wxs"
 $msiPriv         = "$root\ShadowLauncher.Installer\Privileges.wxs"
+$msiExit         = "$root\ShadowLauncher.Installer\ExitDialog.wxs"
 $bundleWxs       = "$root\ShadowLauncher.Installer.Bundle\Bundle.wxs"
 $publishDir      = "$root\ShadowLauncher\bin\Release\net10.0-windows"
 $caDir           = "$root\ShadowLauncher.Installer.CustomActions\bin\Release\net10.0-windows"
@@ -69,7 +70,7 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet build (custom actions) failed" }
 
 Step "4/5  Building ShadowLauncher-Setup.msi"
 New-Item -ItemType Directory -Path (Split-Path $msiOut) -Force | Out-Null
-& wix build $msiPkg $msiPriv -d "AppPublishDir=$publishDir\" -d "CustomActionsDir=$caDir\" -d "ThirdPartyDir=$filterDest\..\\" -d "LicenseFile=$licenseFile" -d "Version=$Version" -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -ext WixToolset.Netfx.wixext -arch x86 -out $msiOut
+& wix build $msiPkg $msiPriv $msiExit -d "AppPublishDir=$publishDir\" -d "CustomActionsDir=$caDir\" -d "ThirdPartyDir=$filterDest\..\\" -d "LicenseFile=$licenseFile" -d "Version=$Version" -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -arch x86 -out $msiOut
 if ($LASTEXITCODE -ne 0) { throw "wix build (msi) failed" }
 
 Step "5a/5  Caching .NET 10 Desktop Runtime (x86)"

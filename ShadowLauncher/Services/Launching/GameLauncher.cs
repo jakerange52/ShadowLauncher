@@ -233,21 +233,6 @@ public class GameLauncher : IGameLauncher
         return new LaunchEnvironment(env.ExePath, env.WorkingDir, InstanceDir: env.WorkingDir);
     }
 
-    public Task TerminateGameAsync(int processId)
-    {
-        try
-        {
-            using var process = Process.GetProcessById(processId);
-            process.Kill(entireProcessTree: false);
-            _logger.LogInformation("Terminated game process {Pid}", processId);
-        }
-        catch (ArgumentException)
-        {
-            // Process already exited
-        }
-        return Task.CompletedTask;
-    }
-
     public Task<bool> IsGameProcessRunningAsync(int processId)
     {
         if (processId <= 0)
@@ -417,7 +402,7 @@ public class GameLauncher : IGameLauncher
         return withApostrophe;
     }
 
-    public void CleanupShadowFilterLaunchFile(string accountName, string serverName)
+    private void CleanupShadowFilterLaunchFile(string accountName, string serverName)
     {
         try
         {

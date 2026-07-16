@@ -16,7 +16,6 @@
   <ItemGroup>
     <WixExtension Include="WixToolset.UI.wixext" />
     <WixExtension Include="WixToolset.Util.wixext" />
-    <WixExtension Include="WixToolset.Netfx.wixext" />
   </ItemGroup>
 
   <ItemGroup>

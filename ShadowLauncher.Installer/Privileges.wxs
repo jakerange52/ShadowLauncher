@@ -1,27 +1,24 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-
-  <Fragment>
-
-    <Binary Id="CustomActionsDll"
-            SourceFile="$(var.CustomActionsDir)ShadowLauncher.Installer.CustomActions.dll" />
-
-    <CustomAction Id="CleanupAppData"
-                  BinaryRef="CustomActionsDll"
-                  DllEntry="CleanupAppData"
-                  Execute="deferred"
-                  Impersonate="yes"
-                  Return="ignore" />
-
-    <InstallUISequence>
-    </InstallUISequence>
-
-    <InstallExecuteSequence>
-      <Custom Action="CleanupAppData"
-               After="RemoveFiles"
-               Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
-    </InstallExecuteSequence>
-
-  </Fragment>
-
-</Wix>
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Fragment>
+
+    <Binary Id="CustomActionsDll"
+            SourceFile="$(var.CustomActionsDir)ShadowLauncher.Installer.CustomActions.dll" />
+
+    <CustomAction Id="CleanupAppData"
+                  BinaryRef="CustomActionsDll"
+                  DllEntry="CleanupAppData"
+                  Execute="deferred"
+                  Impersonate="yes"
+                  Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="CleanupAppData"
+               After="RemoveFiles"
+               Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+
+  </Fragment>
+
+</Wix>

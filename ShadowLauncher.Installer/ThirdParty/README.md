@@ -1,13 +1,14 @@
-# Third-Party Installer Binaries
+# Installer staging (ThirdParty)
 
-Place the following file in this directory before building the MSI (if bundling Decal):
+`Build-Installer.ps1` builds ShadowFilter from source and stages these files here before the MSI bind:
 
 | File | Source |
 |---|---|
-| `Decal_3_0_0_0.exe` | https://www.decaldev.com / community mirror |
+| `ShadowFilter/ShadowFilter.dll` | `ShadowFilter` project (Release net472) |
+| `ShadowFilter/Newtonsoft.Json.dll` | ShadowFilter dependency |
 
-`ShadowFilter.dll` and `Newtonsoft.Json.dll` are **built from source** by `Build-Installer.ps1` and staged under `ThirdParty/ShadowFilter/`. They are not committed.
+They are not committed (see `.gitignore`).
 
-See `externals/Decal/README.md` for the `Decal.Adapter.dll` reference required to compile ShadowFilter.
+`Decal.Adapter.dll` is required only to *compile* ShadowFilter — place it under `externals/Decal/` (see `externals/Decal/README.md`). Decal itself is not bundled in the installer; users register ShadowFilter in Decal Agent via **Settings → Help**.
 
-See `THIRD_PARTY.md` at the repo root for attribution and license details.
+See `THIRD_PARTY.md` at the repo root for attribution.

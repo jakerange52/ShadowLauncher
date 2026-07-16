@@ -1,24 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
-     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
 
+  <!--
+    Custom ExitDialog pulled in via ui:DialogRef from Package.wxs.
+    Launch-after-install only — desktop shortcut is a FeatureTree option
+    (ExitDialog runs after InstallFinalize, too late to flip feature state).
+  -->
   <Fragment>
-    <UI Id="ExitDialogUI">
-      <!--
-        Suppress the built-in ExitDialog from WixUI_FeatureTree, then redefine it
-        so WiX uses ours instead of the stock one.
-      -->
-      <ui:WixUI Id="WixUI_FeatureTree">
-        <ui:DialogRef Id="ExitDialog" />
-      </ui:WixUI>
-
+    <UI>
       <Dialog Id="ExitDialog" Width="370" Height="270" Title="[ProductName] Setup">
 
-        <!-- Background bitmap (matches WixUI standard) -->
         <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234"
                  TabSkip="yes" Text="WixUI_Bmp_Dialog" />
 
-        <!-- Finish heading -->
         <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="60"
                  Transparent="yes" NoPrefix="yes"
                  Text="{\WixUI_Font_Title}Completing the [ProductName] Setup Wizard" />
@@ -27,27 +21,9 @@
                  Transparent="yes" NoPrefix="yes"
                  Text="Click Finish to exit the Setup Wizard." />
 
-        <!-- Launch ShadowLauncher after install (checked by default) -->
         <Control Id="LaunchCheckBox" Type="CheckBox" X="135" Y="115" Width="220" Height="18"
                  Property="LAUNCHAFTERINSTALL" CheckBoxValue="1"
                  Text="&amp;Launch ShadowLauncher" />
-
-        <!-- Desktop shortcut (unchecked by default) -->
-        <Control Id="DesktopShortcutCheckBox" Type="CheckBox" X="135" Y="136" Width="220" Height="18"
-                 Property="DESKTOPSHORTCUT" CheckBoxValue="1"
-                 Text="Create a &amp;desktop shortcut" />
-
-        <!--
-          Symlink sign-out notice commented out — hard links no longer require
-          SeCreateSymbolicLinkPrivilege. Re-enable if reverting to SymlinkLauncher.
-
-        <Control Id="LogoffNotice" Type="Text" X="135" Y="160" Width="220" Height="60"
-                 Transparent="yes" NoPrefix="yes"
-                 Text="{\WixUI_Font_Bold}Sign out required: ShadowLauncher granted your account permission to create symbolic links. You must sign out of Windows and sign back in (locking the screen is not enough) before multi-boxing will work.">
-          <Condition Action="show">SHOWLOGOFFMESSAGE = "1"</Condition>
-          <Condition Action="hide">NOT SHOWLOGOFFMESSAGE OR SHOWLOGOFFMESSAGE &lt;&gt; "1"</Condition>
-        </Control>
-        -->
 
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="1" />
 

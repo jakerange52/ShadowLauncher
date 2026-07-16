@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
-     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
-     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
 
   <Package Name="ShadowLauncher"
            Manufacturer="Jake Range"
@@ -18,34 +17,25 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of ShadowLauncher is already installed."
                   Schedule="afterInstallInitialize" />
 
-    <!--
-      Post-install options surfaced as checkboxes on the custom ExitDialog.
-      LAUNCHAFTERINSTALL defaults to 1 (checked). DESKTOPSHORTCUT defaults to empty (unchecked).
-    -->
+    <!-- Launch-after-install checkbox on custom ExitDialog (defaults checked). -->
     <Property Id="LAUNCHAFTERINSTALL" Value="1" />
-    <Property Id="DESKTOPSHORTCUT" Secure="yes" />
 
     <!--
       Launch ShadowLauncher after install completes.
-      util:WixShellExecTarget fires from the Finish button in ExitDialog — no deferred
-      custom action needed, avoiding MSI error 2762.
-      SetProperty is used instead of Property so INSTALLFOLDER is resolved after
-      CostFinalize, avoiding WIX1077.
+      WixShellExec (Util extension) reads WixShellExecTarget from the Finish button
+      in ExitDialog — no deferred custom action needed, avoiding MSI error 2762.
+      SetProperty resolves INSTALLFOLDER after CostFinalize (avoids WIX1077).
     -->
     <SetProperty Id="WixShellExecTarget"
                  Value="[INSTALLFOLDER]ShadowLauncher.exe"
                  After="CostFinalize"
                  Sequence="execute" />
 
-    <!-- Raises the desktop shortcut feature level from 0 to 1 when checkbox is ticked -->
-    <SetProperty Id="DesktopShortcutFeature" Value="1" After="CostFinalize"
-                 Sequence="both" Condition="DESKTOPSHORTCUT" />
-
-    <!-- Feature-tree UI (desktop shortcut opt-in via DESKTOPSHORTCUT on exit dialog). -->
-    <ui:WixUI Id="WixUI_FeatureTree" />
+    <!-- DialogRef pulls custom ExitDialog from ExitDialog.wxs (launch checkbox). -->
+    <ui:WixUI Id="WixUI_FeatureTree">
+      <ui:DialogRef Id="ExitDialog" />
+    </ui:WixUI>
     <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseFile)" />
-
-    <util:RestartResource ProcessName="explorer" />
 
     <!-- Directory structure -->
     <StandardDirectory Id="ProgramFilesFolder">
@@ -141,7 +131,7 @@
       </Component>
     </ComponentGroup>
 
-    <!-- Desktop shortcut — only created when DESKTOPSHORTCUT property is set -->
+    <!-- Desktop shortcut — FeatureTree opt-in (Level 0 / off by default). -->
     <ComponentGroup Id="DesktopShortcutComponents" Directory="DesktopFolder">
       <Component Id="DesktopShortcut" Guid="3F7A2C1E-84B6-4D09-A531-7E2C0F9D4B82">
         <Shortcut Id="DesktopShortcut"
@@ -190,8 +180,7 @@
       <ComponentGroupRef Id="ShadowFilterFileComponents" />
       <ComponentGroupRef Id="ShortcutComponents" />
 
-      <!-- Desktop shortcut feature: Level 0 (off) by default.
-           SetDesktopShortcutLevel raises it to 1 when DESKTOPSHORTCUT is set. -->
+      <!-- Desktop shortcut: Level 0 (off) by default; enable in the FeatureTree UI. -->
       <Feature Id="DesktopShortcutFeature"
                Title="Desktop shortcut"
                Description="Creates a shortcut on the desktop."
