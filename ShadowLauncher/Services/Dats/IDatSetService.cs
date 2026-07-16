@@ -9,12 +9,6 @@ namespace ShadowLauncher.Services.Dats;
 public interface IDatSetService
 {
     /// <summary>
-    /// Downloads and parses the remote DatRegistry.xml, returning all known DAT sets.
-    /// Falls back to any locally cached registry on network failure.
-    /// </summary>
-    Task<IReadOnlyList<DatSet>> GetAvailableDatSetsAsync();
-
-    /// <summary>
     /// Returns the DatSet for the given ID, or null if it is not in the registry.
     /// </summary>
     Task<DatSet?> GetDatSetAsync(string datSetId);

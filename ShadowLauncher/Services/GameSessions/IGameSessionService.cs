@@ -5,7 +5,6 @@ namespace ShadowLauncher.Services.GameSessions;
 public interface IGameSessionService
 {
     Task<GameSession> CreateSessionAsync(Account account, Server server, int processId);
-    Task<GameSession?> GetSessionByProcessIdAsync(int processId);
     GameSession? FindSessionByProcessId(int processId);
     void UpdateMinimizedState(string sessionId, bool wasMinimized);
     bool GetRelaunchWasMinimized(string accountId, string serverId);

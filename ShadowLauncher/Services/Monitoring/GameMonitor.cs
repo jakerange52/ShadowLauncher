@@ -4,6 +4,7 @@ using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Infrastructure.Channels;
 using ShadowLauncher.Infrastructure.FileSystem;
+using ShadowLauncher.Infrastructure;
 using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Services.GameSessions;
 using ShadowLauncher.Services.Launching;
@@ -112,7 +113,7 @@ public class GameMonitor : IGameMonitor
                 foreach (var session in sessions)
                 {
                     if (token.IsCancellationRequested) break;
-                    if (!IsProcessRunning(session.ProcessId))
+                    if (!ProcessHelper.IsRunning(session.ProcessId))
                         continue;
 
                     if (_watchedPids.Add(session.ProcessId))
@@ -221,7 +222,7 @@ public class GameMonitor : IGameMonitor
 
     private async Task<bool> TryKillMissingHeartbeatAsync(GameSession session)
     {
-        if (!_config.KillOnMissingHeartbeat || !IsProcessRunning(session.ProcessId))
+        if (!_config.KillOnMissingHeartbeat || !ProcessHelper.IsRunning(session.ProcessId))
             return false;
 
         var timeout = _config.KillHeartbeatTimeoutSeconds;
@@ -277,7 +278,7 @@ public class GameMonitor : IGameMonitor
 
         try
         {
-            if (IsProcessRunning(session.ProcessId))
+            if (ProcessHelper.IsRunning(session.ProcessId))
             {
                 using var proc = Process.GetProcessById(session.ProcessId);
                 proc.Kill(entireProcessTree: false);
@@ -305,7 +306,7 @@ public class GameMonitor : IGameMonitor
             _logger.LogWarning(ex, "WatchForExitAsync error for PID {Pid}", processId);
         }
 
-        var session = await _sessionService.GetSessionByProcessIdAsync(processId);
+        var session = _sessionService.FindSessionByProcessId(processId);
         var wasMinimized = session?.WasMinimized ?? false;
         ClearTracking(sessionId, processId);
 
@@ -328,19 +329,6 @@ public class GameMonitor : IGameMonitor
         _lastUiHeartbeat.Remove(sessionId);
         _seenHeartbeat.Remove(sessionId);
         _world.Remove(sessionId);
-    }
-
-    private static bool IsProcessRunning(int processId)
-    {
-        try
-        {
-            using var process = Process.GetProcessById(processId);
-            return !process.HasExited;
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
     }
 
     private void NotifyHeartbeatIfChanged(string sessionId, HeartbeatData heartbeat)

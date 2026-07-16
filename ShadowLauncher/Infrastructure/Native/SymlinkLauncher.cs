@@ -98,9 +98,7 @@ public class SymlinkLauncher : InstanceLauncherBase
     }
 
     /// <inheritdoc/>
-    public override async Task<InstanceEnvironment?> PrepareInstanceAsync(
-        Server server,
-        IProgress<DatDownloadProgress>? downloadProgress = null)
+    public override async Task<InstanceEnvironment?> PrepareInstanceAsync(Server server)
     {
         if (!CanCreateSymlinks())
         {
@@ -175,31 +173,6 @@ public class SymlinkLauncher : InstanceLauncherBase
     }
 
     // ── Private helpers ─────────────────────────────────────────────────────────
-
-    private string ResolveDataSourceDir(Server server, string clientDir)
-    {
-        var datSetId = server.DatSetId;
-        bool hasCustomSource = !string.IsNullOrWhiteSpace(server.CustomDatRegistryPath)
-                            || !string.IsNullOrWhiteSpace(server.CustomDatZipUrl);
-
-        if (string.IsNullOrWhiteSpace(datSetId) ||
-            string.Equals(datSetId, "retail", StringComparison.OrdinalIgnoreCase))
-        {
-            if (!hasCustomSource)
-            {
-                _logger.LogInformation("Server '{Server}' uses retail DATs", server.Name);
-                return clientDir;
-            }
-            var dir = _datSetService.GetLocalDatSetPathForServer(server);
-            _logger.LogInformation("Server '{Server}' uses custom DAT source: {Dir}", server.Name, dir);
-            return dir;
-        }
-
-        var setDir = _datSetService.GetLocalDatSetPathForServer(server);
-        _logger.LogInformation("Server '{Server}' requires DAT set '{DatSetId}', source: {Dir}",
-            server.Name, datSetId, setDir);
-        return setDir;
-    }
 
     private static void CreateFileSymlink(string linkPath, string targetPath)
     {

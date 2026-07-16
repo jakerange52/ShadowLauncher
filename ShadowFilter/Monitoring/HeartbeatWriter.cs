@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Reflection;
 using System.Text;
 using Decal.Adapter;
 using ShadowFilter.Channels;
@@ -24,8 +23,6 @@ internal static class HeartbeatWriter
     private static Channel? _channel;
     private static DateTime _lastSendAndReceive = DateTime.MinValue;
 
-    private static string _serverName = string.Empty;
-    private static string _accountName = string.Empty;
     private static string _characterName = string.Empty;
     private static string _teamList = string.Empty;
     private static bool _loginFailureActive;
@@ -34,8 +31,6 @@ internal static class HeartbeatWriter
 
     public static void SetCommandParser(FilterCommandParser parser) => _commandParser = parser;
 
-    public static void RecordServer(string serverName) => _serverName = serverName ?? string.Empty;
-    public static void RecordAccount(string accountName) => _accountName = accountName ?? string.Empty;
     public static void RecordCharacterName(string characterName) => _characterName = characterName ?? string.Empty;
 
     /// <summary>
@@ -54,12 +49,7 @@ internal static class HeartbeatWriter
 
     public static void EnsureStarted() => StartIfNeeded();
 
-    public static void Launch()
-    {
-        RecordServerFromGame();
-        RecordAccountFromGame();
-        StartIfNeeded();
-    }
+    public static void Launch() => StartIfNeeded();
 
     public static void SendAndReceiveImmediately()
     {
@@ -115,28 +105,6 @@ internal static class HeartbeatWriter
             return;
 
         _channel = Channel.MakeGameChannel();
-    }
-
-    private static void RecordServerFromGame()
-    {
-        try
-        {
-            var server = CoreManager.Current.CharacterFilter.Server;
-            if (!string.IsNullOrEmpty(server))
-                _serverName = server;
-        }
-        catch { }
-    }
-
-    private static void RecordAccountFromGame()
-    {
-        try
-        {
-            var account = CoreManager.Current.CharacterFilter.AccountName;
-            if (!string.IsNullOrEmpty(account))
-                _accountName = account;
-        }
-        catch { }
     }
 
     private static void StartIfNeeded()
@@ -277,24 +245,14 @@ internal static class HeartbeatWriter
         var actualCharacter = CharacterFilterTools.SafeCharacterName();
         if (string.Equals(actualCharacter, "LoginNotComplete", StringComparison.OrdinalIgnoreCase))
             actualCharacter = string.Empty;
-        var assembly = Assembly.GetExecutingAssembly();
 
         var sb = new StringBuilder();
         sb.AppendLine("FileVersion:1.0");
         sb.AppendLine($"UptimeSeconds:{uptime}");
-        sb.AppendLine($"ServerName:{_serverName}");
-        sb.AppendLine($"AccountName:{_accountName}");
         sb.AppendLine($"CharacterName:{_characterName}");
-        sb.AppendLine($"ProcessId:{Process.GetCurrentProcess().Id}");
         sb.AppendLine($"TeamList:{_teamList}");
-        sb.AppendLine($"ShadowFilterVersion:{assembly.GetName().Version}");
-        sb.AppendLine($"ShadowFilterFilePath:{assembly.Location}");
-        sb.AppendLine($"LogFilepath:{PluginLog.LogFilePath}");
         sb.AppendLine($"IsOnline:{isOnline.ToString().ToLowerInvariant()}");
         sb.AppendLine($"LoginFailure:{_loginFailureActive.ToString().ToLowerInvariant()}");
-        sb.AppendLine($"LastServerDispatchSecondsAgo:{(int)(DateTime.UtcNow - lastDispatch).TotalSeconds}");
-        sb.AppendLine($"ActualServerName:{SafeServerName()}");
-        sb.AppendLine($"ActualAccountName:{SafeAccountName()}");
         sb.AppendLine($"ActualCharacterName:{actualCharacter}");
 
         Directory.CreateDirectory(Path.GetDirectoryName(_heartbeatPath)!);
@@ -304,32 +262,6 @@ internal static class HeartbeatWriter
         {
             stream.Write(bytes, 0, bytes.Length);
             stream.Flush(flushToDisk: true);
-        }
-    }
-
-    private static string SafeServerName()
-    {
-        try
-        {
-            var name = CoreManager.Current.CharacterFilter.Server;
-            return string.IsNullOrEmpty(name) ? _serverName : name;
-        }
-        catch
-        {
-            return _serverName;
-        }
-    }
-
-    private static string SafeAccountName()
-    {
-        try
-        {
-            var name = CoreManager.Current.CharacterFilter.AccountName;
-            return string.IsNullOrEmpty(name) ? _accountName : name;
-        }
-        catch
-        {
-            return _accountName;
         }
     }
 }

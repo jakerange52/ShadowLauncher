@@ -8,7 +8,7 @@ namespace ShadowLauncher;
 
 public partial class MainWindow : Window
 {
-    // ...existing code...
+    // Server link handlers live in MainWindow.Partial.ServerLinks.cs
     private void OpenDiscord_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement fe && fe.DataContext is ShadowLauncher.Core.Models.Server server && !string.IsNullOrWhiteSpace(server.DiscordUrl))
