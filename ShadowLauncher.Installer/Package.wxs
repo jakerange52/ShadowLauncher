@@ -17,24 +17,26 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of ShadowLauncher is already installed."
                   Schedule="afterInstallInitialize" />
 
-    <!-- Launch-after-install checkbox on custom ExitDialog (defaults checked). -->
-    <Property Id="LAUNCHAFTERINSTALL" Value="1" />
-
     <!--
-      Launch ShadowLauncher after install completes.
-      WixShellExec (Util extension) reads WixShellExecTarget from the Finish button
-      in ExitDialog — no deferred custom action needed, avoiding MSI error 2762.
-      SetProperty resolves INSTALLFOLDER after CostFinalize (avoids WIX1077).
+      Launch-after-install via stock ExitDialog optional checkbox (WiX UI docs).
+      Checkbox defaults checked; Finish runs WixShellExec when still checked.
     -->
-    <SetProperty Id="WixShellExecTarget"
-                 Value="[INSTALLFOLDER]ShadowLauncher.exe"
-                 After="CostFinalize"
-                 Sequence="execute" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch ShadowLauncher" />
+    <Property Id="WixShellExecTarget" Value="[#ShadowLauncherExe]" />
+    <CustomAction Id="LaunchApplication"
+                  BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
+                  DllEntry="WixShellExec"
+                  Impersonate="yes" />
 
-    <!-- DialogRef pulls custom ExitDialog from ExitDialog.wxs (launch checkbox). -->
-    <ui:WixUI Id="WixUI_FeatureTree">
-      <ui:DialogRef Id="ExitDialog" />
-    </ui:WixUI>
+    <ui:WixUI Id="WixUI_FeatureTree" />
+    <UI>
+      <Publish Dialog="ExitDialog"
+               Control="Finish"
+               Event="DoAction"
+               Value="LaunchApplication"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+    </UI>
     <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseFile)" />
 
     <!-- Directory structure -->
