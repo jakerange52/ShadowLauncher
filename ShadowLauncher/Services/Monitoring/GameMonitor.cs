@@ -4,6 +4,7 @@ using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Infrastructure.Channels;
 using ShadowLauncher.Infrastructure.FileSystem;
+using ShadowLauncher.Infrastructure;
 using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Services.GameSessions;
 using ShadowLauncher.Services.Launching;
@@ -25,23 +26,20 @@ public class GameMonitor : IGameMonitor
     public event EventHandler<HeartbeatReceivedEventArgs>? HeartbeatReceived;
     public event EventHandler<GameExitedEventArgs>? GameExited;
 
-    // Tracks the first time a session was observed at the login screen *after* having
-    // been in-game. Used to treat "Connection to the server has been lost" (which
-    // ShadowFilter reports as IsOnline=false / LoginScreen, indistinguishable from the
-    // real login screen) as a disconnect for the Kill-disconnected-client setting.
-    private readonly Dictionary<string, (DateTime Since, bool WasEverInGame)> _disconnectTracking = [];
-
-    // Tracks PIDs that already have a WaitForExitAsync watcher running so we
-    // don't spin up duplicates each time the monitor loop iterates.
+    // Kill-disconnected: confirm real world entry (empty actual → real name) so launch-file
+    // echo on the account-in-use dialog is not treated as InGame.
+    private readonly Dictionary<string, WorldTrack> _world = [];
     private readonly HashSet<int> _watchedPids = [];
-
-    // Sessions that have received at least one real ShadowFilter heartbeat.
-    // Missing-heartbeat kill must not run before the plugin has had a chance to write.
     private readonly HashSet<string> _seenHeartbeat = [];
-
-    // Last heartbeat status pushed to the UI per session — avoids flooding the
-    // dispatcher when ShadowFilter has not written a file yet (common during multi-launch).
     private readonly Dictionary<string, (GameSessionStatus Status, string Character, int Uptime)> _lastUiHeartbeat = [];
+
+    private sealed class WorldTrack
+    {
+        public bool Primed;
+        public bool SawEmptyActual;
+        public bool Confirmed;
+        public DateTime? LeftWorldAt;
+    }
 
     public GameMonitor(
         IGameSessionService sessionService,
@@ -108,120 +106,51 @@ public class GameMonitor : IGameMonitor
         {
             try
             {
-                var sessions = await _sessionService.GetActiveSessionsAsync();
-                var sessionList = sessions.ToList();
-                if (sessionList.Count > 0)
-                    _logger.LogDebug("Monitor loop: checking {Count} active session(s)", sessionList.Count);
+                var sessions = (await _sessionService.GetActiveSessionsAsync()).ToList();
+                if (sessions.Count > 0)
+                    _logger.LogDebug("Monitor loop: checking {Count} active session(s)", sessions.Count);
 
-                foreach (var session in sessionList)
+                foreach (var session in sessions)
                 {
                     if (token.IsCancellationRequested) break;
-
-                    if (!IsProcessRunning(session.ProcessId))
+                    if (!ProcessHelper.IsRunning(session.ProcessId))
                         continue;
 
-                    // Start a zero-overhead exit watcher for this PID if not already running.
-                    // WaitForExitAsync fires the moment the OS signals process termination —
-                    // no polling delay. The loop below handles heartbeat/state only.
                     if (_watchedPids.Add(session.ProcessId))
                         _ = WatchForExitAsync(session.ProcessId, session.Id, token);
 
-                    // Sample minimized state only based on the just-read heartbeat (below).
-                    // Sampling unconditionally here loses the value the moment the AC window
-                    // is replaced by the un-minimized "Connection lost" dialog.
-
-                    // ShadowFilter Running\ first, then ThwargFilter fallback
                     var heartbeat = await _heartbeatReader.ReadHeartbeatAsync(session.ProcessId);
-
                     if (heartbeat is not null)
                     {
                         _seenHeartbeat.Add(session.Id);
                         await _sessionService.RecordHeartbeatAsync(session.Id, heartbeat);
                         NotifyHeartbeatIfChanged(session.Id, heartbeat);
 
-                        // Only refresh the minimized snapshot while the client is healthily in-game.
-                        // Once the heartbeat reports anything else (LoginScreen / CharacterSelection /
-                        // Hanging) the window we'd be reading is no longer the game window, so the
-                        // last in-game value must stick across disconnect → kill → relaunch.
-                        if (heartbeat.Status == GameSessionStatus.InGame
+                        var track = Track(session, heartbeat);
+
+                        if (track.Confirmed && heartbeat.Status == GameSessionStatus.InGame
                             && WindowFocusHelper.TryGetMinimizedState(session.ProcessId, out var minNow))
                             _sessionService.UpdateMinimizedState(session.Id, minNow);
 
-                        _windowPlacement.ProcessSession(session, heartbeat.Status);
+                        if (track.Confirmed)
+                            _windowPlacement.ProcessSession(session, heartbeat.Status);
 
-                        // Track in-game → login-screen transition as a disconnect signal.
-                        // ShadowFilter cannot distinguish the post-disconnect "Connection lost"
-                        // dialog from the real login screen, so we infer it: if a session was
-                        // ever in-game and is now back on the login screen, treat continued time
-                        // there as a missing heartbeat for the kill timer.
-                        var sticky = _disconnectTracking.GetValueOrDefault(session.Id);
-                        if (heartbeat.Status == GameSessionStatus.InGame)
+                        if (_config.KillOnMissingHeartbeat
+                            && TryGetNotInWorldElapsed(session, heartbeat, track, out var elapsed))
                         {
-                            _disconnectTracking[session.Id] = (DateTime.MinValue, true);
-                        }
-                        else if (heartbeat.Status == GameSessionStatus.LoginScreen && sticky.WasEverInGame)
-                        {
-                            if (sticky.Since == DateTime.MinValue)
-                                _disconnectTracking[session.Id] = (DateTime.UtcNow, true);
-
-                            if (_config.KillOnMissingHeartbeat)
-                            {
-                                var since = _disconnectTracking[session.Id].Since;
-                                var disconnectedFor = (DateTime.UtcNow - since).TotalSeconds;
-                                var timeout = _config.KillHeartbeatTimeoutSeconds;
-                                if (disconnectedFor > timeout && IsProcessRunning(session.ProcessId))
-                                {
-                                    _logger.LogWarning(
-                                        "PID {Pid} appears disconnected (login screen for {Elapsed}s after being in-game).",
-                                        session.ProcessId, (int)disconnectedFor);
-                                    await KillSessionAsync(session, (int)disconnectedFor, timeout);
-                                    continue;
-                                }
-                            }
+                            _logger.LogWarning(
+                                "PID {Pid} not in world for {Elapsed}s (timeout: {Timeout}s, status {Status}).",
+                                session.ProcessId, elapsed, _config.KillHeartbeatTimeoutSeconds, heartbeat.Status);
+                            await KillSessionAsync(session, elapsed, _config.KillHeartbeatTimeoutSeconds);
                         }
                     }
-                    else
+                    else if (await TryKillMissingHeartbeatAsync(session))
                     {
-                        // No file yet / unreadable — do not kill until a filter has written
-                        // at least once. Startup and plugin-load lag are normal.
-                        if (!_seenHeartbeat.Contains(session.Id))
-                            continue;
-
-                        var elapsed = (DateTime.UtcNow - session.LastHeartbeatTime).TotalSeconds;
-
-                        var previousStatus = session.Status;
-                        if (elapsed > 5 && previousStatus != GameSessionStatus.Hanging)
-                            session.Status = GameSessionStatus.Hanging;
-
-                        if (_config.KillOnMissingHeartbeat)
-                        {
-                            var timeout = _config.KillHeartbeatTimeoutSeconds;
-                            if (elapsed > timeout && IsProcessRunning(session.ProcessId))
-                            {
-                                await KillSessionAsync(session, (int)elapsed, timeout);
-                                continue;
-                            }
-                        }
-
-                        // Only notify the UI when status degrades to Hanging — not on every poll
-                        // while clients are still starting up and ShadowFilter has not written yet.
-                        if (session.Status == GameSessionStatus.Hanging
-                            && previousStatus != GameSessionStatus.Hanging)
-                        {
-                            var status = await GetProcessStatusAsync(session.ProcessId);
-                            NotifyHeartbeatIfChanged(session.Id, new HeartbeatData
-                            {
-                                CharacterName = session.CharacterName,
-                                Status = GameSessionStatus.Hanging,
-                                UptimeSeconds = (int)(status?.Uptime.TotalSeconds ?? 0),
-                                Timestamp = DateTime.UtcNow
-                            });
-                        }
+                        // killed
                     }
                 }
 
                 await _channelRelay.ProcessActiveSessionsAsync(token);
-
                 await Task.Delay(TimeSpan.FromSeconds(3), token);
             }
             catch (OperationCanceledException) { break; }
@@ -233,22 +162,123 @@ public class GameMonitor : IGameMonitor
         }
     }
 
+    private WorldTrack Track(GameSession session, HeartbeatData heartbeat)
+    {
+        if (!_world.TryGetValue(session.Id, out var track))
+            _world[session.Id] = track = new WorldTrack();
+
+        var first = !track.Primed;
+        track.Primed = true;
+
+        if (!heartbeat.HasEnteredWorld)
+        {
+            track.SawEmptyActual = true;
+            if (track.Confirmed)
+            {
+                track.Confirmed = false;
+                track.LeftWorldAt ??= DateTime.UtcNow;
+            }
+            return track;
+        }
+
+        // Confirm only after seeing an empty actual first (real login). Launch-file echo on
+        // account-in-use looks in-world immediately — ignore that unless this is a restore
+        // of a session already older than the kill timeout.
+        if (track.SawEmptyActual || (first && session.GetAliveSeconds() > _config.KillHeartbeatTimeoutSeconds))
+        {
+            track.Confirmed = true;
+            track.LeftWorldAt = null;
+        }
+
+        return track;
+    }
+
+    private bool TryGetNotInWorldElapsed(
+        GameSession session, HeartbeatData heartbeat, WorldTrack track, out int elapsed)
+    {
+        var timeout = _config.KillHeartbeatTimeoutSeconds;
+
+        if (!track.Confirmed)
+        {
+            elapsed = session.GetAliveSeconds();
+            return elapsed > timeout;
+        }
+
+        var preWorld = heartbeat.Status is GameSessionStatus.LoginScreen
+            or GameSessionStatus.CharacterSelection
+            or GameSessionStatus.Launching;
+
+        if (!preWorld)
+        {
+            track.LeftWorldAt = null;
+            elapsed = 0;
+            return false;
+        }
+
+        track.LeftWorldAt ??= DateTime.UtcNow;
+        elapsed = (int)(DateTime.UtcNow - track.LeftWorldAt.Value).TotalSeconds;
+        return elapsed > timeout;
+    }
+
+    private async Task<bool> TryKillMissingHeartbeatAsync(GameSession session)
+    {
+        if (!_config.KillOnMissingHeartbeat || !ProcessHelper.IsRunning(session.ProcessId))
+            return false;
+
+        var timeout = _config.KillHeartbeatTimeoutSeconds;
+
+        // Never wrote a heartbeat — still kill after launch timeout.
+        if (!_seenHeartbeat.Contains(session.Id))
+        {
+            var alive = session.GetAliveSeconds();
+            if (alive <= timeout)
+                return false;
+
+            _logger.LogWarning(
+                "PID {Pid} still launching with no heartbeat for {Elapsed}s (timeout: {Timeout}s).",
+                session.ProcessId, alive, timeout);
+            await KillSessionAsync(session, alive, timeout);
+            return true;
+        }
+
+        var silence = (DateTime.UtcNow - session.LastHeartbeatTime).TotalSeconds;
+        var previous = session.Status;
+        if (silence > 5 && previous != GameSessionStatus.Hanging)
+            session.Status = GameSessionStatus.Hanging;
+
+        if (silence > timeout)
+        {
+            await KillSessionAsync(session, (int)silence, timeout);
+            return true;
+        }
+
+        if (session.Status == GameSessionStatus.Hanging && previous != GameSessionStatus.Hanging)
+        {
+            var status = await GetProcessStatusAsync(session.ProcessId);
+            NotifyHeartbeatIfChanged(session.Id, new HeartbeatData
+            {
+                CharacterName = session.CharacterName,
+                Status = GameSessionStatus.Hanging,
+                UptimeSeconds = (int)(status?.Uptime.TotalSeconds ?? 0),
+                Timestamp = DateTime.UtcNow
+            });
+        }
+
+        return false;
+    }
+
     private async Task KillSessionAsync(GameSession session, int elapsedSeconds, int timeoutSeconds)
     {
         _logger.LogWarning(
-            "Killing PID {Pid} — no heartbeat for {Elapsed}s (timeout: {Timeout}s)",
+            "Killing PID {Pid} — not in world for {Elapsed}s (timeout: {Timeout}s)",
             session.ProcessId, elapsedSeconds, timeoutSeconds);
 
         var wasMinimized = session.WasMinimized;
-        _windowPlacement.ClearSession(session.ProcessId);
-        _watchedPids.Remove(session.ProcessId);
-        _lastUiHeartbeat.Remove(session.Id);
-        _seenHeartbeat.Remove(session.Id);
-        _disconnectTracking.Remove(session.Id);
+        ClearTracking(session.Id, session.ProcessId);
 
         try
         {
-            if (IsProcessRunning(session.ProcessId))
+            if (ProcessHelper.IsRunning(session.ProcessId))
             {
                 using var proc = Process.GetProcessById(session.ProcessId);
                 proc.Kill(entireProcessTree: false);
@@ -257,16 +287,10 @@ public class GameMonitor : IGameMonitor
         catch { }
 
         HeartbeatReader.DeleteHeartbeatFile(session.ProcessId);
-
         await _sessionService.CloseSessionAsync(session.Id);
         GameExited?.Invoke(this, new GameExitedEventArgs(session.ProcessId, wasMinimized));
     }
 
-    /// <summary>
-    /// Waits for the process to exit using OS-level event notification (zero polling cost),
-    /// then immediately fires <see cref="GameExited"/>. This runs concurrently with the
-    /// heartbeat loop so exit detection is instant regardless of the 3-second poll interval.
-    /// </summary>
     private async Task WatchForExitAsync(int processId, string sessionId, CancellationToken token)
     {
         try
@@ -275,50 +299,36 @@ public class GameMonitor : IGameMonitor
             process.EnableRaisingEvents = true;
             await process.WaitForExitAsync(token);
         }
-        catch (ArgumentException)
-        {
-            // Process was already gone by the time we opened it — treat as exited below.
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
+        catch (ArgumentException) { }
+        catch (OperationCanceledException) { return; }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "WatchForExitAsync error for PID {Pid}", processId);
         }
 
-        var session = await _sessionService.GetSessionByProcessIdAsync(processId);
+        var session = _sessionService.FindSessionByProcessId(processId);
         var wasMinimized = session?.WasMinimized ?? false;
+        ClearTracking(sessionId, processId);
+
+        if (session is null)
+            return;
+
+        var active = (await _sessionService.GetActiveSessionsAsync()).ToList();
+        _gameLauncher.CleanupShadowFilterLaunchFileIfUnused(
+            session.AccountName, session.ServerName, active, processId);
+        HeartbeatReader.DeleteHeartbeatFile(processId);
+        await _sessionService.CloseSessionAsync(sessionId);
+        GameExited?.Invoke(this, new GameExitedEventArgs(processId, wasMinimized));
+        _logger.LogDebug("Process {Pid} exited — session closed via WaitForExitAsync", processId);
+    }
+
+    private void ClearTracking(string sessionId, int processId)
+    {
         _windowPlacement.ClearSession(processId);
         _watchedPids.Remove(processId);
         _lastUiHeartbeat.Remove(sessionId);
         _seenHeartbeat.Remove(sessionId);
-
-        if (session is not null)
-        {
-            _disconnectTracking.Remove(session.Id);
-            var active = (await _sessionService.GetActiveSessionsAsync()).ToList();
-            _gameLauncher.CleanupShadowFilterLaunchFileIfUnused(
-                session.AccountName, session.ServerName, active, processId);
-            HeartbeatReader.DeleteHeartbeatFile(processId);
-            await _sessionService.CloseSessionAsync(sessionId);
-            GameExited?.Invoke(this, new GameExitedEventArgs(processId, wasMinimized));
-            _logger.LogDebug("Process {Pid} exited — session closed via WaitForExitAsync", processId);
-        }
-    }
-
-    private static bool IsProcessRunning(int processId)
-    {
-        try
-        {
-            using var process = Process.GetProcessById(processId);
-            return !process.HasExited;
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
+        _world.Remove(sessionId);
     }
 
     private void NotifyHeartbeatIfChanged(string sessionId, HeartbeatData heartbeat)

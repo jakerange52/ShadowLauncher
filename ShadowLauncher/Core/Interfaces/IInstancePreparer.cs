@@ -18,9 +18,7 @@ public interface IInstancePreparer
     /// Ensures required DAT files are ready and creates a per-instance directory.
     /// Returns an <see cref="InstanceEnvironment"/> on success, or null on failure.
     /// </summary>
-    Task<InstanceEnvironment?> PrepareInstanceAsync(
-        ShadowLauncher.Core.Models.Server server,
-        IProgress<ShadowLauncher.Services.Dats.DatDownloadProgress>? downloadProgress = null);
+    Task<InstanceEnvironment?> PrepareInstanceAsync(ShadowLauncher.Core.Models.Server server);
 
     /// <summary>Watches the process and deletes the instance directory when it exits.</summary>
     Task WatchAndCleanupAsync(System.Diagnostics.Process process, string instanceDir);

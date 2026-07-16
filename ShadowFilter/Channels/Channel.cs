@@ -7,16 +7,11 @@ internal sealed class Channel
     public static Channel MakeGameChannel()
     {
         var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
-        return new Channel(true, pid);
+        return new Channel(pid);
     }
 
-    private Channel(bool inGameDll, int processId)
-    {
-        InGameDll = inGameDll;
-        ProcessId = processId;
-    }
+    private Channel(int processId) => ProcessId = processId;
 
-    public bool InGameDll { get; }
     public int ProcessId { get; }
 
     private readonly List<Command> _outboundCommands = new();

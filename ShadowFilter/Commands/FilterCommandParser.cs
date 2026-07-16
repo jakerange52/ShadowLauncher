@@ -27,8 +27,7 @@ internal sealed class FilterCommandParser
     }
 
     private readonly List<CommandEntry> _handlers = new();
-    private readonly FilterCommandExecutor _executor;
-    private readonly Dictionary<string, int> _teams = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _teams = new(StringComparer.OrdinalIgnoreCase);
 
     private const string CmdVersion = "version";
     private const string CmdHelp = "help";
@@ -60,9 +59,8 @@ internal sealed class FilterCommandParser
     private const string CmdUnlockWindowPosition = "unlockwindowposition";
     private const string CmdUnlockWindowPosition2 = "ulwp";
 
-    public FilterCommandParser(FilterCommandExecutor executor)
+    public FilterCommandParser()
     {
-        _executor = executor;
         _handlers.Add(new CommandEntry(CmdVersion, VersionHandler, "Display assembly version info"));
         _handlers.Add(new CommandEntry(CmdHelp, HelpHandler, "List all /tf commands"));
         _handlers.Add(new CommandEntry(CmdHelp2, HelpHandler, null));
@@ -94,7 +92,7 @@ internal sealed class FilterCommandParser
         _handlers.Add(new CommandEntry(CmdUnlockWindowPosition2, UnlockWindowPositionHandler, null));
     }
 
-    public string GetTeamList() => string.Join(",", _teams.Keys);
+    public string GetTeamList() => string.Join(",", _teams);
 
     public void ExecuteCommandFromLauncher(string command)
     {
@@ -112,7 +110,7 @@ internal sealed class FilterCommandParser
             return;
         }
 
-        _executor.ExecuteCommand(command);
+        DecalProxy.DispatchChatToBoxWithPluginIntercept(command);
     }
 
     public void OnCommandLineText(ChatParserInterceptEventArgs e)
@@ -178,10 +176,7 @@ internal sealed class FilterCommandParser
     private void JoinTeamHandler(string command)
     {
         foreach (var team in command.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (!_teams.ContainsKey(team))
-                _teams.Add(team, 1);
-        }
+            _teams.Add(team);
     }
 
     private void LeaveTeamHandler(string command)

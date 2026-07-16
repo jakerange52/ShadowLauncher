@@ -45,12 +45,6 @@ public class GameSessionService : IGameSessionService
         return Task.FromResult(session);
     }
 
-    public Task<GameSession?> GetSessionByProcessIdAsync(int processId)
-    {
-        var session = _sessions.Values.FirstOrDefault(s => s.ProcessId == processId);
-        return Task.FromResult(session);
-    }
-
     public GameSession? FindSessionByProcessId(int processId) =>
         _sessions.Values.FirstOrDefault(s => s.ProcessId == processId);
 

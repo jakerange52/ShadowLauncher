@@ -24,14 +24,14 @@ public class DatSetService : IDatSetService
     private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromHours(2) };
 
     // AC file names recognised for extraction and cache-completeness checks.
-    private static readonly HashSet<string> KnownAcFileNames = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> KnownAcFileNames = BuildKnownAcFileNames();
+
+    private static HashSet<string> BuildKnownAcFileNames()
     {
-        "client_portal.dat",
-        "client_cell_1.dat",
-        "client_local_English.dat",
-        "client_highres.dat",
-        "acclient.exe",
-    };
+        var names = new HashSet<string>(InstanceLauncherBase.KnownDatFiles, StringComparer.OrdinalIgnoreCase);
+        names.Add("acclient.exe");
+        return names;
+    }
 
     public DatSetService(
         DatRegistryDownloader downloader,
@@ -45,8 +45,7 @@ public class DatSetService : IDatSetService
         _logger = logger;
     }
 
-    /// <inheritdoc/>
-    public async Task<IReadOnlyList<DatSet>> GetAvailableDatSetsAsync()
+    private async Task<IReadOnlyList<DatSet>> GetAvailableDatSetsAsync()
     {
         if (_cachedSets is not null)
             return _cachedSets;

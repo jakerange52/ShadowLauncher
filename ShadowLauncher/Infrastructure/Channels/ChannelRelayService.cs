@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
+using ShadowLauncher.Infrastructure;
 using ShadowLauncher.Infrastructure.FileSystem;
 using ShadowLauncher.Services.GameSessions;
 using ShadowLauncher.Services.LoginCommands;
@@ -54,7 +55,7 @@ public sealed class ChannelRelayService
             if (cancellationToken.IsCancellationRequested)
                 break;
 
-            if (!IsProcessRunning(session.ProcessId))
+            if (!ProcessHelper.IsRunning(session.ProcessId))
                 continue;
 
             var cmdset = GameCommandFile.ReadOutboundCommands(session.ProcessId);
@@ -238,7 +239,7 @@ public sealed class ChannelRelayService
     {
         try
         {
-            if (!IsProcessRunning(processId))
+            if (!ProcessHelper.IsRunning(processId))
                 return;
 
             using var proc = Process.GetProcessById(processId);
@@ -251,18 +252,5 @@ public sealed class ChannelRelayService
         }
 
         await Task.CompletedTask;
-    }
-
-    private static bool IsProcessRunning(int processId)
-    {
-        try
-        {
-            using var process = Process.GetProcessById(processId);
-            return !process.HasExited;
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
     }
 }

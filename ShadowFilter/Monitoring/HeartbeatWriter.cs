@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Reflection;
 using System.Text;
 using Decal.Adapter;
 using ShadowFilter.Channels;
@@ -24,18 +23,23 @@ internal static class HeartbeatWriter
     private static Channel? _channel;
     private static DateTime _lastSendAndReceive = DateTime.MinValue;
 
-    private static string _serverName = string.Empty;
-    private static string _accountName = string.Empty;
     private static string _characterName = string.Empty;
     private static string _teamList = string.Empty;
+    private static bool _loginFailureActive;
 
     public static void BindServerDispatchTracker(Func<DateTime> tracker) => _lastServerDispatchUtc = tracker;
 
     public static void SetCommandParser(FilterCommandParser parser) => _commandParser = parser;
 
-    public static void RecordServer(string serverName) => _serverName = serverName ?? string.Empty;
-    public static void RecordAccount(string accountName) => _accountName = accountName ?? string.Empty;
     public static void RecordCharacterName(string characterName) => _characterName = characterName ?? string.Empty;
+
+    /// <summary>
+    /// OrderedDialog (0xF659) — e.g. "can't log on to the same account twice".
+    /// Keeps refreshing ServerDispatch so IsOnline would stay true without this flag.
+    /// </summary>
+    public static void RecordLoginFailure() => _loginFailureActive = true;
+
+    public static void ClearLoginFailure() => _loginFailureActive = false;
 
     public static void SendCommand(string commandString)
     {
@@ -45,12 +49,7 @@ internal static class HeartbeatWriter
 
     public static void EnsureStarted() => StartIfNeeded();
 
-    public static void Launch()
-    {
-        RecordServerFromGame();
-        RecordAccountFromGame();
-        StartIfNeeded();
-    }
+    public static void Launch() => StartIfNeeded();
 
     public static void SendAndReceiveImmediately()
     {
@@ -73,6 +72,8 @@ internal static class HeartbeatWriter
     {
         lock (Locker)
         {
+            _loginFailureActive = false;
+
             if (_channel != null)
             {
                 var writer = new ChannelWriter();
@@ -104,28 +105,6 @@ internal static class HeartbeatWriter
             return;
 
         _channel = Channel.MakeGameChannel();
-    }
-
-    private static void RecordServerFromGame()
-    {
-        try
-        {
-            var server = CoreManager.Current.CharacterFilter.Server;
-            if (!string.IsNullOrEmpty(server))
-                _serverName = server;
-        }
-        catch { }
-    }
-
-    private static void RecordAccountFromGame()
-    {
-        try
-        {
-            var account = CoreManager.Current.CharacterFilter.AccountName;
-            if (!string.IsNullOrEmpty(account))
-                _accountName = account;
-        }
-        catch { }
     }
 
     private static void StartIfNeeded()
@@ -256,27 +235,24 @@ internal static class HeartbeatWriter
     private static void WriteHeartbeat()
     {
         var lastDispatch = _lastServerDispatchUtc?.Invoke() ?? DateTime.MinValue;
-        var isOnline = lastDispatch == DateTime.MinValue
-            || (DateTime.UtcNow - lastDispatch).TotalSeconds < OfflineTimeoutSeconds;
+        // Login-failure dialogs still receive OrderedDialog (0xF659) traffic, which would
+        // keep IsOnline true forever while AutoRetryLogin hammers OK — force offline.
+        var isOnline = !_loginFailureActive
+            && (lastDispatch == DateTime.MinValue
+                || (DateTime.UtcNow - lastDispatch).TotalSeconds < OfflineTimeoutSeconds);
         var uptime = (int)(DateTime.Now - Process.GetCurrentProcess().StartTime).TotalSeconds;
-        var actualCharacter = CharacterFilterTools.SafeCharacterName(_characterName);
-        var assembly = Assembly.GetExecutingAssembly();
+        // Do not fall back to the launch-file character — that makes stuck login look InGame.
+        var actualCharacter = CharacterFilterTools.SafeCharacterName();
+        if (string.Equals(actualCharacter, "LoginNotComplete", StringComparison.OrdinalIgnoreCase))
+            actualCharacter = string.Empty;
 
         var sb = new StringBuilder();
         sb.AppendLine("FileVersion:1.0");
         sb.AppendLine($"UptimeSeconds:{uptime}");
-        sb.AppendLine($"ServerName:{_serverName}");
-        sb.AppendLine($"AccountName:{_accountName}");
         sb.AppendLine($"CharacterName:{_characterName}");
-        sb.AppendLine($"ProcessId:{Process.GetCurrentProcess().Id}");
         sb.AppendLine($"TeamList:{_teamList}");
-        sb.AppendLine($"ShadowFilterVersion:{assembly.GetName().Version}");
-        sb.AppendLine($"ShadowFilterFilePath:{assembly.Location}");
-        sb.AppendLine($"LogFilepath:{PluginLog.LogFilePath}");
         sb.AppendLine($"IsOnline:{isOnline.ToString().ToLowerInvariant()}");
-        sb.AppendLine($"LastServerDispatchSecondsAgo:{(int)(DateTime.UtcNow - lastDispatch).TotalSeconds}");
-        sb.AppendLine($"ActualServerName:{SafeServerName()}");
-        sb.AppendLine($"ActualAccountName:{SafeAccountName()}");
+        sb.AppendLine($"LoginFailure:{_loginFailureActive.ToString().ToLowerInvariant()}");
         sb.AppendLine($"ActualCharacterName:{actualCharacter}");
 
         Directory.CreateDirectory(Path.GetDirectoryName(_heartbeatPath)!);
@@ -286,32 +262,6 @@ internal static class HeartbeatWriter
         {
             stream.Write(bytes, 0, bytes.Length);
             stream.Flush(flushToDisk: true);
-        }
-    }
-
-    private static string SafeServerName()
-    {
-        try
-        {
-            var name = CoreManager.Current.CharacterFilter.Server;
-            return string.IsNullOrEmpty(name) ? _serverName : name;
-        }
-        catch
-        {
-            return _serverName;
-        }
-    }
-
-    private static string SafeAccountName()
-    {
-        try
-        {
-            var name = CoreManager.Current.CharacterFilter.AccountName;
-            return string.IsNullOrEmpty(name) ? _accountName : name;
-        }
-        catch
-        {
-            return _accountName;
         }
     }
 }

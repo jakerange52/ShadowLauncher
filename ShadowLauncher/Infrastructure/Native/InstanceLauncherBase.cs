@@ -36,9 +36,36 @@ public abstract class InstanceLauncherBase : IInstancePreparer
     }
 
     /// <inheritdoc/>
-    public abstract Task<InstanceEnvironment?> PrepareInstanceAsync(
-        Server server,
-        IProgress<DatDownloadProgress>? downloadProgress = null);
+    public abstract Task<InstanceEnvironment?> PrepareInstanceAsync(Server server);
+
+    /// <summary>
+    /// Resolves the DAT source directory for a server (retail client dir, custom cache, or registry set).
+    /// </summary>
+    protected string ResolveDataSourceDir(Server server, string clientDir)
+    {
+        var datSetId = server.DatSetId;
+        bool hasCustomSource = !string.IsNullOrWhiteSpace(server.CustomDatRegistryPath)
+                            || !string.IsNullOrWhiteSpace(server.CustomDatZipUrl);
+
+        if (string.IsNullOrWhiteSpace(datSetId) ||
+            string.Equals(datSetId, "retail", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!hasCustomSource)
+            {
+                _logger.LogDebug("Server '{Server}' uses retail DATs", server.Name);
+                return clientDir;
+            }
+
+            var dir = _datSetService.GetLocalDatSetPathForServer(server);
+            _logger.LogDebug("Server '{Server}' uses custom DAT source: {Dir}", server.Name, dir);
+            return dir;
+        }
+
+        var setDir = _datSetService.GetLocalDatSetPathForServer(server);
+        _logger.LogDebug("Server '{Server}' requires DAT set '{DatSetId}', source: {Dir}",
+            server.Name, datSetId, setDir);
+        return setDir;
+    }
 
     /// <inheritdoc/>
     public async Task WatchAndCleanupAsync(System.Diagnostics.Process process, string instanceDir)

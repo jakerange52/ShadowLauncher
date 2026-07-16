@@ -59,17 +59,11 @@ internal sealed class ChannelWriter
         }
     }
 
-    public string GetChannelOutboundFilepath(Channel channel)
-    {
-        var prefix = channel.InGameDll ? "outcmds" : "incmds";
-        return Path.Combine(FilterPaths.RunningFolder, $"{prefix}_{channel.ProcessId}.txt");
-    }
+    public string GetChannelOutboundFilepath(Channel channel) =>
+        Path.Combine(FilterPaths.RunningFolder, $"outcmds_{channel.ProcessId}.txt");
 
-    public string GetChannelInboundFilepath(Channel channel)
-    {
-        var prefix = channel.InGameDll ? "incmds" : "outcmds";
-        return Path.Combine(FilterPaths.RunningFolder, $"{prefix}_{channel.ProcessId}.txt");
-    }
+    public string GetChannelInboundFilepath(Channel channel) =>
+        Path.Combine(FilterPaths.RunningFolder, $"incmds_{channel.ProcessId}.txt");
 
     public void StartWatcher(Channel channel)
     {

@@ -5,7 +5,7 @@ namespace ShadowLauncher.Infrastructure.Persistence;
 
 /// <summary>
 /// Reads and writes accounts in Accounts.txt (key=value lines).
-/// Format: Version=2, then one line per account: Name=xxx,Password=xxx[,Alias=xxx,LaunchPath=xxx,PreferencePath=xxx]
+/// Format: Version=2, then one line per account: Name=xxx,Password=xxx[,Alias=xxx,PreferencePath=xxx]
 /// Encoding: ^c = comma, ^e = equals, ^u = caret.
 /// Still accepts legacy ThwargLauncher Accounts.txt on first-run import.
 /// </summary>
@@ -17,7 +17,7 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
     private readonly SemaphoreSlim _lock = new(1, 1);
     private Timer? _debounceTimer;
 
-    private const string HeaderComment = "# Name=xxx,Password=xxx,LaunchPath=c:\\xxx,PreferencePath=c:\\xxx,Alias=xxx";
+    private const string HeaderComment = "# Name=xxx,Password=xxx,PreferencePath=c:\\xxx,Alias=xxx";
 
     /// <summary>Raised whenever the backing file is modified (externally or internally).</summary>
     public event EventHandler? AccountsChanged;

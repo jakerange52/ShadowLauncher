@@ -18,8 +18,7 @@ public sealed class FilterCore : FilterBase
     private readonly FastQuit _fastQuit = new();
     private readonly LoginCompleteMessageQueueManager _loginCompleteMessageQueueManager = new();
     private readonly LoginCommandExecutor _loginCommandExecutor = new();
-    private readonly FilterCommandExecutor _filterCommandExecutor = new();
-    private readonly FilterCommandParser _filterCommandParser;
+    private readonly FilterCommandParser _filterCommandParser = new();
     private DateTime _lastServerDispatchUtc = DateTime.MinValue;
     private LaunchInfo? _cachedLaunchInfo;
 
@@ -28,7 +27,6 @@ public sealed class FilterCore : FilterBase
         _characterSelectManager = new CharacterSelectManager(_loginCharacterTools);
         _defaultFirstCharacterManager = new DefaultFirstCharacterManager(_loginCharacterTools);
         _loginNextCharacterManager = new LoginNextCharacterManager(_loginCharacterTools);
-        _filterCommandParser = new FilterCommandParser(_filterCommandExecutor);
     }
 
     protected override void Startup()
@@ -91,8 +89,6 @@ public sealed class FilterCore : FilterBase
         if (info.IsValid)
         {
             _cachedLaunchInfo = info;
-            Monitoring.HeartbeatWriter.RecordServer(info.ServerName);
-            Monitoring.HeartbeatWriter.RecordAccount(info.AccountName);
             if (!string.IsNullOrEmpty(info.CharacterName))
                 Monitoring.HeartbeatWriter.RecordCharacterName(info.CharacterName);
         }
