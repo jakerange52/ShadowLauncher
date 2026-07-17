@@ -58,6 +58,11 @@ public static class GameWindowPlacementHelper
         if (placement.length <= 0)
             return null;
 
+        // Persist restored geometry only — minimized showCmd would force every
+        // future restore to minimize even when the client exited restored.
+        if (placement.showCmd == SwShowminimized)
+            placement.showCmd = SwShownormal;
+
         return ToPlacementString(placement);
     }
 
@@ -76,6 +81,11 @@ public static class GameWindowPlacementHelper
 
         if (!AreSameNormalSize(placement, current))
             return false;
+
+        // Never restore minimized/hidden show state — remize on relaunch is
+        // controlled separately from the exit-time WasMinimized preference.
+        if (placement.showCmd == SwShowminimized)
+            placement.showCmd = SwShownormal;
 
         placement.length = Marshal.SizeOf<WindowPlacement>();
         return SetWindowPlacement(hwnd, ref placement);

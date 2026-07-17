@@ -22,6 +22,9 @@ public partial class MainWindowViewModel
         {
             _launchedSessions.Remove(processId);
 
+            // Capture now — do not re-read the journal after the delay (stale / other writers).
+            var shouldReminimize = wasMinimized;
+
             var hasAliveSessionForCombo = ActiveSessions.Any(s =>
                 string.Equals(s.AccountId, info.Account.Id, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(s.ServerId, info.Server.Id, StringComparison.OrdinalIgnoreCase));
@@ -34,7 +37,8 @@ public partial class MainWindowViewModel
                 return;
             }
 
-            _logger.LogInformation("Auto-relaunching {Account} on {Server}", info.Account.Name, info.Server.Name);
+            _logger.LogInformation("Auto-relaunching {Account} on {Server} (reminimize: {Reminimize})",
+                info.Account.Name, info.Server.Name, shouldReminimize);
             StatusText = $"Auto-relaunching {info.Account.Name} on {info.Server.Name}...";
 
             try
@@ -49,23 +53,14 @@ public partial class MainWindowViewModel
                     _launchedSessions[result.ProcessId] = info;
                     StatusText = $"Auto-relaunched {info.Account.Name} (PID {result.ProcessId})";
 
-                    if (_sessionService.GetRelaunchWasMinimized(info.Account.Id, info.Server.Id))
+                    if (shouldReminimize)
                     {
-                        var character = _loginCommandsService.GetDefaultCharacter(info.Account.Name, info.Server.Name);
-                        var hasAutoLoginCharacter = !string.IsNullOrWhiteSpace(character)
-                            && !string.Equals(character, "any", StringComparison.OrdinalIgnoreCase);
-
-                        if (hasAutoLoginCharacter)
-                        {
-                            _logger.LogDebug("Will re-minimize PID {Pid} after character '{Char}' reaches in-game",
-                                result.ProcessId, character);
-                            _pendingMinimizeOnInGame.Add(result.ProcessId);
-                        }
-                        else
-                        {
-                            _logger.LogDebug("Previous client was minimized — will re-minimize relaunched PID {Pid}", result.ProcessId);
-                            _ = MinimizeWhenReadyAsync(result.ProcessId);
-                        }
+                        // Never minimize during login/splash — that races UtilityBelt / DX
+                        // device init (black login screen, missing in-world HUD). Wait for InGame.
+                        _logger.LogDebug(
+                            "Will re-minimize PID {Pid} after in-game + DX settle delay",
+                            result.ProcessId);
+                        _pendingMinimizeOnInGame.Add(result.ProcessId);
                     }
                 }
                 else
@@ -85,8 +80,18 @@ public partial class MainWindowViewModel
         }
     }
 
+    /// <summary>
+    /// Delay after first InGame heartbeat before minimize / SetWindowPlacement.
+    /// UtilityBelt and Decal views race the DX swap chain; touching the HWND too
+    /// early yields a black login screen and missing in-world UI.
+    /// </summary>
+    private static readonly TimeSpan DxSettleAfterInGame = TimeSpan.FromSeconds(8);
+
     private async Task MinimizeWhenReadyAsync(int processId)
     {
+        // Let UB / renderer finish binding before we iconic the window.
+        await Task.Delay(DxSettleAfterInGame);
+
         const int totalMs = 30_000;
         const int intervalMs = 500;
         var elapsed = 0;
@@ -191,8 +196,9 @@ public partial class MainWindowViewModel
         if (updated.Status == GameSessionStatus.InGame
             && _pendingMinimizeOnInGame.Remove(updated.ProcessId))
         {
-            _logger.LogInformation("Character '{Char}' reached in-game on PID {Pid} — minimizing now",
-                updated.CharacterName, updated.ProcessId);
+            _logger.LogInformation(
+                "Character '{Char}' reached in-game on PID {Pid} — minimizing after {Settle}s DX settle",
+                updated.CharacterName, updated.ProcessId, DxSettleAfterInGame.TotalSeconds);
             _ = MinimizeWhenReadyAsync(updated.ProcessId);
         }
     }

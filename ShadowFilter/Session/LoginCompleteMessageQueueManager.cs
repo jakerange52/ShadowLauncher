@@ -8,6 +8,7 @@ internal sealed class LoginCompleteMessageQueueManager
     private bool _freshLogin;
     private readonly Queue<string> _queue = new();
     private bool _sendingLastEnter;
+    private bool _renderHooked;
 
     public void OnClientDispatch(NetworkMessageEventArgs e)
     {
@@ -30,7 +31,7 @@ internal sealed class LoginCompleteMessageQueueManager
             return;
 
         _sendingLastEnter = false;
-        CoreManager.Current.RenderFrame += OnRenderFrame;
+        Attach();
     }
 
     public void OnCommandLineText(ChatParserInterceptEventArgs e)
@@ -62,7 +63,7 @@ internal sealed class LoginCompleteMessageQueueManager
         {
             if (_queue.Count == 0 && !_sendingLastEnter)
             {
-                CoreManager.Current.RenderFrame -= OnRenderFrame;
+                Detach();
                 return;
             }
 
@@ -81,7 +82,25 @@ internal sealed class LoginCompleteMessageQueueManager
         }
         catch
         {
-            CoreManager.Current.RenderFrame -= OnRenderFrame;
+            Detach();
         }
+    }
+
+    private void Attach()
+    {
+        if (_renderHooked)
+            return;
+
+        CoreManager.Current.RenderFrame += OnRenderFrame;
+        _renderHooked = true;
+    }
+
+    private void Detach()
+    {
+        if (!_renderHooked)
+            return;
+
+        CoreManager.Current.RenderFrame -= OnRenderFrame;
+        _renderHooked = false;
     }
 }

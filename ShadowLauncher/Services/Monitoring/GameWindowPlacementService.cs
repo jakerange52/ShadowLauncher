@@ -8,15 +8,24 @@ namespace ShadowLauncher.Services.Monitoring;
 
 /// <summary>
 /// Per-account game window placement save/restore.
+/// Restore is deferred after InGame so SetWindowPlacement does not race
+/// UtilityBelt / Decal view init against the DirectX swap chain.
 /// </summary>
 public sealed class GameWindowPlacementService
 {
+    /// <summary>
+    /// Wait this long after first confirmed InGame before SetWindowPlacement.
+    /// Matches the remize settle delay — UB HUDs often bind in the first few seconds in-world.
+    /// </summary>
+    private static readonly TimeSpan DxSettleAfterInGame = TimeSpan.FromSeconds(8);
+
     private readonly IConfigurationProvider _config;
     private readonly GameWindowPlacementStore _store;
     private readonly ILogger<GameWindowPlacementService> _logger;
 
     private readonly Dictionary<int, bool> _hasRestored = [];
     private readonly Dictionary<int, string> _lastSavedPlacement = [];
+    private readonly Dictionary<int, DateTime> _inGameSinceUtc = [];
 
     public GameWindowPlacementService(
         IConfigurationProvider config,
@@ -32,12 +41,16 @@ public sealed class GameWindowPlacementService
     {
         _hasRestored.Remove(processId);
         _lastSavedPlacement.Remove(processId);
+        _inGameSinceUtc.Remove(processId);
     }
 
     public void ProcessSession(GameSession session, GameSessionStatus status)
     {
         if (status != GameSessionStatus.InGame)
+        {
+            _inGameSinceUtc.Remove(session.ProcessId);
             return;
+        }
 
         if (string.IsNullOrWhiteSpace(session.ServerName) || string.IsNullOrWhiteSpace(session.AccountName))
             return;
@@ -46,13 +59,22 @@ public sealed class GameWindowPlacementService
         if (hwnd == nint.Zero)
             return;
 
+        if (!_inGameSinceUtc.ContainsKey(session.ProcessId))
+            _inGameSinceUtc[session.ProcessId] = DateTime.UtcNow;
+
+        var settled = DateTime.UtcNow - _inGameSinceUtc[session.ProcessId] >= DxSettleAfterInGame;
+
         if (_config.RestoreGameWindows && !_hasRestored.GetValueOrDefault(session.ProcessId))
         {
+            if (!settled)
+                return;
+
             TryRestore(session, hwnd);
             _hasRestored[session.ProcessId] = true;
         }
 
-        if (_config.SaveGameWindows)
+        // Avoid saving pre-restore geometry; once settled (or restore disabled), persist.
+        if (_config.SaveGameWindows && (settled || !_config.RestoreGameWindows || _hasRestored.GetValueOrDefault(session.ProcessId)))
             TrySave(session, hwnd);
     }
 

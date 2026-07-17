@@ -272,31 +272,6 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    public int MultiLaunchDelaySeconds
-    {
-        get => _config.MultiLaunchDelaySeconds;
-        set
-        {
-            if (value < 1)
-            {
-                MessageBox.Show(
-                    "Multi-launch delay must be at least 1 second.",
-                    "Invalid Setting",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-                OnPropertyChanged();
-                return;
-            }
-
-            if (_config.MultiLaunchDelaySeconds != value)
-            {
-                _config.MultiLaunchDelaySeconds = value;
-                _config.Save();
-                OnPropertyChanged();
-            }
-        }
-    }
-
     public bool CanLaunch => SelectedAccounts.Count > 0 && SelectedServers.Count > 0
         && !IsLoading && File.Exists(GameClientPath);
 

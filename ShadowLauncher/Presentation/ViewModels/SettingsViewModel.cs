@@ -21,6 +21,7 @@ public class SettingsViewModel : ViewModelBase
     private string _currentThemeName;
     private bool _datDeveloperMode;
     private bool _attemptDecalInjection;
+    private int _multiLaunchDelaySeconds;
     private CancellationTokenSource? _downloadCts;
 
     public SettingsViewModel(IConfigurationProvider config, UpdateChecker updateChecker, ThemeService themeService)
@@ -32,6 +33,7 @@ public class SettingsViewModel : ViewModelBase
         _currentThemeName = _themeService.CurrentThemeName;
         _datDeveloperMode = _config.DatDeveloperMode;
         _attemptDecalInjection = _config.AttemptDecalInjection;
+        _multiLaunchDelaySeconds = _config.MultiLaunchDelaySeconds;
 
         SaveCommand = new RelayCommand(Save);
         BrowseDecalCommand = new RelayCommand(() => BrowseRequested?.Invoke(this, nameof(DecalPath)));
@@ -65,6 +67,12 @@ public class SettingsViewModel : ViewModelBase
     {
         get => _attemptDecalInjection;
         set => SetProperty(ref _attemptDecalInjection, value);
+    }
+
+    public int MultiLaunchDelaySeconds
+    {
+        get => _multiLaunchDelaySeconds;
+        set => SetProperty(ref _multiLaunchDelaySeconds, value);
     }
 
     public string StatusText
@@ -118,10 +126,21 @@ public class SettingsViewModel : ViewModelBase
 
     private void Save()
     {
+        if (MultiLaunchDelaySeconds < 1)
+        {
+            MessageBox.Show(
+                "Multi-launch delay must be at least 1 second.",
+                "Invalid Setting",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
+
         _config.DecalPath = DecalPath;
         _config.Theme = _currentThemeName;
         _config.DatDeveloperMode = DatDeveloperMode;
         _config.AttemptDecalInjection = AttemptDecalInjection;
+        _config.MultiLaunchDelaySeconds = MultiLaunchDelaySeconds;
         _config.Save();
 
         StatusText = "Settings saved.";

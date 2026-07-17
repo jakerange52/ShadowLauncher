@@ -128,8 +128,9 @@ public class GameMonitor : IGameMonitor
 
                         var track = Track(session, heartbeat);
 
-                        if (track.Confirmed && heartbeat.Status == GameSessionStatus.InGame
-                            && WindowFocusHelper.TryGetMinimizedState(session.ProcessId, out var minNow))
+                        // Track minimize continuously whenever a window exists so the
+                        // exit-time preference is not stale by up to a full InGame cycle.
+                        if (WindowFocusHelper.TryGetMinimizedState(session.ProcessId, out var minNow))
                             _sessionService.UpdateMinimizedState(session.Id, minNow);
 
                         if (track.Confirmed)
@@ -274,6 +275,11 @@ public class GameMonitor : IGameMonitor
             session.ProcessId, elapsedSeconds, timeoutSeconds);
 
         var wasMinimized = session.WasMinimized;
+        // Sample before Kill — WaitForExit paths can't read the window after exit.
+        if (WindowFocusHelper.TryGetMinimizedState(session.ProcessId, out var minNow))
+            wasMinimized = minNow;
+        session.WasMinimized = wasMinimized;
+
         ClearTracking(session.Id, session.ProcessId);
 
         try
