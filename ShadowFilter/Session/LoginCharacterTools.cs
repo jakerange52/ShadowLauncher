@@ -64,14 +64,25 @@ internal sealed class LoginCharacterTools
                 _characterListWritten = true;
             }
         }
+    }
 
-        var currentName = CoreManager.Current.CharacterFilter.Name;
-        if (!string.IsNullOrEmpty(currentName) && !string.Equals(currentName, _trackedCharacterName, StringComparison.Ordinal))
-        {
-            _trackedCharacterName = currentName;
-            GameRepo.Game.SetCharacter(currentName);
-            Monitoring.HeartbeatWriter.RecordCharacterName(currentName);
-        }
+    /// <summary>
+    /// Call from login-complete (not per-packet) — CharacterFilter COM on every
+    /// ServerDispatch was thrashing the client under load.
+    /// </summary>
+    public void TrackCharacterNameIfChanged()
+    {
+        var currentName = CharacterFilterTools.SafeCharacterName();
+        if (string.IsNullOrEmpty(currentName) ||
+            string.Equals(currentName, "LoginNotComplete", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        if (string.Equals(currentName, _trackedCharacterName, StringComparison.Ordinal))
+            return;
+
+        _trackedCharacterName = currentName;
+        GameRepo.Game.SetCharacter(currentName);
+        Monitoring.HeartbeatWriter.RecordCharacterName(currentName);
     }
 
     public bool LoginCharacter(string name)

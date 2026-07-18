@@ -246,6 +246,16 @@ internal static class HeartbeatWriter
         if (string.Equals(actualCharacter, "LoginNotComplete", StringComparison.OrdinalIgnoreCase))
             actualCharacter = string.Empty;
 
+        // Keep GameRepo / heartbeat character in sync without polling COM every packet.
+        if (!string.IsNullOrEmpty(actualCharacter))
+        {
+            if (!string.Equals(_characterName, actualCharacter, StringComparison.Ordinal))
+                _characterName = actualCharacter;
+
+            if (!string.Equals(GameRepo.Game.Character, actualCharacter, StringComparison.Ordinal))
+                GameRepo.Game.SetCharacter(actualCharacter);
+        }
+
         var sb = new StringBuilder();
         sb.AppendLine("FileVersion:1.0");
         sb.AppendLine($"UptimeSeconds:{uptime}");

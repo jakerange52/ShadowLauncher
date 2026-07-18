@@ -142,6 +142,10 @@ public sealed class FilterCore : FilterBase
             : string.Empty;
 
         _loginCommandExecutor.OnClientDispatch(e, account, server, launchCharacter);
+
+        // Login complete (EnterWorld) — safe place to read CharacterFilter once.
+        if (e.Message.Type == 0xF7B1 && Convert.ToInt32(e.Message["action"]) == 0xA1)
+            _loginCharacterTools.TrackCharacterNameIfChanged();
     }
 
     private void OnCommandLineText(object sender, ChatParserInterceptEventArgs e)

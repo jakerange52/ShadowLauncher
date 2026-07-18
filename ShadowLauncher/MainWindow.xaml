@@ -352,36 +352,39 @@
             </DataGrid>
         </GroupBox>
 
-        <!-- Action Bar -->
-        <DockPanel Grid.Row="5" Grid.ColumnSpan="2" Margin="0,12,0,0">
-            <CheckBox DockPanel.Dock="Left" Content="Kill disconnected client"
-                      IsChecked="{Binding KillOnMissingHeartbeat}"
-                      VerticalAlignment="Center" Margin="0,0,4,0"
-                      ToolTip="Kill the game client if no heartbeat is received within the specified timeout"/>
-            <TextBox DockPanel.Dock="Left" Text="{Binding KillHeartbeatTimeoutSeconds, UpdateSourceTrigger=LostFocus}"
-                     Width="35" VerticalContentAlignment="Center" Padding="3,2"
-                     Margin="0,0,16,0" ToolTip="Seconds without heartbeat before killing client"
-                     KeyDown="TimeoutTextBox_KeyDown"/>
-            <CheckBox DockPanel.Dock="Left" Content="Auto Relaunch"
-                      IsChecked="{Binding AutoRelaunch}"
-                      VerticalAlignment="Center" Margin="0,0,4,0"
-                      ToolTip="Automatically relaunch sessions when the game process exits"/>
-            <TextBox DockPanel.Dock="Left" Text="{Binding AutoRelaunchDelaySeconds, UpdateSourceTrigger=LostFocus}"
-                     Width="35" VerticalContentAlignment="Center" Padding="3,2"
-                     Margin="0,0,16,0" ToolTip="Seconds to wait before relaunching"
-                     KeyDown="TimeoutTextBox_KeyDown"/>
-            <TextBlock DockPanel.Dock="Left" Text="Multi-Launch Delay" VerticalAlignment="Center" Margin="0,0,4,0"
-                       Foreground="{DynamicResource TextBrush}"/>
-            <TextBox DockPanel.Dock="Left" Text="{Binding MultiLaunchDelaySeconds, UpdateSourceTrigger=LostFocus}"
-                     Width="35" VerticalContentAlignment="Center" Padding="3,2"
-                     Margin="0,0,16,0" ToolTip="Seconds to wait between launching each client (minimum 1; helps avoid server full errors and PreferencePath races)"
-                     KeyDown="TimeoutTextBox_KeyDown"/>
-            <TextBlock DockPanel.Dock="Left" Text="{Binding StatusText}"
-                       VerticalAlignment="Center" Foreground="#666"/>
-            <Button DockPanel.Dock="Right" Content="&#x1F300; Launch Game" Command="{Binding LaunchCommand}"
-                    Padding="20,8" FontWeight="Bold" FontSize="14" HorizontalAlignment="Right"
+        <!-- Action Bar: fixed controls | truncating status | launch (never squeezed) -->
+        <Grid Grid.Row="5" Grid.ColumnSpan="2" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*" MinWidth="40"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <CheckBox Content="Kill disconnected client"
+                          IsChecked="{Binding KillOnMissingHeartbeat}"
+                          VerticalAlignment="Center" Margin="0,0,4,0"
+                          ToolTip="Kill the client if it stays out of world or stops heartbeating longer than the timeout. Timer resets when you enter the world."/>
+                <TextBox Text="{Binding KillHeartbeatTimeoutSeconds, UpdateSourceTrigger=LostFocus}"
+                         Width="35" VerticalContentAlignment="Center" Padding="3,2"
+                         Margin="0,0,16,0" ToolTip="Seconds out of world / without heartbeat before killing the client"
+                         KeyDown="TimeoutTextBox_KeyDown"/>
+                <CheckBox Content="Auto Relaunch"
+                          IsChecked="{Binding AutoRelaunch}"
+                          VerticalAlignment="Center" Margin="0,0,4,0"
+                          ToolTip="Automatically relaunch sessions when the game process exits"/>
+                <TextBox Text="{Binding AutoRelaunchDelaySeconds, UpdateSourceTrigger=LostFocus}"
+                         Width="35" VerticalContentAlignment="Center" Padding="3,2"
+                         Margin="0,0,8,0" ToolTip="Seconds to wait before relaunching"
+                         KeyDown="TimeoutTextBox_KeyDown"/>
+            </StackPanel>
+            <TextBlock Grid.Column="1" Text="{Binding StatusText}"
+                       VerticalAlignment="Center" Foreground="#666" Margin="8,0"
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding StatusText}"/>
+            <Button Grid.Column="2" Content="&#x1F300; Launch Game" Command="{Binding LaunchCommand}"
+                    Padding="20,8" FontWeight="Bold" FontSize="14"
                     Style="{DynamicResource LaunchButton}"/>
-        </DockPanel>
+        </Grid>
         </Grid>
         </Grid>
     </Border>
