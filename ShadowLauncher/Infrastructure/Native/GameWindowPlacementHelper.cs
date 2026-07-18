@@ -8,8 +8,10 @@ namespace ShadowLauncher.Infrastructure.Native;
 /// </summary>
 public static class GameWindowPlacementHelper
 {
-    private const int SwShowminimized = 2;
     private const int SwShownormal = 1;
+    private const int SwShowminimized = 2;
+    /// <summary>Win32 WPF_RESTORETOMAXIMIZED — must not be persisted or SetWindowPlacement maximizes.</summary>
+    private const int WpfRestoreToMaximized = 0x0002;
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct Rect
@@ -46,6 +48,10 @@ public static class GameWindowPlacementHelper
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPlacement(nint hWnd, ref WindowPlacement lpwndpl);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsIconic(nint hWnd);
+
     internal static string? GetPlacementString(nint hwnd)
     {
         if (hwnd == nint.Zero)
@@ -58,11 +64,7 @@ public static class GameWindowPlacementHelper
         if (placement.length <= 0)
             return null;
 
-        // Persist restored geometry only — minimized showCmd would force every
-        // future restore to minimize even when the client exited restored.
-        if (placement.showCmd == SwShowminimized)
-            placement.showCmd = SwShownormal;
-
+        NormalizeRestoredGeometry(ref placement);
         return ToPlacementString(placement);
     }
 
@@ -82,13 +84,27 @@ public static class GameWindowPlacementHelper
         if (!AreSameNormalSize(placement, current))
             return false;
 
-        // Never restore minimized/hidden show state — remize on relaunch is
-        // controlled separately from the exit-time WasMinimized preference.
-        if (placement.showCmd == SwShowminimized)
-            placement.showCmd = SwShownormal;
+        // Geometry only — remize on relaunch is controlled separately via WasMinimized.
+        // Also strips maximized showCmd / WPF_RESTORETOMAXIMIZED from older saved data.
+        NormalizeRestoredGeometry(ref placement);
+
+        // If AutoRelaunch remize already iconic'd the window, keep it minimized.
+        // SW_SHOWNORMAL here would undo remize when placement restore races after it.
+        if (IsIconic(hwnd))
+            placement.showCmd = SwShowminimized;
 
         placement.length = Marshal.SizeOf<WindowPlacement>();
         return SetWindowPlacement(hwnd, ref placement);
+    }
+
+    /// <summary>
+    /// Persist position/size only (always SW_SHOWNORMAL, no RESTORETOMAXIMIZED).
+    /// Remize-on-crash-relaunch uses WasMinimized + MinimizeAllWindows, not this showCmd.
+    /// </summary>
+    private static void NormalizeRestoredGeometry(ref WindowPlacement placement)
+    {
+        placement.showCmd = SwShownormal;
+        placement.flags &= ~WpfRestoreToMaximized;
     }
 
     internal static bool AreSameNormalSize(WindowPlacement a, WindowPlacement b) =>

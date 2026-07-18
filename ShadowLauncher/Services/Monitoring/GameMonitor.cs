@@ -38,6 +38,8 @@ public class GameMonitor : IGameMonitor
         public bool Primed;
         public bool SawEmptyActual;
         public bool Confirmed;
+        /// <summary>True once we have confirmed a real world entry this session.</summary>
+        public bool EverConfirmed;
         public DateTime? LeftWorldAt;
     }
 
@@ -120,13 +122,19 @@ public class GameMonitor : IGameMonitor
                         _ = WatchForExitAsync(session.ProcessId, session.Id, token);
 
                     var heartbeat = await _heartbeatReader.ReadHeartbeatAsync(session.ProcessId);
-                    if (heartbeat is not null)
+                    // Stale file after a crash still looks "InGame" — treat as missing once
+                    // the heartbeat is older than the kill timeout so detection takes ~timer seconds.
+                    var heartbeatLive = heartbeat is not null
+                        && (DateTime.UtcNow - heartbeat.Timestamp).TotalSeconds
+                            <= _config.KillHeartbeatTimeoutSeconds;
+
+                    if (heartbeatLive)
                     {
                         _seenHeartbeat.Add(session.Id);
-                        await _sessionService.RecordHeartbeatAsync(session.Id, heartbeat);
-                        NotifyHeartbeatIfChanged(session.Id, heartbeat);
+                        await _sessionService.RecordHeartbeatAsync(session.Id, heartbeat!);
+                        NotifyHeartbeatIfChanged(session.Id, heartbeat!);
 
-                        var track = Track(session, heartbeat);
+                        var track = Track(session, heartbeat!);
 
                         // Track minimize continuously whenever a window exists so the
                         // exit-time preference is not stale by up to a full InGame cycle.
@@ -134,14 +142,14 @@ public class GameMonitor : IGameMonitor
                             _sessionService.UpdateMinimizedState(session.Id, minNow);
 
                         if (track.Confirmed)
-                            _windowPlacement.ProcessSession(session, heartbeat.Status);
+                            _windowPlacement.ProcessSession(session, heartbeat!.Status);
 
                         if (_config.KillOnMissingHeartbeat
-                            && TryGetNotInWorldElapsed(session, heartbeat, track, out var elapsed))
+                            && TryGetNotInWorldElapsed(session, heartbeat!, track, out var elapsed))
                         {
                             _logger.LogWarning(
                                 "PID {Pid} not in world for {Elapsed}s (timeout: {Timeout}s, status {Status}).",
-                                session.ProcessId, elapsed, _config.KillHeartbeatTimeoutSeconds, heartbeat.Status);
+                                session.ProcessId, elapsed, _config.KillHeartbeatTimeoutSeconds, heartbeat!.Status);
                             await KillSessionAsync(session, elapsed, _config.KillHeartbeatTimeoutSeconds);
                         }
                     }
@@ -188,6 +196,7 @@ public class GameMonitor : IGameMonitor
         if (track.SawEmptyActual || (first && session.GetAliveSeconds() > _config.KillHeartbeatTimeoutSeconds))
         {
             track.Confirmed = true;
+            track.EverConfirmed = true;
             track.LeftWorldAt = null;
         }
 
@@ -199,23 +208,22 @@ public class GameMonitor : IGameMonitor
     {
         var timeout = _config.KillHeartbeatTimeoutSeconds;
 
-        if (!track.Confirmed)
-        {
-            elapsed = session.GetAliveSeconds();
-            return elapsed > timeout;
-        }
-
-        var preWorld = heartbeat.Status is GameSessionStatus.LoginScreen
-            or GameSessionStatus.CharacterSelection
-            or GameSessionStatus.Launching;
-
-        if (!preWorld)
+        // In world — reset the out-of-world timer (re-entry after logout / crash recovery).
+        if (heartbeat.HasEnteredWorld)
         {
             track.LeftWorldAt = null;
             elapsed = 0;
             return false;
         }
 
+        // Never entered world — clock from launch (stuck on login / account-in-use).
+        if (!track.EverConfirmed)
+        {
+            elapsed = session.GetAliveSeconds();
+            return elapsed > timeout;
+        }
+
+        // Was in world, now out (char select, login, etc.) — clock from leaving; resets on re-entry.
         track.LeftWorldAt ??= DateTime.UtcNow;
         elapsed = (int)(DateTime.UtcNow - track.LeftWorldAt.Value).TotalSeconds;
         return elapsed > timeout;

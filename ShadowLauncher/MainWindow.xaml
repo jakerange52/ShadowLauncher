@@ -363,10 +363,10 @@
                 <CheckBox Content="Kill disconnected client"
                           IsChecked="{Binding KillOnMissingHeartbeat}"
                           VerticalAlignment="Center" Margin="0,0,4,0"
-                          ToolTip="Kill the game client if no heartbeat is received within the specified timeout"/>
+                          ToolTip="Kill the client if it stays out of world or stops heartbeating longer than the timeout. Timer resets when you enter the world."/>
                 <TextBox Text="{Binding KillHeartbeatTimeoutSeconds, UpdateSourceTrigger=LostFocus}"
                          Width="35" VerticalContentAlignment="Center" Padding="3,2"
-                         Margin="0,0,16,0" ToolTip="Seconds without heartbeat before killing client"
+                         Margin="0,0,16,0" ToolTip="Seconds out of world / without heartbeat before killing the client"
                          KeyDown="TimeoutTextBox_KeyDown"/>
                 <CheckBox Content="Auto Relaunch"
                           IsChecked="{Binding AutoRelaunch}"
