@@ -37,6 +37,9 @@ internal sealed class DefaultFirstCharacterManager
 
     public void OnCommandLineText(ChatParserInterceptEventArgs e)
     {
+        if (ParallelFilterGuard.IsThwargFilterLoaded())
+            return;
+
         var lower = e.Text.ToLowerInvariant();
 
         if (lower.StartsWith("/tf dlc set"))
@@ -48,7 +51,10 @@ internal sealed class DefaultFirstCharacterManager
                     new DefaultFirstCharacter(_serverName, _zoneName, name));
                 ChatText.Write("Default Login Character set to: " + name);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                OomGuard.DieIfOom(ex);
+            }
 
             e.Eat = true;
         }

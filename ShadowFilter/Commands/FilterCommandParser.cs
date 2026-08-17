@@ -198,8 +198,21 @@ internal sealed class FilterCommandParser
 
     private void KillClientHandler(string _) => SendChannel(CmdKillClient);
     private void KillAllClientsHandler(string _) => SendChannel(CmdKillAllClients);
-    private void AddLoginCmdHandler(string command) => SendChannel(CmdAddLoginCmd + command);
-    private void AddLoginCmdGlobalHandler(string command) => SendChannel(CmdAddLoginCmdGlobal + command);
+    private void AddLoginCmdHandler(string command)
+    {
+        if (ParallelFilterGuard.IsThwargFilterLoaded())
+            return;
+
+        SendChannel(CmdAddLoginCmd + command);
+    }
+
+    private void AddLoginCmdGlobalHandler(string command)
+    {
+        if (ParallelFilterGuard.IsThwargFilterLoaded())
+            return;
+
+        SendChannel(CmdAddLoginCmdGlobal + command);
+    }
     private void DisableWindowPositionHandler(string _) { SendChannel(CmdDisableWindowPosition); ChatText.Write("Window positions disabled."); }
     private void LockWindowPositionHandler(string _) { SendChannel(CmdLockWindowPosition); ChatText.Write("Window positions locked."); }
     private void UnlockWindowPositionHandler(string _) { SendChannel(CmdUnlockWindowPosition); ChatText.Write("Window positions unlocked."); }

@@ -1,9 +1,10 @@
 namespace ShadowFilter.Session;
 
 /// <summary>
-/// When ThwargFilter is loaded alongside ShadowFilter, ThwargFilter owns character-select
-/// clicks (ShadowLauncher dual-writes its launch files). ShadowFilter still handles
-/// heartbeats, character lists, and login commands under LocalAppData\ShadowLauncher.
+/// Detects ThwargFilter loaded in the same Decal host. ThwargFilter-parity automation
+/// (char select, login commands, login retry, lcmq, lnc, dlc, fast-quit) defers to
+/// Thwarg when both are present. ShadowFilter keeps launcher IPC: heartbeat, channel
+/// relay, character list files, and in-game /tf broadcast/team/kill commands.
 /// </summary>
 internal static class ParallelFilterGuard
 {

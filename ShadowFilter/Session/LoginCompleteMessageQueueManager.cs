@@ -27,6 +27,9 @@ internal sealed class LoginCompleteMessageQueueManager
 
         _freshLogin = false;
 
+        if (ParallelFilterGuard.IsThwargFilterLoaded())
+            return;
+
         if (_queue.Count == 0)
             return;
 
@@ -36,6 +39,9 @@ internal sealed class LoginCompleteMessageQueueManager
 
     public void OnCommandLineText(ChatParserInterceptEventArgs e)
     {
+        if (ParallelFilterGuard.IsThwargFilterLoaded())
+            return;
+
         if (e.Text.StartsWith("/tf lcmq add ", StringComparison.OrdinalIgnoreCase))
         {
             _queue.Enqueue(e.Text.Substring(13));
@@ -80,8 +86,9 @@ internal sealed class LoginCompleteMessageQueueManager
                 _sendingLastEnter = true;
             }
         }
-        catch
+        catch (Exception ex)
         {
+            OomGuard.DieIfOom(ex);
             Detach();
         }
     }

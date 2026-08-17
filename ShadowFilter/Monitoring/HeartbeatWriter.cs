@@ -95,6 +95,7 @@ internal static class HeartbeatWriter
         }
         catch (Exception ex)
         {
+            OomGuard.DieIfOom(ex);
             PluginLog.Warn(LogCategory, $"Failed to delete heartbeat file: {_heartbeatPath}", ex);
         }
     }
@@ -176,6 +177,7 @@ internal static class HeartbeatWriter
         }
         catch (Exception ex)
         {
+            OomGuard.DieIfOom(ex);
             PluginLog.Warn(LogCategory, "WriteHeartbeat failed", ex);
             success = false;
         }
@@ -190,6 +192,7 @@ internal static class HeartbeatWriter
         }
         catch (Exception ex)
         {
+            OomGuard.DieIfOom(ex);
             PluginLog.Warn(LogCategory, "WriteCommandsToFile failed", ex);
             success = false;
         }
@@ -200,6 +203,7 @@ internal static class HeartbeatWriter
         }
         catch (Exception ex)
         {
+            OomGuard.DieIfOom(ex);
             PluginLog.Warn(LogCategory, "ReadAndProcessInboundCommands failed", ex);
             success = false;
         }
@@ -244,6 +248,11 @@ internal static class HeartbeatWriter
         // Do not fall back to the launch-file character — that makes stuck login look InGame.
         var actualCharacter = CharacterFilterTools.SafeCharacterName();
         if (string.Equals(actualCharacter, "LoginNotComplete", StringComparison.OrdinalIgnoreCase))
+            actualCharacter = string.Empty;
+
+        // Offline (login screen, disconnect, login-failure dialog) must not report a stale
+        // character name — launcher kill logic keys off ActualCharacterName / HasEnteredWorld.
+        if (!isOnline)
             actualCharacter = string.Empty;
 
         // Keep GameRepo / heartbeat character in sync without polling COM every packet.

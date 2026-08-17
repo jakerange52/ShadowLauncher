@@ -83,18 +83,19 @@ public class GameLauncher : IGameLauncher
             var defaultChar = _loginCommandsService.GetDefaultCharacter(account.Name, server.Name);
             var launchCharacter = (string.IsNullOrEmpty(defaultChar) || defaultChar == "any") ? "None" : defaultChar;
 
-            // Write launch files BEFORE starting the process (4-tick window after connect).
-            // ThwargFilter path: users who already have ThwargFilter need no ShadowFilter.
-            // ShadowFilter path: optional first-party filter; defers char-select if Thwarg is loaded.
-            WriteShadowFilterLaunchFile(account.Name, server.Name, launchCharacter);
-            WriteThwargFilterLaunchFile(account.Name, server.Name, launchCharacter);
-
             // ── Resolve which exe/directory to launch from ──────────────────────
             var env = await ResolveInstancePathAsync(server, clientPath, result);
             if (env is null) return result;
 
             // Swap per-account UserPreferences.ini into the default location (PreferencePath).
             ApplyPreferencePath(account);
+
+            // Write launch files immediately before CreateProcess so the 45s freshness
+            // window starts after DAT/instance prep, not before (filters delete "stale" files).
+            // ThwargFilter path: users who already have ThwargFilter need no ShadowFilter.
+            // ShadowFilter path: optional first-party filter; defers char-select if Thwarg is loaded.
+            WriteShadowFilterLaunchFile(account.Name, server.Name, launchCharacter);
+            WriteThwargFilterLaunchFile(account.Name, server.Name, launchCharacter);
 
             // ── Start the process ───────────────────────────────────────────────
             var processId = LaunchWithDecal(env.ExePath, arguments, env.WorkingDir, decalInjectPath);

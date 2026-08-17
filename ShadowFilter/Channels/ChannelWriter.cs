@@ -18,6 +18,7 @@ internal sealed class ChannelWriter
         }
         catch (Exception ex)
         {
+            OomGuard.DieIfOom(ex);
             PluginLog.Warn(LogCategory, $"Failed to write outbound commands: {filepath}", ex);
             channel.NeedsToWrite = true;
         }
@@ -55,6 +56,7 @@ internal sealed class ChannelWriter
         }
         catch (Exception ex)
         {
+            OomGuard.DieIfOom(ex);
             PluginLog.Warn(LogCategory, $"Failed to read inbound commands: {filepath}", ex);
         }
     }
@@ -77,6 +79,7 @@ internal sealed class ChannelWriter
         }
         catch (Exception ex)
         {
+            OomGuard.DieIfOom(ex);
             PluginLog.Warn(LogCategory, $"Failed to start channel watcher: {cmdFilepath}", ex);
         }
     }

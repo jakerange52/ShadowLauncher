@@ -7,6 +7,9 @@ internal sealed class FastQuit
 {
     public void OnWindowMessage(WindowMessageEventArgs e)
     {
+        if (ParallelFilterGuard.IsThwargFilterLoaded())
+            return;
+
         // Only ESC keydown — do not touch CharacterFilter on every mouse/key message.
         if (e.Msg != 0x0100 || e.WParam != 0x0000001B || e.LParam != 0x00010001)
             return;
@@ -20,6 +23,9 @@ internal sealed class FastQuit
 
             PostMessageTools.ClickYes();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            OomGuard.DieIfOom(ex);
+        }
     }
 }

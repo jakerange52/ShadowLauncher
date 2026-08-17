@@ -47,6 +47,7 @@ internal static class LaunchFileReader
                     }
                     catch (Exception ex)
                     {
+                        OomGuard.DieIfOom(ex);
                         PluginLog.Warn(LogCategory, $"Failed to delete stale launch file: {path}", ex);
                     }
                 }
@@ -54,6 +55,7 @@ internal static class LaunchFileReader
         }
         catch (Exception ex)
         {
+            OomGuard.DieIfOom(ex);
             PluginLog.Warn(LogCategory, "DeleteStaleLaunchFiles failed", ex);
         }
     }
@@ -99,7 +101,8 @@ internal static class LaunchFileReader
             }
 
             info.LaunchTimeUtc = KeyValueFile.ParseTimestamp(settings);
-            if (DateTime.UtcNow - info.LaunchTimeUtc >= MaxLatency)
+            if (info.LaunchTimeUtc == DateTime.MinValue ||
+                DateTime.UtcNow - info.LaunchTimeUtc >= MaxLatency)
                 return info;
 
             info.ServerName = KeyValueFile.GetString(settings, "ServerName");
@@ -109,6 +112,7 @@ internal static class LaunchFileReader
         }
         catch (Exception ex)
         {
+            OomGuard.DieIfOom(ex);
             PluginLog.Warn(LogCategory, $"Failed to read launch file: {path}", ex);
         }
 

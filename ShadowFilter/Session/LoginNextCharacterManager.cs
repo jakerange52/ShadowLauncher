@@ -20,12 +20,18 @@ internal sealed class LoginNextCharacterManager
 
     public void OnServerDispatch(NetworkMessageEventArgs e)
     {
+        if (ParallelFilterGuard.IsThwargFilterLoaded())
+            return;
+
         if (e.Message.Type == 0xF7E1)
             _timer.Start();
     }
 
     public void OnCommandLineText(ChatParserInterceptEventArgs e)
     {
+        if (ParallelFilterGuard.IsThwargFilterLoaded())
+            return;
+
         var lower = e.Text.ToLowerInvariant();
 
         if (lower.StartsWith("/tf lnc set "))
@@ -77,8 +83,9 @@ internal sealed class LoginNextCharacterManager
                 _nextCharByIndex = -1;
             }
         }
-        catch
+        catch (Exception ex)
         {
+            OomGuard.DieIfOom(ex);
             _timer.Stop();
         }
     }

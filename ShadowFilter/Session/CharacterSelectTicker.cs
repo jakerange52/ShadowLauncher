@@ -41,6 +41,7 @@ internal sealed class CharacterSelectTicker
         }
         catch (Exception ex)
         {
+            OomGuard.DieIfOom(ex);
             PluginLog.Error(nameof(CharacterSelectTicker), "Ticker tick failed", ex);
             _timer.Stop();
         }

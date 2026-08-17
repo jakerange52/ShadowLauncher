@@ -43,6 +43,9 @@ internal sealed class AutoRetryLogin
         if (e.Message.Type == 0xF659)
         {
             HeartbeatWriter.RecordLoginFailure();
+            if (ParallelFilterGuard.IsThwargFilterLoaded())
+                return;
+
             _state = 0;
             _attempts = 0;
             _timer.Start();

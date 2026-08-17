@@ -5,7 +5,7 @@ namespace ShadowFilter.Session;
 
 /// <summary>
 /// Auto-selects the character named in the ShadowLauncher launch file on 0xF7EA.
-/// Defers to ThwargFilter when both filters are loaded (ShadowLauncher dual-writes its launch files).
+/// Defers to ThwargFilter when both filters are loaded.
 /// </summary>
 internal sealed class CharacterSelectManager
 {
