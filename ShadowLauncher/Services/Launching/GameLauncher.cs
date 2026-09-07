@@ -93,7 +93,7 @@ public class GameLauncher : IGameLauncher
             // Write launch files immediately before CreateProcess so the 45s freshness
             // window starts after DAT/instance prep, not before (filters delete "stale" files).
             // ThwargFilter path: users who already have ThwargFilter need no ShadowFilter.
-            // ShadowFilter path: optional first-party filter; defers char-select if Thwarg is loaded.
+            // ShadowFilter path: optional first-party filter; takes priority if both are loaded.
             WriteShadowFilterLaunchFile(account.Name, server.Name, launchCharacter);
             WriteThwargFilterLaunchFile(account.Name, server.Name, launchCharacter);
 
@@ -273,7 +273,7 @@ public class GameLauncher : IGameLauncher
     private static string BuildLaunchArguments(Account account, Server server)
     {
         var rodat = server.DefaultRodat ? "on" : "off";
-        var password = account.PasswordHash; // stored as plaintext for game login
+        var password = account.Password;
 
         return server.Emulator switch
         {

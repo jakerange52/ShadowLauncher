@@ -233,7 +233,7 @@ public class FirstRunService
                 {
                     Id = name.ToLowerInvariant(),
                     Name = name,
-                    PasswordHash = password ?? string.Empty,
+                    Password = password ?? string.Empty,
                     Notes = string.IsNullOrWhiteSpace(alias) ? string.Empty : alias,
                     PreferencePath = string.IsNullOrWhiteSpace(preferencePath) ? string.Empty : preferencePath,
                 };

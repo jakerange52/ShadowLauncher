@@ -310,7 +310,7 @@ public class DatSetService : IDatSetService
             return KnownAcFileNames.Any(name => File.Exists(Path.Combine(localDir, name)));
 
         if (set.Files.Count > 0)
-            return set.Files.All(f => File.Exists(Path.Combine(localDir, f.FileName)));
+            return set.Files.All(f => File.Exists(Path.Combine(localDir, f)));
 
         return false;
     }
@@ -407,7 +407,7 @@ public class DatSetService : IDatSetService
     private void ExtractDatZip(string zipPath, string destDir, DatSet set, bool overwrite = false)
     {
         var knownNames = set.Files.Count > 0
-            ? set.Files.Select(f => f.FileName).ToHashSet(StringComparer.OrdinalIgnoreCase)
+            ? set.Files.ToHashSet(StringComparer.OrdinalIgnoreCase)
             : KnownAcFileNames;
 
         using var archive = ZipFile.OpenRead(zipPath);

@@ -27,9 +27,6 @@ internal sealed class LoginCompleteMessageQueueManager
 
         _freshLogin = false;
 
-        if (ParallelFilterGuard.IsThwargFilterLoaded())
-            return;
-
         if (_queue.Count == 0)
             return;
 
@@ -39,23 +36,15 @@ internal sealed class LoginCompleteMessageQueueManager
 
     public void OnCommandLineText(ChatParserInterceptEventArgs e)
     {
-        if (ParallelFilterGuard.IsThwargFilterLoaded())
-            return;
-
-        if (e.Text.StartsWith("/tf lcmq add ", StringComparison.OrdinalIgnoreCase))
+        if (ParallelFilterGuard.TryMatchChatCommand(e.Text, "lcmq add ", out var lcmq) ||
+            ParallelFilterGuard.TryMatchChatCommand(e.Text, "lmq add ", out lcmq))
         {
-            _queue.Enqueue(e.Text.Substring(13));
+            _queue.Enqueue(lcmq);
             ChatText.Write("Login Complete Message Queue added: " + e.Text);
             e.Eat = true;
         }
-        else if (e.Text.StartsWith("/tf lmq add ", StringComparison.OrdinalIgnoreCase))
-        {
-            _queue.Enqueue(e.Text.Substring(12));
-            ChatText.Write("Login Complete Message Queue added: " + e.Text);
-            e.Eat = true;
-        }
-        else if (string.Equals(e.Text, "/tf lcmq clear", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(e.Text, "/tf lmq clear", StringComparison.OrdinalIgnoreCase))
+        else if (ParallelFilterGuard.MatchesChatCommand(e.Text, "lcmq clear") ||
+                 ParallelFilterGuard.MatchesChatCommand(e.Text, "lmq clear"))
         {
             _queue.Clear();
             ChatText.Write("Login Complete Message Queue cleared");

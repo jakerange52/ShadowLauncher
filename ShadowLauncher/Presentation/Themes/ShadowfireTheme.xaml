@@ -2,18 +2,18 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
-    <!-- ═══════ Color Palette ═══════ -->
-    <Color x:Key="ShadowBg">#0A0E1A</Color>
-    <Color x:Key="ShadowSurface">#101828</Color>
-    <Color x:Key="ShadowSurfaceAlt">#141E30</Color>
-    <Color x:Key="ShadowBorder">#1E3A6E</Color>
-    <Color x:Key="ShadowRed">#1A56A8</Color>
-    <Color x:Key="ShadowRedHover">#2468C8</Color>
-    <Color x:Key="ShadowRedPress">#0A2E6A</Color>
-    <Color x:Key="ShadowText">#C8D8F0</Color>
-    <Color x:Key="ShadowTextMuted">#3A5080</Color>
+    <!-- ═══════ Color Palette (lifted for low-contrast displays) ═══════ -->
+    <Color x:Key="ShadowBg">#101828</Color>
+    <Color x:Key="ShadowSurface">#1A2840</Color>
+    <Color x:Key="ShadowSurfaceAlt">#243048</Color>
+    <Color x:Key="ShadowBorder">#3A6098</Color>
+    <Color x:Key="ShadowRed">#2A70D0</Color>
+    <Color x:Key="ShadowRedHover">#3890F0</Color>
+    <Color x:Key="ShadowRedPress">#123878</Color>
+    <Color x:Key="ShadowText">#E8F0FF</Color>
+    <Color x:Key="ShadowTextMuted">#7098C8</Color>
 
-    <SolidColorBrush x:Key="BgBrush" Color="{StaticResource ShadowBg}" Opacity="0.85"/>
+    <SolidColorBrush x:Key="BgBrush" Color="{StaticResource ShadowBg}" Opacity="0.95"/>
     <!-- Surface: deep blue with a soft inner glow bloom -->
     <DrawingBrush x:Key="SurfaceBrush"
                   TileMode="None"
@@ -25,10 +25,10 @@
                 <GeometryDrawing Geometry="M0,0 H600 V400 H0 Z">
                     <GeometryDrawing.Brush>
                         <RadialGradientBrush GradientOrigin="0.5,0.5" Center="0.5,0.5" RadiusX="0.7" RadiusY="0.7">
-                            <GradientStop Color="#182840" Offset="0.0"/>
-                            <GradientStop Color="#122030" Offset="0.45"/>
-                            <GradientStop Color="#0D1828" Offset="0.75"/>
-                            <GradientStop Color="#0A1420" Offset="1.0"/>
+                            <GradientStop Color="#243858" Offset="0.0"/>
+                            <GradientStop Color="#1C3048" Offset="0.45"/>
+                            <GradientStop Color="#142438" Offset="0.75"/>
+                            <GradientStop Color="#101C30" Offset="1.0"/>
                         </RadialGradientBrush>
                     </GeometryDrawing.Brush>
                 </GeometryDrawing>
@@ -36,18 +36,18 @@
                 <GeometryDrawing Geometry="M0,0 H600 V400 H0 Z">
                     <GeometryDrawing.Brush>
                         <LinearGradientBrush StartPoint="1,0" EndPoint="0,1" Opacity="0.25">
-                            <GradientStop Color="#1A2E48" Offset="0.0"/>
-                            <GradientStop Color="#0C1828" Offset="0.5"/>
-                            <GradientStop Color="#182840" Offset="1.0"/>
+                            <GradientStop Color="#284060" Offset="0.0"/>
+                            <GradientStop Color="#142438" Offset="0.5"/>
+                            <GradientStop Color="#243858" Offset="1.0"/>
                         </LinearGradientBrush>
                     </GeometryDrawing.Brush>
                 </GeometryDrawing>
                 <GeometryDrawing Geometry="M0,0 H600 V400 H0 Z">
                     <GeometryDrawing.Brush>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1" Opacity="0.15">
-                            <GradientStop Color="#0A1420" Offset="0.0"/>
-                            <GradientStop Color="#1E3050" Offset="0.5"/>
-                            <GradientStop Color="#0D1828" Offset="1.0"/>
+                            <GradientStop Color="#101C30" Offset="0.0"/>
+                            <GradientStop Color="#304870" Offset="0.5"/>
+                            <GradientStop Color="#142438" Offset="1.0"/>
                         </LinearGradientBrush>
                     </GeometryDrawing.Brush>
                 </GeometryDrawing>
@@ -64,34 +64,34 @@
     <SolidColorBrush x:Key="BetaBadgeBrush" Color="#F5C842"/>
 
     <!-- ═══════ Theme contract (consumed by BaseTheme.xaml) ═══════ -->
-    <SolidColorBrush x:Key="WindowBgBrush" Color="#D9080810"/>
+    <SolidColorBrush x:Key="WindowBgBrush" Color="#F0101828"/>
 
     <SolidColorBrush x:Key="ButtonBgBrush" Color="{StaticResource ShadowRed}"/>
-    <SolidColorBrush x:Key="ButtonFgBrush" Color="#F2F2F2"/>
+    <SolidColorBrush x:Key="ButtonFgBrush" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="ButtonHoverBrush" Color="{StaticResource ShadowRedHover}"/>
     <SolidColorBrush x:Key="ButtonPressBrush" Color="{StaticResource ShadowRedPress}"/>
     <SolidColorBrush x:Key="ButtonBorderBrush" Color="Transparent"/>
     <Thickness x:Key="ButtonBorderThickness">0</Thickness>
-    <SolidColorBrush x:Key="ButtonDisabledBgBrush" Color="#333333"/>
-    <SolidColorBrush x:Key="ButtonDisabledFgBrush" Color="#666666"/>
+    <SolidColorBrush x:Key="ButtonDisabledBgBrush" Color="#404048"/>
+    <SolidColorBrush x:Key="ButtonDisabledFgBrush" Color="#888890"/>
     <Color x:Key="ButtonGlowColor">Black</Color>
     <sys:Double x:Key="ButtonGlowBlur">10</sys:Double>
     <sys:Double x:Key="ButtonGlowDepth">2</sys:Double>
     <sys:Double x:Key="ButtonGlowOpacity">0.6</sys:Double>
 
-    <SolidColorBrush x:Key="IconFgBrush" Color="#AAAAAA"/>
-    <SolidColorBrush x:Key="IconHoverBrush" Color="#1A2A40"/>
-    <SolidColorBrush x:Key="ArrowFillBrush" Color="#AAAAAA"/>
+    <SolidColorBrush x:Key="IconFgBrush" Color="#C8D8F0"/>
+    <SolidColorBrush x:Key="IconHoverBrush" Color="#283850"/>
+    <SolidColorBrush x:Key="ArrowFillBrush" Color="#C8D8F0"/>
     <SolidColorBrush x:Key="CaretBrush" Color="{StaticResource ShadowText}"/>
 
     <SolidColorBrush x:Key="AltSurfaceBrush" Color="{StaticResource ShadowSurfaceAlt}"/>
-    <SolidColorBrush x:Key="RowSelectedBgBrush" Color="#551A56A8"/>
+    <SolidColorBrush x:Key="RowSelectedBgBrush" Color="#772A70D0"/>
     <SolidColorBrush x:Key="RowSelectedFgBrush" Color="{StaticResource ShadowText}"/>
 
     <SolidColorBrush x:Key="ListSelectedFgBrush" Color="White"/>
     <SolidColorBrush x:Key="SelectedFgBrush" Color="White"/>
 
-    <SolidColorBrush x:Key="TrackBrush" Color="#1A1A20"/>
+    <SolidColorBrush x:Key="TrackBrush" Color="#26262E"/>
     <SolidColorBrush x:Key="ThumbBrush" Color="{StaticResource ShadowBorder}"/>
     <SolidColorBrush x:Key="ThumbHoverBrush" Color="{StaticResource ShadowRedHover}"/>
 

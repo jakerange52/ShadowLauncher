@@ -30,13 +30,6 @@ internal sealed class LoginCommandExecutor
 
         _freshLogin = false;
 
-        if (ParallelFilterGuard.IsThwargFilterLoaded())
-        {
-            PluginLog.Info(LogCategory,
-                "Deferring login commands to ThwargFilter (both filters loaded)");
-            return;
-        }
-
         var characterName = CharacterFilterTools.SafeCharacterName();
         if (string.IsNullOrWhiteSpace(characterName) && !string.IsNullOrWhiteSpace(launchFileCharacterName))
             characterName = launchFileCharacterName;

@@ -161,9 +161,9 @@ Decal injection runs in both cases. Custom DAT servers **require** instance prep
 
 Local path beats zip URL. This mirrors how server devs passed DAT folders around before registries existed.
 
-## SymlinkLauncher (dormant)
+## Instance prep
 
-`SymlinkLauncher` is the ThwargLauncher-style approach — symlinks/junctions instead of hard links. Commented out in `ServiceBootstrapper.cs`. Symlinks need Developer Mode or `SeCreateSymbolicLinkPrivilege`. Hard links need nothing. Don't switch without explicit request.
+Hard links only. The old ThwargLauncher-style symlink path was removed.
 
 ## Debugging — veteran checklist
 

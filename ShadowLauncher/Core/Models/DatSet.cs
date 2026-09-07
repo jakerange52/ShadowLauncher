@@ -38,8 +38,8 @@ public class DatSet
     /// </summary>
     public string ZipUrl { get; init; } = string.Empty;
 
-    /// <summary>The DAT files that make up this set.</summary>
-    public List<DatFile> Files { get; init; } = [];
+    /// <summary>DAT filenames that make up this set (e.g. client_portal.dat).</summary>
+    public List<string> Files { get; init; } = [];
 
     /// <summary>
     /// Server names (case-insensitive) that require this DAT set.

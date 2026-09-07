@@ -54,10 +54,10 @@
                 <Run>Update Decal so the red X’s turn to black check marks.</Run>
                 <LineBreak/><LineBreak/>
                 <Run FontWeight="SemiBold" Foreground="#E8A838">Already have ThwargFilter?</Run>
-                <Run> Keep it enabled — ShadowLauncher writes ThwargFilter launch files for character auto-login. You do not need ShadowFilter.</Run>
+                <Run> Keep it enabled — ShadowLauncher writes ThwargFilter launch files for character auto-login. Chat commands stay /tf. You do not need ShadowFilter.</Run>
                 <LineBreak/><LineBreak/>
                 <Run FontWeight="SemiBold" Foreground="#E8A838">Optional — ShadowFilter:</Run>
-                <Run> If you want ShadowLauncher’s first-party filter instead (or in addition), click Add then Browse, open the ShadowLauncher\ShadowFilter folder, select ShadowFilter.dll, and Save.</Run>
+                <Run> If you want ShadowLauncher’s first-party filter instead (or in addition), click Add then Browse, open the ShadowLauncher\ShadowFilter folder, select ShadowFilter.dll, and Save. When both filters are loaded, ShadowFilter handles auto-login and /sf commands; /tf is left for ThwargFilter.</Run>
                 <LineBreak/>
                 <Run FontWeight="SemiBold" Foreground="#888">(default: C:\Program Files (x86)\ShadowLauncher\ShadowFilter)</Run>
             </TextBlock>

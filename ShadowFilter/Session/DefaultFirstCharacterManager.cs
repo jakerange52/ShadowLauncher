@@ -37,12 +37,7 @@ internal sealed class DefaultFirstCharacterManager
 
     public void OnCommandLineText(ChatParserInterceptEventArgs e)
     {
-        if (ParallelFilterGuard.IsThwargFilterLoaded())
-            return;
-
-        var lower = e.Text.ToLowerInvariant();
-
-        if (lower.StartsWith("/tf dlc set"))
+        if (ParallelFilterGuard.TryMatchChatCommand(e.Text, "dlc set", out _))
         {
             try
             {
@@ -58,7 +53,7 @@ internal sealed class DefaultFirstCharacterManager
 
             e.Eat = true;
         }
-        else if (lower == "/tf dlc clear")
+        else if (ParallelFilterGuard.MatchesChatCommand(e.Text, "dlc clear"))
         {
             DefaultFirstCharacterLoader.DeleteDefaultFirstCharacter(_serverName, _zoneName);
             ChatText.Write("Default Login Character cleared");
@@ -68,13 +63,6 @@ internal sealed class DefaultFirstCharacterManager
 
     private void TryStartDefaultSelect()
     {
-        if (ParallelFilterGuard.IsThwargFilterLoaded())
-        {
-            PluginLog.Info(nameof(DefaultFirstCharacterManager),
-                "Deferring default-first-character select to ThwargFilter (both filters loaded)");
-            return;
-        }
-
         var launchInfo = _getLaunchInfo?.Invoke() ?? new LaunchInfo();
         if (launchInfo.IsValid &&
             launchInfo.HasValidCharacterName &&

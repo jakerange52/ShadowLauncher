@@ -4,7 +4,10 @@ public class Account : IEquatable<Account>
 {
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
-    public string PasswordHash { get; set; } = string.Empty;
+    /// <summary>
+    /// Account password stored in plaintext — acclient needs it on the command line.
+    /// </summary>
+    public string Password { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
 
     /// <summary>

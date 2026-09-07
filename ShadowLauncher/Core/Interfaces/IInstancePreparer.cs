@@ -9,8 +9,7 @@ public record InstanceEnvironment(string ExePath, string WorkingDir);
 
 /// <summary>
 /// Abstracts the strategy used to prepare a per-instance AC directory before launch.
-/// Implementations: <c>SymlinkLauncher</c> (requires symlink privilege / Dev Mode),
-/// <c>HardLinkLauncher</c> (no privileges required).
+/// Implementation: <c>HardLinkLauncher</c> (no privileges required).
 /// </summary>
 public interface IInstancePreparer
 {

@@ -20,31 +20,23 @@ internal sealed class LoginNextCharacterManager
 
     public void OnServerDispatch(NetworkMessageEventArgs e)
     {
-        if (ParallelFilterGuard.IsThwargFilterLoaded())
-            return;
-
         if (e.Message.Type == 0xF7E1)
             _timer.Start();
     }
 
     public void OnCommandLineText(ChatParserInterceptEventArgs e)
     {
-        if (ParallelFilterGuard.IsThwargFilterLoaded())
-            return;
-
-        var lower = e.Text.ToLowerInvariant();
-
-        if (lower.StartsWith("/tf lnc set "))
+        if (ParallelFilterGuard.TryMatchChatCommand(e.Text, "lnc set ", out var name))
         {
-            _nextCharacter = e.Text.Substring(12);
+            _nextCharacter = name;
             _nextCharByIndex = -1;
             ChatText.Write("Login Next Character set to: " + _nextCharacter);
             e.Eat = true;
         }
-        else if (lower.StartsWith("/tf lncbi set "))
+        else if (ParallelFilterGuard.TryMatchChatCommand(e.Text, "lncbi set ", out var indexText))
         {
             _nextCharacter = null;
-            if (int.TryParse(e.Text.Substring(14), out var index) && index >= 0 && index <= 10)
+            if (int.TryParse(indexText, out var index) && index >= 0 && index <= 10)
             {
                 _nextCharByIndex = index;
                 ChatText.Write("Login Next Character set to index: " + index);
@@ -57,7 +49,8 @@ internal sealed class LoginNextCharacterManager
 
             e.Eat = true;
         }
-        else if (lower == "/tf lnc clear" || lower == "/tf lncbi clear")
+        else if (ParallelFilterGuard.MatchesChatCommand(e.Text, "lnc clear") ||
+                 ParallelFilterGuard.MatchesChatCommand(e.Text, "lncbi clear"))
         {
             _nextCharacter = null;
             _nextCharByIndex = -1;
