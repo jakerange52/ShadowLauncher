@@ -1,6 +1,7 @@
 using System.Windows;
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Models;
+using ShadowLauncher.Presentation.Views;
 using ShadowLauncher.Services.Dats;
 
 namespace ShadowLauncher.Presentation.ViewModels;
@@ -13,8 +14,18 @@ public partial class MainWindowViewModel
         var servers = SelectedServers.ToList();
         if (accounts.Count == 0 || servers.Count == 0) return;
 
-        _logger.LogDebug("Launch requested: {AccountCount} accounts × {ServerCount} servers",
-            accounts.Count, servers.Count);
+        var idleAccounts = accounts
+            .Where(a => !IsAccountSessionActive(a))
+            .ToList();
+
+        if (idleAccounts.Count == 0)
+        {
+            StatusText = "All selected accounts already have an active session";
+            return;
+        }
+
+        _logger.LogDebug("Launch requested: {AccountCount} idle accounts × {ServerCount} servers",
+            idleAccounts.Count, servers.Count);
 
         var serversNeedingDats = new List<(Server Server, string DatSetId)>();
         foreach (var server in servers.DistinctBy(s => s.DatSetId))
@@ -31,9 +42,9 @@ public partial class MainWindowViewModel
                      && !_datSetService.IsCustomDatCachePresent(s))
             .ToList();
 
-        if (serversNeedingCustomDats.Count > 0 || serversNeedingDats.Count > 0)
+        if (serversNeedingDats.Count > 0 || serversNeedingCustomDats.Count > 0)
         {
-            var fetchWindow = new Presentation.Views.DatFetchWindow(
+            var fetchWindow = new DatFetchWindow(
                 System.Windows.Application.Current.MainWindow);
             fetchWindow.Show();
 
@@ -81,10 +92,60 @@ public partial class MainWindowViewModel
             }
         }
 
+        var probeServers = servers
+            .DistinctBy(s => s.Id)
+            .Where(DatManagedServerHelper.RequiresAceDatProbe)
+            .ToList();
+
+        var mismatchedServers = new List<Server>();
+
+        if (probeServers.Count > 0 && idleAccounts.Count > 0)
+        {
+            var owner = System.Windows.Application.Current.MainWindow;
+            var checkingWindow = new DatVersionCheckingWindow(owner);
+            checkingWindow.Show();
+
+            try
+            {
+                var probeAccount = idleAccounts[0];
+                foreach (var server in probeServers)
+                {
+                    var outcome = await _aceDatProbeService.ProbeServerDatIterationsAsync(
+                        server, probeAccount);
+
+                    if (outcome == AceDatProbeOutcome.Mismatch)
+                        mismatchedServers.Add(server);
+                }
+            }
+            finally
+            {
+                checkingWindow.Close();
+            }
+
+            if (mismatchedServers.Count > 0)
+            {
+                var refresh = DatMismatchPromptWindow.PromptRefresh(owner);
+                if (refresh)
+                {
+                    foreach (var server in mismatchedServers.DistinctBy(s => s.Id))
+                    {
+                        try
+                        {
+                            await _datRefreshService.RefreshManagedDatSetAsync(server, owner);
+                        }
+                        catch
+                        {
+                            // DatRefreshService shows errors; continue with other servers.
+                        }
+                    }
+                }
+            }
+        }
+
         int launched = 0, failed = 0, skipped = 0;
         var errors = new List<string>();
 
-        foreach (var account in accounts)
+        foreach (var account in idleAccounts)
         {
             foreach (var server in servers)
             {
@@ -114,7 +175,7 @@ public partial class MainWindowViewModel
                         launched++;
 
                         var delay = _config.MultiLaunchDelaySeconds;
-                        if (delay > 0 && (launched + failed + skipped) < accounts.Count * servers.Count)
+                        if (delay > 0 && (launched + failed + skipped) < idleAccounts.Count * servers.Count)
                             await Task.Delay(TimeSpan.FromSeconds(delay));
                     }
                     else
@@ -136,20 +197,30 @@ public partial class MainWindowViewModel
             }
         }
 
+        var busySkipped = accounts.Count - idleAccounts.Count;
         if (failed == 0)
         {
-            StatusText = skipped == 0
+            StatusText = busySkipped == 0 && skipped == 0
                 ? $"Launched {launched} session(s)"
-                : $"Launched {launched}, skipped {skipped} already active";
+                : $"Launched {launched}, skipped {skipped + busySkipped} already active";
         }
         else
         {
-            StatusText = $"Launched {launched}, failed {failed}" + (skipped > 0 ? $", skipped {skipped}" : "");
+            StatusText = $"Launched {launched}, failed {failed}"
+                         + (skipped + busySkipped > 0 ? $", skipped {skipped + busySkipped} already active" : "");
             MessageBox.Show(
                 string.Join("\n\n", errors),
                 "Launch Failed",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
+    }
+
+    private bool IsAccountSessionActive(Account account)
+    {
+        return ActiveSessions.Any(s =>
+                   string.Equals(s.AccountId, account.Id, StringComparison.OrdinalIgnoreCase))
+               || _launchedSessions.Values.Any(v =>
+                   string.Equals(v.Account.Id, account.Id, StringComparison.OrdinalIgnoreCase));
     }
 }

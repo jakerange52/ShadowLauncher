@@ -30,6 +30,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly UpdateChecker _updateChecker;
     private readonly ThemeService _themeService;
     private readonly IDatSetService _datSetService;
+    private readonly IAceDatProbeService _aceDatProbeService;
+    private readonly DatRefreshService _datRefreshService;
     private readonly ServerListDownloader _serverListDownloader;
     private readonly BetaServerListDownloader _betaServerListDownloader;
     private readonly TreeStatsService _treeStatsService;
@@ -83,6 +85,8 @@ public partial class MainWindowViewModel : ViewModelBase
         UpdateChecker updateChecker,
         ThemeService themeService,
         IDatSetService datSetService,
+        IAceDatProbeService aceDatProbeService,
+        DatRefreshService datRefreshService,
         ILogger<MainWindowViewModel> logger)
     {
         _accountService = accountService;
@@ -93,6 +97,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _updateChecker = updateChecker;
         _themeService = themeService;
         _datSetService = datSetService;
+        _aceDatProbeService = aceDatProbeService;
+        _datRefreshService = datRefreshService;
         _serverListDownloader = serverListDownloader;
         _betaServerListDownloader = betaServerListDownloader;
         _treeStatsService = treeStatsService;

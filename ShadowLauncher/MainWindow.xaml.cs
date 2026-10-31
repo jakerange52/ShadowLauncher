@@ -15,16 +15,22 @@ public partial class MainWindow : Window
     private readonly MainWindowViewModel _viewModel;
     private readonly IConfigurationProvider _config;
     private readonly IDatSetService _datSetService;
+    private readonly DatRefreshService _datRefreshService;
 
     private bool _suppressServerSelection;
     private bool _suppressAccountSelection;
 
-    public MainWindow(MainWindowViewModel viewModel, IConfigurationProvider config, IDatSetService datSetService)
+    public MainWindow(
+        MainWindowViewModel viewModel,
+        IConfigurationProvider config,
+        IDatSetService datSetService,
+        DatRefreshService datRefreshService)
     {
         InitializeComponent();
         _viewModel = viewModel;
         _config = config;
         _datSetService = datSetService;
+        _datRefreshService = datRefreshService;
         DataContext = _viewModel;
         _viewModel.BrowseGameClientRequested += OnBrowseGameClient;
         _viewModel.ServerSelectionRestoreRequested += RestoreServerSelection;
@@ -179,7 +185,8 @@ public partial class MainWindow : Window
     {
         if (sender is Button { Tag: Server server })
         {
-            var detailsWindow = new Presentation.Views.ServerDetailsWindow(server, this, _config, _datSetService);
+            var detailsWindow = new Presentation.Views.ServerDetailsWindow(
+                server, this, _config, _datSetService, _datRefreshService);
             detailsWindow.ServerEdited += async (_, updated) =>
                 await _viewModel.UpdateServerAsync(updated);
             detailsWindow.ShowDialog();
