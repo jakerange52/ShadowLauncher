@@ -4,6 +4,7 @@ using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Infrastructure.FileSystem;
 using ShadowLauncher.Infrastructure.Native;
+using ShadowLauncher.Infrastructure.WebServices;
 using ShadowLauncher.Services.Dats;
 using ShadowLauncher.Services.GameSessions;
 using ShadowLauncher.Services.Launching;
@@ -23,10 +24,12 @@ public class AppCoordinator
     private readonly IGameSessionService _sessionService;
     private readonly SessionJournal _sessionJournal;
     private readonly IGameLauncher _gameLauncher;
+    private readonly BetaServerListDownloader _betaServerListDownloader;
     private readonly ILogger<AppCoordinator> _logger;
     private CancellationTokenSource? _appCts;
     private Task? _serverMonitorTask;
     private Task? _datRefreshTask;
+    private Task? _betaRefreshTask;
     private Task? _instanceCleanupTask;
 
     public event EventHandler? ServerStatusRefreshed;
@@ -46,6 +49,7 @@ public class AppCoordinator
         IGameSessionService sessionService,
         SessionJournal sessionJournal,
         IGameLauncher gameLauncher,
+        BetaServerListDownloader betaServerListDownloader,
         ILogger<AppCoordinator> logger)
     {
         _config = config;
@@ -57,6 +61,7 @@ public class AppCoordinator
         _sessionService = sessionService;
         _sessionJournal = sessionJournal;
         _gameLauncher = gameLauncher;
+        _betaServerListDownloader = betaServerListDownloader;
         _logger = logger;
     }
 
@@ -127,6 +132,24 @@ public class AppCoordinator
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "DatRegistry refresh failed, using cached copy");
+            }
+        }, _appCts.Token);
+
+        // Fetch a fresh BetaServerList.xml and sync dat_zip_url onto already-added beta servers.
+        _betaRefreshTask = Task.Run(async () =>
+        {
+            try
+            {
+                _appCts.Token.ThrowIfCancellationRequested();
+                var betaServers = await _betaServerListDownloader.FetchServersAsync();
+                if (betaServers.Count > 0)
+                    await _serverService.SyncBetaDatZipUrlsFromListAsync(betaServers);
+                _logger.LogDebug("Beta server list refreshed successfully");
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Beta server list refresh failed, using cached copy");
             }
         }, _appCts.Token);
 
@@ -279,6 +302,8 @@ public class AppCoordinator
                 try { await _serverMonitorTask; } catch (OperationCanceledException) { }
             if (_datRefreshTask is not null)
                 try { await _datRefreshTask; } catch (OperationCanceledException) { }
+            if (_betaRefreshTask is not null)
+                try { await _betaRefreshTask; } catch (OperationCanceledException) { }
             if (_instanceCleanupTask is not null)
                 try { await _instanceCleanupTask; } catch (OperationCanceledException) { }
             _appCts.Dispose();

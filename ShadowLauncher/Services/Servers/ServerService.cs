@@ -110,4 +110,43 @@ public class ServerService : IServerService
         _logger.LogDebug("Refreshed status for all servers");
     }
 
+    /// <inheritdoc/>
+    public async Task SyncBetaDatZipUrlsFromListAsync(IReadOnlyList<Server> betaServers)
+    {
+        if (betaServers.Count == 0)
+            return;
+
+        var betaByName = betaServers.ToDictionary(s => s.Name, StringComparer.OrdinalIgnoreCase);
+        var localServers = (await _repository.GetAllAsync()).ToList();
+        var anyChanged = false;
+
+        foreach (var server in localServers)
+        {
+            if (server.IsManuallyAdded)
+                continue;
+            if (!betaByName.TryGetValue(server.Name, out var beta))
+                continue;
+
+            var newUrl = string.IsNullOrWhiteSpace(beta.CustomDatZipUrl)
+                ? null
+                : beta.CustomDatZipUrl.Trim();
+
+            if (string.Equals(server.CustomDatZipUrl, newUrl, StringComparison.Ordinal))
+                continue;
+
+            _logger.LogInformation(
+                "Beta DAT zip URL updated for '{Name}': {OldUrl} -> {NewUrl}",
+                server.Name,
+                server.CustomDatZipUrl ?? "(none)",
+                newUrl ?? "(none)");
+
+            server.CustomDatZipUrl = newUrl;
+            server.IsBeta = true;
+            await _repository.UpdateAsync(server);
+            anyChanged = true;
+        }
+
+        if (anyChanged)
+            ServersChanged?.Invoke(this, EventArgs.Empty);
     }
+}
