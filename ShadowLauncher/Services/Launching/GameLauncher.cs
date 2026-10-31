@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Exceptions;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
+using ShadowLauncher.Infrastructure;
 using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Infrastructure.Paths;
 using ShadowLauncher.Services.Dats;
@@ -234,34 +235,8 @@ public class GameLauncher : IGameLauncher
         return new LaunchEnvironment(env.ExePath, env.WorkingDir, InstanceDir: env.WorkingDir);
     }
 
-    public Task<bool> IsGameProcessRunningAsync(int processId)
-    {
-        if (processId <= 0)
-            return Task.FromResult(false);
-
-        try
-        {
-            using var process = Process.GetProcessById(processId);
-            try
-            {
-                return Task.FromResult(!process.HasExited);
-            }
-            catch (System.ComponentModel.Win32Exception)
-            {
-                // Process exists but we lack rights to query exit status (Idle/System/elevated).
-                // Treat as still running so we don't drop a live journaled session.
-                return Task.FromResult(true);
-            }
-        }
-        catch (ArgumentException)
-        {
-            return Task.FromResult(false);
-        }
-        catch (System.ComponentModel.Win32Exception)
-        {
-            return Task.FromResult(false);
-        }
-    }
+    public Task<bool> IsGameProcessRunningAsync(int processId) =>
+        Task.FromResult(ProcessHelper.IsAcClientRunning(processId));
 
     /// <summary>
     /// Builds the command-line argument string for acclient.exe.

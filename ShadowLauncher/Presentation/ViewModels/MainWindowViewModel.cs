@@ -30,7 +30,6 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly UpdateChecker _updateChecker;
     private readonly ThemeService _themeService;
     private readonly IDatSetService _datSetService;
-    private readonly IAceDatProbeService _aceDatProbeService;
     private readonly DatRefreshService _datRefreshService;
     private readonly ServerListDownloader _serverListDownloader;
     private readonly BetaServerListDownloader _betaServerListDownloader;
@@ -54,6 +53,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>Tracks PID → (Account, Server) for auto-relaunch.</summary>
     private readonly Dictionary<int, (Account Account, Server Server)> _launchedSessions = [];
+
+    /// <summary>Launch Game pipeline (DAT probe, refresh, multi-box). Suppresses auto-relaunch overlap.</summary>
+    private int _launchPipelineDepth;
 
     /// <summary>
     /// PIDs of relaunched clients that should be minimized once their character
@@ -85,7 +87,6 @@ public partial class MainWindowViewModel : ViewModelBase
         UpdateChecker updateChecker,
         ThemeService themeService,
         IDatSetService datSetService,
-        IAceDatProbeService aceDatProbeService,
         DatRefreshService datRefreshService,
         ILogger<MainWindowViewModel> logger)
     {
@@ -97,7 +98,6 @@ public partial class MainWindowViewModel : ViewModelBase
         _updateChecker = updateChecker;
         _themeService = themeService;
         _datSetService = datSetService;
-        _aceDatProbeService = aceDatProbeService;
         _datRefreshService = datRefreshService;
         _serverListDownloader = serverListDownloader;
         _betaServerListDownloader = betaServerListDownloader;

@@ -9,7 +9,7 @@ namespace ShadowLauncher.Services.Dats;
 
 /// <summary>
 /// Deletes a server's cached DAT directory and re-downloads from registry or custom zip.
-/// Shared by Server Details "Refresh DATs" and the launch-time mismatch prompt.
+/// Shared by Server Details "Refresh DATs".
 /// </summary>
 public class DatRefreshService
 {

@@ -118,6 +118,54 @@ public class DatSetService : IDatSetService
     }
 
     /// <inheritdoc/>
+    public async Task<DatReleaseCheckResult> CheckRemoteReleaseAgainstCacheAsync(
+        Server server,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        static DatReleaseCheckResult Skip(Server s) =>
+            new(DatReleaseCheckStatus.NotApplicable, s.Id, s.Name, null, null);
+
+        if (!DatManagedServerHelper.UsesManagedDatSet(server))
+            return Skip(server);
+
+        var zipUrl = await GetGitHubZipUrlForServerAsync(server);
+        if (zipUrl is null)
+            return Skip(server);
+
+        if (!await IsServerDatCacheReadyAsync(server))
+            return Skip(server);
+
+        var localDir = GetLocalDatSetPathForServer(server);
+        var cachedTag = TryReadCachedReleaseTag(localDir);
+        if (cachedTag is null)
+            return Skip(server);
+
+        var info = await _gitHubResolver.ResolveLatestAsync(zipUrl);
+        if (info is null)
+        {
+            _logger.LogDebug(
+                "Could not resolve GitHub release for '{Server}' — skipping launch-time DAT check",
+                server.Name);
+            return new(DatReleaseCheckStatus.RemoteUnavailable, server.Id, server.Name, cachedTag, null);
+        }
+
+        if (cachedTag.Equals(info.Tag, StringComparison.Ordinal))
+        {
+            _logger.LogDebug(
+                "DAT release for '{Server}' matches cache (tag: {Tag})",
+                server.Name, cachedTag);
+            return new(DatReleaseCheckStatus.UpToDate, server.Id, server.Name, cachedTag, info.Tag);
+        }
+
+        _logger.LogInformation(
+            "DAT release mismatch for '{Server}': cached {Cached} vs remote {Remote}",
+            server.Name, cachedTag, info.Tag);
+        return new(DatReleaseCheckStatus.Stale, server.Id, server.Name, cachedTag, info.Tag);
+    }
+
+    /// <inheritdoc/>
     public async Task EnsureCustomDatSourceReadyAsync(Server server, IProgress<DatDownloadProgress>? progress = null)
     {
         // Local path: just verify it exists — no download required.
@@ -260,6 +308,45 @@ public class DatSetService : IDatSetService
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
+
+    internal static string? TryReadCachedReleaseTag(string localDir)
+    {
+        var sidecar = Path.Combine(localDir, ".version");
+        if (!File.Exists(sidecar))
+            return null;
+
+        var text = File.ReadAllText(sidecar).Trim();
+        return string.IsNullOrEmpty(text) ? null : text;
+    }
+
+    private async Task<string?> GetGitHubZipUrlForServerAsync(Server server)
+    {
+        if (!string.IsNullOrWhiteSpace(server.CustomDatZipUrl)
+            && GitHubReleaseResolver.IsGitHubReleasesUrl(server.CustomDatZipUrl))
+        {
+            return server.CustomDatZipUrl;
+        }
+
+        if (string.IsNullOrWhiteSpace(server.DatSetId))
+            return null;
+
+        var set = await GetDatSetAsync(server.DatSetId);
+        if (set?.ZipUrl is { } zipUrl && GitHubReleaseResolver.IsGitHubReleasesUrl(zipUrl))
+            return zipUrl;
+
+        return null;
+    }
+
+    private async Task<bool> IsServerDatCacheReadyAsync(Server server)
+    {
+        if (!string.IsNullOrWhiteSpace(server.CustomDatZipUrl))
+            return IsCustomDatCachePresent(server);
+
+        if (string.IsNullOrWhiteSpace(server.DatSetId))
+            return false;
+
+        return await IsDatSetReadyAsync(server.DatSetId);
+    }
 
     /// <summary>
     /// If <paramref name="zipUrl"/> is a GitHub releases URL, resolves it via the API

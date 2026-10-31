@@ -18,7 +18,7 @@ public partial class MainWindowViewModel
             StatusText = $"Session ended: {session.AccountName} on {session.ServerName}";
         }
 
-        if (AutoRelaunch && _launchedSessions.TryGetValue(processId, out var info))
+        if (AutoRelaunch && _launchPipelineDepth == 0 && _launchedSessions.TryGetValue(processId, out var info))
         {
             _launchedSessions.Remove(processId);
 

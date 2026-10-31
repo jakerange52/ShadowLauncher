@@ -46,7 +46,6 @@ public static class ServiceBootstrapper
         services.AddSingleton<DatRegistryDownloader>();
         services.AddSingleton<IDatSetService, DatSetService>();
         services.AddSingleton<DatRefreshService>();
-        services.AddSingleton<IAceDatProbeService, AceDatProbeService>();
         services.AddSingleton<HardLinkLauncher>();
         services.AddSingleton<IInstancePreparer>(sp => sp.GetRequiredService<HardLinkLauncher>());
         services.AddSingleton<SessionJournal>();

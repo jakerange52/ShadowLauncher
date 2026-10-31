@@ -108,8 +108,11 @@ public class GameMonitor : IGameMonitor
                 foreach (var session in sessions)
                 {
                     if (token.IsCancellationRequested) break;
-                    if (!ProcessHelper.IsRunning(session.ProcessId))
+                    if (!ProcessHelper.IsAcClientRunning(session.ProcessId))
+                    {
+                        await CloseSessionProcessGoneAsync(session);
                         continue;
+                    }
 
                     if (_watchedPids.Add(session.ProcessId))
                         _ = WatchForExitAsync(session.ProcessId, session.Id, token);
@@ -233,6 +236,23 @@ public class GameMonitor : IGameMonitor
         }
 
         return false;
+    }
+
+    private async Task CloseSessionProcessGoneAsync(GameSession session)
+    {
+        _logger.LogInformation(
+            "Closing session {Id} — PID {Pid} is not a running acclient",
+            session.Id, session.ProcessId);
+
+        var wasMinimized = session.WasMinimized;
+        ClearTracking(session.Id, session.ProcessId);
+
+        var active = (await _sessionService.GetActiveSessionsAsync()).ToList();
+        _gameLauncher.CleanupShadowFilterLaunchFileIfUnused(
+            session.AccountName, session.ServerName, active, session.ProcessId);
+        HeartbeatReader.DeleteHeartbeatFile(session.ProcessId);
+        await _sessionService.CloseSessionAsync(session.Id);
+        GameExited?.Invoke(this, new GameExitedEventArgs(session.ProcessId, wasMinimized));
     }
 
     private async Task KillSessionAsync(GameSession session, int elapsedSeconds, int timeoutSeconds)

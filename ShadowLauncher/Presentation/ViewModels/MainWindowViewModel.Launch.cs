@@ -14,6 +14,19 @@ public partial class MainWindowViewModel
         var servers = SelectedServers.ToList();
         if (accounts.Count == 0 || servers.Count == 0) return;
 
+        _launchPipelineDepth++;
+        try
+        {
+            await LaunchGameCoreAsync(accounts, servers);
+        }
+        finally
+        {
+            _launchPipelineDepth--;
+        }
+    }
+
+    private async Task LaunchGameCoreAsync(IReadOnlyList<Account> accounts, IReadOnlyList<Server> servers)
+    {
         var idleAccounts = accounts
             .Where(a => !IsAccountSessionActive(a))
             .ToList();
@@ -44,7 +57,7 @@ public partial class MainWindowViewModel
 
         if (serversNeedingDats.Count > 0 || serversNeedingCustomDats.Count > 0)
         {
-            var fetchWindow = new DatFetchWindow(
+            var fetchWindow = new Presentation.Views.DatFetchWindow(
                 System.Windows.Application.Current.MainWindow);
             fetchWindow.Show();
 
@@ -92,55 +105,7 @@ public partial class MainWindowViewModel
             }
         }
 
-        var probeServers = servers
-            .DistinctBy(s => s.Id)
-            .Where(DatManagedServerHelper.RequiresAceDatProbe)
-            .ToList();
-
-        var mismatchedServers = new List<Server>();
-
-        if (probeServers.Count > 0 && idleAccounts.Count > 0)
-        {
-            var owner = System.Windows.Application.Current.MainWindow;
-            var checkingWindow = new DatVersionCheckingWindow(owner);
-            checkingWindow.Show();
-
-            try
-            {
-                var probeAccount = idleAccounts[0];
-                foreach (var server in probeServers)
-                {
-                    var outcome = await _aceDatProbeService.ProbeServerDatIterationsAsync(
-                        server, probeAccount);
-
-                    if (outcome == AceDatProbeOutcome.Mismatch)
-                        mismatchedServers.Add(server);
-                }
-            }
-            finally
-            {
-                checkingWindow.Close();
-            }
-
-            if (mismatchedServers.Count > 0)
-            {
-                var refresh = DatMismatchPromptWindow.PromptRefresh(owner);
-                if (refresh)
-                {
-                    foreach (var server in mismatchedServers.DistinctBy(s => s.Id))
-                    {
-                        try
-                        {
-                            await _datRefreshService.RefreshManagedDatSetAsync(server, owner);
-                        }
-                        catch
-                        {
-                            // DatRefreshService shows errors; continue with other servers.
-                        }
-                    }
-                }
-            }
-        }
+        await PromptAndRefreshStaleDatReleasesAsync(servers);
 
         int launched = 0, failed = 0, skipped = 0;
         var errors = new List<string>();
@@ -213,6 +178,45 @@ public partial class MainWindowViewModel
                 "Launch Failed",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
+        }
+    }
+
+    private async Task PromptAndRefreshStaleDatReleasesAsync(IReadOnlyList<Server> servers)
+    {
+        var candidates = servers
+            .DistinctBy(s => s.Id)
+            .Where(DatManagedServerHelper.UsesManagedDatSet)
+            .ToList();
+        if (candidates.Count == 0)
+            return;
+
+        var stale = new List<DatReleaseCheckResult>();
+        foreach (var server in candidates)
+        {
+            var check = await _datSetService.CheckRemoteReleaseAgainstCacheAsync(server);
+            if (check.Status == DatReleaseCheckStatus.Stale)
+                stale.Add(check);
+        }
+
+        if (stale.Count == 0)
+            return;
+
+        var owner = System.Windows.Application.Current.MainWindow;
+        if (!DatReleaseRefreshPromptWindow.PromptRefresh(owner, stale))
+            return;
+
+        foreach (var check in stale)
+        {
+            var server = candidates.First(s =>
+                string.Equals(s.Id, check.ServerId, StringComparison.OrdinalIgnoreCase));
+            try
+            {
+                await _datRefreshService.RefreshManagedDatSetAsync(server, owner);
+            }
+            catch
+            {
+                // DatRefreshService shows errors; continue with other servers.
+            }
         }
     }
 

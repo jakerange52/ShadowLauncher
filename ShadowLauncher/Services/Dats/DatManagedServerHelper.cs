@@ -26,10 +26,4 @@ public static class DatManagedServerHelper
 
         return !IsRetailDatSetId(server.DatSetId);
     }
-
-    /// <summary>
-    /// ACE servers with managed DATs are eligible for the pre-launch DDD iteration probe.
-    /// </summary>
-    public static bool RequiresAceDatProbe(Server server)
-        => server.Emulator == EmulatorType.ACE && UsesManagedDatSet(server);
 }
