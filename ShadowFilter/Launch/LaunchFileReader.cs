@@ -16,6 +16,8 @@ internal sealed class LaunchInfo
     public bool HasValidCharacterName =>
         !string.IsNullOrEmpty(CharacterName) &&
         !string.Equals(CharacterName, "None", StringComparison.OrdinalIgnoreCase);
+
+    public string InvalidReason { get; set; } = string.Empty;
 }
 
 internal static class LaunchFileReader
@@ -43,7 +45,8 @@ internal static class LaunchFileReader
                     try
                     {
                         File.Delete(path);
-                        PluginLog.Info(LogCategory, $"Deleted stale launch file: {Path.GetFileName(path)}");
+                        PluginLog.Info(LogCategory,
+                            $"Deleted stale launch file: {Path.GetFileName(path)} ({info.InvalidReason})");
                     }
                     catch (Exception ex)
                     {
@@ -65,7 +68,7 @@ internal static class LaunchFileReader
         if (string.IsNullOrWhiteSpace(serverName) || string.IsNullOrWhiteSpace(accountName))
             return new LaunchInfo();
 
-        var path = FilterPaths.GetLaunchFilePath(serverName, accountName);
+        var path = ResolveLaunchFilePath(serverName, accountName);
         var info = ReadFile(path);
         if (info.IsValid)
         {
@@ -74,14 +77,39 @@ internal static class LaunchFileReader
             return info;
         }
 
-        if (File.Exists(path))
-            PluginLog.Info(LogCategory, $"Launch file stale or invalid: {Path.GetFileName(path)}");
+        if (!string.IsNullOrEmpty(path) && File.Exists(path))
+            PluginLog.Info(LogCategory,
+                $"Launch file stale or invalid: {Path.GetFileName(path)} ({info.InvalidReason})");
         else
-            PluginLog.Info(LogCategory, $"No launch file at {Path.GetFileName(path)}");
+            PluginLog.Info(LogCategory, $"No launch file at launch_{ShadowFilterPluginIds.FilterName}_{serverName}_{accountName}.txt");
 
-        // Exact path only — never scan the launch folder; with multiple clients a scan
-        // can return another account's file (most recent wins).
+        // Name match only. Do not pick the newest file in the folder — that can be
+        // another account when two clients launch together.
         return info;
+    }
+
+    /// <summary>
+    /// The client reports the account in lowercase (elrek). The launcher writes the
+    /// account as stored (Elrek). Match the file name, not a different account.
+    /// </summary>
+    private static string ResolveLaunchFilePath(string serverName, string accountName)
+    {
+        var expected = $"launch_{ShadowFilterPluginIds.FilterName}_{serverName}_{accountName}.txt";
+        var direct = Path.Combine(FilterPaths.LaunchFilesFolder, expected);
+        if (File.Exists(direct))
+            return direct;
+
+        var folder = FilterPaths.LaunchFilesFolder;
+        if (!Directory.Exists(folder))
+            return direct;
+
+        foreach (var path in Directory.GetFiles(folder, $"launch_{ShadowFilterPluginIds.FilterName}_*.txt"))
+        {
+            if (string.Equals(Path.GetFileName(path), expected, StringComparison.OrdinalIgnoreCase))
+                return path;
+        }
+
+        return direct;
     }
 
     private static LaunchInfo ReadFile(string path)
@@ -97,13 +125,35 @@ internal static class LaunchFileReader
             if (string.IsNullOrEmpty(info.FileVersion) ||
                 !info.FileVersion.StartsWith(LaunchInfo.MasterFileVersionCompat, StringComparison.Ordinal))
             {
+                info.InvalidReason = string.IsNullOrEmpty(info.FileVersion)
+                    ? "missing FileVersion"
+                    : $"FileVersion {info.FileVersion}";
                 return info;
             }
 
-            info.LaunchTimeUtc = KeyValueFile.ParseTimestamp(settings);
-            if (info.LaunchTimeUtc == DateTime.MinValue ||
-                DateTime.UtcNow - info.LaunchTimeUtc >= MaxLatency)
+            // The launcher writes Timestamp=TimeUtc:'...'. If that line does not parse,
+            // the file write time is the same clock the 45s window is meant to use.
+            // A fresh file must not be deleted as stale — that drops auto-login.
+            var parsed = KeyValueFile.ParseTimestamp(settings);
+            if (parsed != DateTime.MinValue)
+                info.LaunchTimeUtc = parsed;
+            else
+                info.LaunchTimeUtc = File.GetLastWriteTimeUtc(path);
+
+            if (info.LaunchTimeUtc == DateTime.MinValue)
+            {
+                info.InvalidReason = "no timestamp";
                 return info;
+            }
+
+            var age = DateTime.UtcNow - info.LaunchTimeUtc;
+            if (age >= MaxLatency || age < TimeSpan.FromMinutes(-2))
+            {
+                info.InvalidReason = parsed == DateTime.MinValue
+                    ? $"file age {age.TotalSeconds:0}s (timestamp did not parse)"
+                    : $"age {age.TotalSeconds:0}s";
+                return info;
+            }
 
             info.ServerName = KeyValueFile.GetString(settings, "ServerName");
             info.AccountName = KeyValueFile.GetString(settings, "AccountName");

@@ -19,6 +19,8 @@ internal sealed class DefaultFirstCharacterManager
 
     public void BindLaunchInfoProvider(Func<LaunchInfo> provider) => _getLaunchInfo = provider;
 
+    public void NotifyEnteredWorld() => _ticker.NotifyEnteredWorld();
+
     public void OnServerDispatch(NetworkMessageEventArgs e)
     {
         if (e.Message.Type == 0xF658)

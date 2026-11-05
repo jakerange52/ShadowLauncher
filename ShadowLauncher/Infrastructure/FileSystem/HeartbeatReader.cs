@@ -1,20 +1,22 @@
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
+using ShadowLauncher.Infrastructure.Decal;
 using ShadowLauncher.Infrastructure.Paths;
 using ShadowLauncher.Services.GameSessions;
 
 namespace ShadowLauncher.Infrastructure.FileSystem;
 
 /// <summary>
-/// Reads heartbeat status files from ShadowFilter or ThwargFilter.
-/// Prefers %LocalAppData%\ShadowLauncher\Running\, then falls back to
-/// %AppData%\ThwargLauncher\Running\ so ThwargFilter-only installs still monitor.
+/// Reads ShadowFilter heartbeats when it owns the session; otherwise falls back to ThwargFilter.
 /// </summary>
 public class HeartbeatReader : IHeartbeatReader
 {
     public async Task<HeartbeatData?> ReadHeartbeatAsync(int processId)
     {
         var data = await TryReadAsync(ShadowLauncherPaths.GetHeartbeatFilePath(processId));
+        if (ShadowFilterRegistration.IsEnabled())
+            return data;
+
         return data ?? await TryReadAsync(ShadowLauncherPaths.GetThwargFilterHeartbeatFilePath(processId));
     }
 
@@ -102,7 +104,8 @@ public class HeartbeatReader : IHeartbeatReader
     public static void DeleteHeartbeatFile(int processId)
     {
         TryDelete(ShadowLauncherPaths.GetHeartbeatFilePath(processId));
-        TryDelete(ShadowLauncherPaths.GetThwargFilterHeartbeatFilePath(processId));
+        if (!ShadowFilterRegistration.IsEnabled())
+            TryDelete(ShadowLauncherPaths.GetThwargFilterHeartbeatFilePath(processId));
     }
 
     private static void TryDelete(string path)

@@ -39,6 +39,8 @@ public sealed class FilterCore : FilterBase
         var fileVer = FileVersionInfo.GetVersionInfo(assembly.Location).FileVersion;
         PluginLog.Info(nameof(FilterCore),
             $"ShadowFilter starting (AssemblyVer={assembly.GetName().Version}, FileVer={fileVer}, Log={PluginLog.LogFilePath})");
+        PluginLog.Info(nameof(FilterCore),
+            "ShadowFilter owns character select and login commands. ThwargFilter is not used for those when this plugin is loaded.");
 
         Launch.LaunchFileReader.DeleteStaleLaunchFiles();
         Monitoring.HeartbeatWriter.BindServerDispatchTracker(() => _lastServerDispatchUtc);
@@ -148,6 +150,13 @@ public sealed class FilterCore : FilterBase
         {
             _autoRetryLogin.OnClientDispatch(e);
             _loginCompleteMessageQueueManager.OnClientDispatch(e);
+
+            // EnterGame — the character click landed. Stop further character-screen clicks.
+            if (e.Message.Type == 0xF7C8)
+            {
+                _characterSelectManager.NotifyEnteredWorld();
+                _defaultFirstCharacterManager.NotifyEnteredWorld();
+            }
 
             var launchInfo = GetLaunchInfo();
             var account = launchInfo.IsValid ? launchInfo.AccountName : GameRepo.Game.Account;

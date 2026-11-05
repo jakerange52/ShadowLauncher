@@ -4,6 +4,7 @@ using ShadowLauncher.Core.Exceptions;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
 using ShadowLauncher.Infrastructure;
+using ShadowLauncher.Infrastructure.Decal;
 using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Infrastructure.Paths;
 using ShadowLauncher.Services.Dats;
@@ -93,10 +94,21 @@ public class GameLauncher : IGameLauncher
 
             // Write launch files immediately before CreateProcess so the 45s freshness
             // window starts after DAT/instance prep, not before (filters delete "stale" files).
-            // ThwargFilter path: users who already have ThwargFilter need no ShadowFilter.
-            // ShadowFilter path: optional first-party filter; takes priority if both are loaded.
-            WriteShadowFilterLaunchFile(account.Name, server.Name, launchCharacter);
-            WriteThwargFilterLaunchFile(account.Name, server.Name, launchCharacter);
+            var shadowFilter = ShadowFilterRegistration.Current;
+            if (shadowFilter.TakesOver)
+            {
+                WriteShadowFilterLaunchFile(account.Name, server.Name, launchCharacter);
+                _logger.LogInformation(
+                    "ShadowFilter is registered and enabled ({Dll}). It will log in {Character} on {Server}. ThwargLauncher files are not touched.",
+                    shadowFilter.DllPath, launchCharacter, server.Name);
+            }
+            else
+            {
+                WriteThwargFilterLaunchFile(account.Name, server.Name, launchCharacter);
+                _logger.LogInformation(
+                    "ShadowFilter will not take over (registered={Registered}, enabled={Enabled}). ThwargFilter will log in {Character} on {Server}.",
+                    shadowFilter.Registered, shadowFilter.Enabled, launchCharacter, server.Name);
+            }
 
             // ── Start the process ───────────────────────────────────────────────
             var processId = LaunchWithDecal(env.ExePath, arguments, env.WorkingDir, decalInjectPath);
@@ -393,20 +405,6 @@ public class GameLauncher : IGameLauncher
         {
             _logger.LogWarning(ex, "Failed to remove ShadowFilter launch file");
         }
-
-        try
-        {
-            var thwargPath = ShadowLauncherPaths.GetThwargFilterLaunchFilePath(serverName, accountName);
-            if (File.Exists(thwargPath))
-            {
-                File.Delete(thwargPath);
-                _logger.LogDebug("Removed ThwargFilter launch file for {Account} on {Server}", accountName, serverName);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to remove ThwargFilter launch file");
-        }
     }
 
     /// <summary>
@@ -453,10 +451,6 @@ public class GameLauncher : IGameLauncher
         }
     }
 
-    /// <summary>
-    /// Dual-writes a ThwargFilter launch file so ThwargFilter can auto-login when loaded
-    /// alongside ShadowFilter. Same key/value format ThwargLauncher uses.
-    /// </summary>
     private void WriteThwargFilterLaunchFile(string accountName, string serverName, string characterName)
     {
         try

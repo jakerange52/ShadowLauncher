@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Interfaces;
 using ShadowLauncher.Core.Models;
+using ShadowLauncher.Infrastructure.Decal;
 using ShadowLauncher.Infrastructure.FileSystem;
 using ShadowLauncher.Infrastructure.Native;
 using ShadowLauncher.Infrastructure.WebServices;
@@ -75,6 +76,22 @@ public class AppCoordinator
         Directory.CreateDirectory(_config.LogDirectory);
         Directory.CreateDirectory(ShadowLauncher.Infrastructure.Paths.ShadowLauncherPaths.LaunchFilesFolder);
         Directory.CreateDirectory(ShadowLauncher.Infrastructure.Paths.ShadowLauncherPaths.RunningFolder);
+
+        // Decide once, at startup, whether ShadowFilter owns auto-login.
+        // Client launches later in this session use this result.
+        var shadowFilter = ShadowFilterRegistration.CaptureAtStartup();
+        if (shadowFilter.TakesOver)
+        {
+            _logger.LogInformation(
+                "ShadowFilter is registered and enabled ({Dll}). It will handle auto-login and login commands.",
+                shadowFilter.DllPath);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "ShadowFilter will not take over (registered={Registered}, enabled={Enabled}). ThwargFilter will handle auto-login and login commands.",
+                shadowFilter.Registered, shadowFilter.Enabled);
+        }
 
         // Drop stale ShadowFilter launch files so a leftover auto-login target cannot
         // surprise the next client start (especially Decal tray / manual launches).

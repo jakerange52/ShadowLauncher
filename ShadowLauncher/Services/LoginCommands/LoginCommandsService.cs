@@ -1,15 +1,16 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Models;
+using ShadowLauncher.Infrastructure.Decal;
 using ShadowLauncher.Infrastructure.Paths;
 
 namespace ShadowLauncher.Services.LoginCommands;
 
 /// <summary>
-/// Manages login commands executed after character login by ThwargFilter and/or ShadowFilter.
-/// Dual-writes to %LocalAppData%\ShadowLauncher\LoginCommands\ and
-/// %AppData%\ThwargLauncher\LoginCommands\ so ThwargFilter-only installs work.
-/// Also manages default character selections per account/server.
+/// Manages login commands executed after character login.
+/// When ShadowFilter owns the session, only %LocalAppData%\ShadowLauncher is used.
+/// When it does not, ThwargFilter uses %AppData%\ThwargLauncher.
+/// Thwarg data is copied once on first run; it is not read or written while ShadowFilter is in charge.
 /// </summary>
 public class LoginCommandsService
 {
@@ -19,6 +20,8 @@ public class LoginCommandsService
     private static readonly string ThwargLoginCommandsFolder = ShadowLauncherPaths.ThwargLoginCommandsFolder;
     private static readonly string CharactersFolder = ShadowLauncherPaths.CharactersFolder;
     private static readonly string ThwargCharactersFolder = ShadowLauncherPaths.ThwargCharactersFolder;
+
+    private static bool ShadowOwnsSession => ShadowFilterRegistration.IsEnabled();
 
     public LoginCommandsService(ILogger<LoginCommandsService> logger)
     {
@@ -30,7 +33,7 @@ public class LoginCommandsService
     /// </summary>
     public string GetGlobalCommands()
     {
-        var path = Path.Combine(LoginCommandsFolder, "LoginCommandsGlobal.txt");
+        var path = Path.Combine(ActiveLoginCommandsFolder(), "LoginCommandsGlobal.txt");
         return File.Exists(path) ? ParseCommandsFromFile(path) : string.Empty;
     }
 
@@ -39,7 +42,7 @@ public class LoginCommandsService
     /// </summary>
     public void SetGlobalCommands(string commands, int waitMs = 3000)
     {
-        WriteCommandFileToBoth("LoginCommandsGlobal.txt", commands, waitMs);
+        WriteActiveCommandFile("LoginCommandsGlobal.txt", commands, waitMs);
     }
 
     /// <summary>
@@ -57,7 +60,7 @@ public class LoginCommandsService
     public void SetCharacterCommands(string accountName, string serverName, string characterName, string commands, int waitMs = 3000)
     {
         var fileName = $"LoginCommands-{accountName}-{serverName}-{characterName}.txt";
-        WriteCommandFileToBoth(fileName, commands, waitMs);
+        WriteActiveCommandFile(fileName, commands, waitMs);
     }
 
     public void AppendGlobalCommand(string command)
@@ -81,22 +84,16 @@ public class LoginCommandsService
     }
 
     private string GetCharacterFilePath(string accountName, string serverName, string characterName)
-        => Path.Combine(LoginCommandsFolder, $"LoginCommands-{accountName}-{serverName}-{characterName}.txt");
+        => Path.Combine(ActiveLoginCommandsFolder(), $"LoginCommands-{accountName}-{serverName}-{characterName}.txt");
 
-    private void WriteCommandFileToBoth(string fileName, string commands, int waitMs)
+    private static string ActiveLoginCommandsFolder() =>
+        ShadowOwnsSession ? LoginCommandsFolder : ThwargLoginCommandsFolder;
+
+    private void WriteActiveCommandFile(string fileName, string commands, int waitMs)
     {
-        Directory.CreateDirectory(LoginCommandsFolder);
-        WriteCommandFile(Path.Combine(LoginCommandsFolder, fileName), commands, waitMs);
-
-        try
-        {
-            Directory.CreateDirectory(ThwargLoginCommandsFolder);
-            WriteCommandFile(Path.Combine(ThwargLoginCommandsFolder, fileName), commands, waitMs);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Could not dual-write login commands to ThwargFilter folder");
-        }
+        var folder = ActiveLoginCommandsFolder();
+        Directory.CreateDirectory(folder);
+        WriteCommandFile(Path.Combine(folder, fileName), commands, waitMs);
     }
 
     private static string ParseCommandsFromFile(string path)
@@ -132,16 +129,19 @@ public class LoginCommandsService
     }
 
     /// <summary>
-    /// Reads character names from ShadowFilter or ThwargFilter character list files.
+    /// Reads character names from ShadowFilter character list files under LocalAppData.
     /// Searches case-insensitively and also tries partial matches.
     /// </summary>
     public List<string> GetKnownCharacters(string serverName, string accountName)
     {
-        var fromShadow = TryReadCharactersFromFolder(CharactersFolder, serverName, accountName);
-        if (fromShadow.Count > 0)
-            return fromShadow;
+        if (ShadowOwnsSession)
+            return TryReadCharactersFromFolder(CharactersFolder, serverName, accountName);
 
-        return TryReadCharactersFromFolder(ThwargCharactersFolder, serverName, accountName);
+        var fromThwarg = TryReadCharactersFromFolder(ThwargCharactersFolder, serverName, accountName);
+        if (fromThwarg.Count > 0)
+            return fromThwarg;
+
+        return TryReadCharactersFromFolder(CharactersFolder, serverName, accountName);
     }
 
     private static List<string> TryReadCharactersFromFolder(string folder, string serverName, string accountName)
@@ -301,8 +301,7 @@ public class LoginCommandsService
         SetGlobalCommands(profile.GlobalLoginCommands, profile.GlobalLoginCommandsWaitMs);
 
         // Remove old per-character files first so stale ones don't linger.
-        ClearPerCharacterCommandFiles(LoginCommandsFolder);
-        ClearPerCharacterCommandFiles(ThwargLoginCommandsFolder);
+        ClearPerCharacterCommandFiles(ActiveLoginCommandsFolder());
 
         // Write per-character commands from profile
         foreach (var (key, entry) in profile.CharacterLoginCommands)
