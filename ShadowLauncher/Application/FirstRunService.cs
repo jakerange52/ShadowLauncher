@@ -11,7 +11,8 @@ public record AcBaseCopyProgress(int FilesCompleted, int FilesTotal, string Curr
 /// <summary>
 /// Runs silently on first launch to pre-populate sensible defaults:
 ///   1. Detects the AC client path from the registry or standard install locations.
-///   2. Imports accounts from ThwargLauncher if they exist and none are configured yet.
+///   2. One-time copies from ThwargLauncher (accounts, login commands, characters,
+///      defaults, launch files) when the ShadowLauncher copy does not exist yet.
 ///   3. Copies the AC install to ACBase\ if it lives under a protected path (Program Files),
 ///      so HardLinkLauncher can create hard links without elevation.
 ///
@@ -233,7 +234,7 @@ public class FirstRunService
                 {
                     Id = name.ToLowerInvariant(),
                     Name = name,
-                    PasswordHash = password ?? string.Empty,
+                    Password = password ?? string.Empty,
                     Notes = string.IsNullOrWhiteSpace(alias) ? string.Empty : alias,
                     PreferencePath = string.IsNullOrWhiteSpace(preferencePath) ? string.Empty : preferencePath,
                 };
@@ -271,10 +272,45 @@ public class FirstRunService
             var legacyDefaults = Path.Combine(LegacyThwargAppDataFolder, "DefaultCharacters.json");
             if (File.Exists(legacyDefaults) && !File.Exists(ShadowLauncherPaths.DefaultCharactersFile))
                 File.Copy(legacyDefaults, ShadowLauncherPaths.DefaultCharactersFile, overwrite: false);
+
+            TryImportThwargLaunchFiles();
         }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "First-run: could not import legacy ThwargFilter data");
+        }
+    }
+
+    private void TryImportThwargLaunchFiles()
+    {
+        var thwargFolder = Path.Combine(LegacyThwargAppDataFolder, "LaunchFiles");
+        if (!Directory.Exists(thwargFolder))
+            return;
+
+        Directory.CreateDirectory(ShadowLauncherPaths.LaunchFilesFolder);
+        const string thwargPrefix = "launch_ThwargFilter_";
+        const string shadowPrefix = "launch_ShadowFilter_";
+
+        foreach (var source in Directory.GetFiles(thwargFolder, "launch_ThwargFilter_*.txt"))
+        {
+            var name = Path.GetFileName(source);
+            if (!name.StartsWith(thwargPrefix, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var shadowName = shadowPrefix + name[thwargPrefix.Length..];
+            var dest = Path.Combine(ShadowLauncherPaths.LaunchFilesFolder, shadowName);
+            if (File.Exists(dest))
+                continue;
+
+            try
+            {
+                File.Copy(source, dest, overwrite: false);
+                _logger.LogDebug("First-run: copied ThwargFilter launch file to {Dest}", dest);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "First-run: could not copy launch file {Source}", source);
+            }
         }
     }
 

@@ -147,7 +147,7 @@ public partial class MainWindowViewModel
 
     private void OpenSettings()
     {
-        var vm = new SettingsViewModel(_config, _updateChecker, _themeService);
+        var vm = new SettingsViewModel(_config, _updateChecker);
         var window = new SettingsWindow(vm, _accountService, _serverService, _loginCommandsService, _profileService);
         window.Owner = System.Windows.Application.Current.MainWindow;
         window.ProfilesEdited += (_, _) => RefreshProfiles();

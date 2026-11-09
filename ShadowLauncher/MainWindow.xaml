@@ -34,14 +34,14 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#4DFFFFFF"/>
                             </Trigger>
                             <MultiTrigger>
                                 <MultiTrigger.Conditions>
                                     <Condition Property="IsSelected" Value="False"/>
                                     <Condition Property="IsMouseOver" Value="True"/>
                                 </MultiTrigger.Conditions>
-                                <Setter TargetName="Bd" Property="Background" Value="#1AFFFFFF"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#28FFFFFF"/>
                             </MultiTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -99,7 +99,7 @@
                         <Run Text="Shadow"/><LineBreak/><Run Text="Launcher"/>
                     </TextBlock>
                     <TextBlock Text="{Binding CurrentVersion}" FontSize="10"
-                               Foreground="#555" Margin="6,0,0,0"
+                               Foreground="{DynamicResource TextMutedBrush}" Margin="6,0,0,0"
                                VerticalAlignment="Bottom"
                                FontFamily="{DynamicResource EmojiFont}"/>
                 </StackPanel>
@@ -148,7 +148,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="Game Client:" VerticalAlignment="Center"
-                       FontWeight="SemiBold" Foreground="#AAA" Margin="0,0,8,0"/>
+                       FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="0,0,8,0"/>
             <TextBox Grid.Column="1" Text="{Binding GameClientPath, UpdateSourceTrigger=PropertyChanged}"
                      VerticalContentAlignment="Center" Padding="4,3"/>
             <Button Grid.Column="2" Content="&#x1F4C2;" ToolTip="Browse for acclient.exe"
@@ -166,7 +166,7 @@
             </Button>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right"
                         VerticalAlignment="Center">
-                <TextBlock Text="Profile:" VerticalAlignment="Center" Foreground="#888"
+                <TextBlock Text="Profile:" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}"
                            FontSize="11" Margin="0,0,6,0"/>
                 <ComboBox ItemsSource="{Binding Profiles}"
                           SelectedItem="{Binding CurrentProfile, Mode=TwoWay}"
@@ -216,9 +216,9 @@
                                         Padding="4,0" Margin="2,0,0,0" VerticalAlignment="Center"
                                         Click="EditNote_Click" Tag="{Binding}"
                                         ToolTip="Edit note" Style="{DynamicResource IconButton}"/>
-                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Foreground="#DDD"/>
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
                                 <TextBlock Text="{Binding Notes}" VerticalAlignment="Center"
-                                           Margin="8,0,0,0" Foreground="#666" FontStyle="Italic"
+                                           Margin="8,0,0,0" Foreground="{DynamicResource TextMutedBrush}" FontStyle="Italic"
                                            TextTrimming="CharacterEllipsis"/>
                             </DockPanel>
                         </DataTemplate>
@@ -294,9 +294,9 @@
                                            Visibility="{Binding IsBeta, Converter={StaticResource BoolToVisibility}}"/>
                                 <!-- Server name -->
                                 <TextBlock Grid.Column="2" Text="{Binding Name}"
-                                           VerticalAlignment="Center" Foreground="#DDD"/>
+                                           VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
                                 <!-- Description preview -->
-                                <TextBlock Grid.Column="3" Text="{Binding Description}" Foreground="#666" FontStyle="Italic"
+                                <TextBlock Grid.Column="3" Text="{Binding Description}" Foreground="{DynamicResource TextMutedBrush}" FontStyle="Italic"
                                            TextTrimming="CharacterEllipsis" MaxWidth="240"
                                            VerticalAlignment="Center" Margin="8,0,4,0"/>
                                 <!-- Expand description button -->
@@ -363,7 +363,7 @@
                 <CheckBox Content="Kill disconnected client"
                           IsChecked="{Binding KillOnMissingHeartbeat}"
                           VerticalAlignment="Center" Margin="0,0,4,0"
-                          ToolTip="Kill the client if it stays out of world or stops heartbeating longer than the timeout. Timer resets when you enter the world."/>
+                          ToolTip="Kill the client if it stays out of world (login screen, character select) or stops heartbeating longer than the timeout. Timer resets when you enter the world."/>
                 <TextBox Text="{Binding KillHeartbeatTimeoutSeconds, UpdateSourceTrigger=LostFocus}"
                          Width="35" VerticalContentAlignment="Center" Padding="3,2"
                          Margin="0,0,16,0" ToolTip="Seconds out of world / without heartbeat before killing the client"
@@ -378,7 +378,7 @@
                          KeyDown="TimeoutTextBox_KeyDown"/>
             </StackPanel>
             <TextBlock Grid.Column="1" Text="{Binding StatusText}"
-                       VerticalAlignment="Center" Foreground="#666" Margin="8,0"
+                       VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" Margin="8,0"
                        TextTrimming="CharacterEllipsis"
                        ToolTip="{Binding StatusText}"/>
             <Button Grid.Column="2" Content="&#x1F300; Launch Game" Command="{Binding LaunchCommand}"

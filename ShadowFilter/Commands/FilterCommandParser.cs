@@ -62,7 +62,7 @@ internal sealed class FilterCommandParser
     public FilterCommandParser()
     {
         _handlers.Add(new CommandEntry(CmdVersion, VersionHandler, "Display assembly version info"));
-        _handlers.Add(new CommandEntry(CmdHelp, HelpHandler, "List all /tf commands"));
+        _handlers.Add(new CommandEntry(CmdHelp, HelpHandler, "List all ShadowFilter commands"));
         _handlers.Add(new CommandEntry(CmdHelp2, HelpHandler, null));
         _handlers.Add(new CommandEntry(CmdHelp3, HelpHandler, null));
         _handlers.Add(new CommandEntry(CmdBroadcast, BroadcastHandler, "Broadcast command to other clients"));
@@ -96,6 +96,12 @@ internal sealed class FilterCommandParser
 
     public void ExecuteCommandFromLauncher(string command)
     {
+        if (TryPrefix(command, ParallelFilterGuard.ShadowPrefix + " ", out var stripped) ||
+            TryPrefix(command, ParallelFilterGuard.ThwargPrefix + " ", out stripped))
+        {
+            command = stripped;
+        }
+
         if (TryPrefix(command, CmdJoinTeam, out var joinCmd) ||
             TryPrefix(command, CmdJoinTeam2, out joinCmd))
         {
@@ -115,7 +121,7 @@ internal sealed class FilterCommandParser
 
     public void OnCommandLineText(ChatParserInterceptEventArgs e)
     {
-        if (TryPrefix(e.Text, "/tf log ", out var logMsg))
+        if (ParallelFilterGuard.TryMatchChatCommand(e.Text, "log ", out var logMsg))
         {
             PluginLog.WriteInfo(logMsg);
             e.Eat = true;
@@ -127,8 +133,7 @@ internal sealed class FilterCommandParser
             if (entry.Handler == null)
                 continue;
 
-            var prefix = "/tf " + entry.Command;
-            if (!TryPrefix(e.Text, prefix, out var commandString))
+            if (!ParallelFilterGuard.TryMatchChatCommand(e.Text, entry.Command, out var commandString))
                 continue;
 
             entry.Handler(commandString);
@@ -147,10 +152,13 @@ internal sealed class FilterCommandParser
 
     private void HelpHandler(string _)
     {
+        var prefix = ParallelFilterGuard.IsThwargFilterLoaded()
+            ? ParallelFilterGuard.ShadowPrefix
+            : $"{ParallelFilterGuard.ShadowPrefix} or {ParallelFilterGuard.ThwargPrefix}";
         var lines = _handlers
             .Where(h => h.Help != null)
             .Select(h => $"{h.Command.Trim()}: {h.Help}");
-        ChatText.Write("Commands: " + string.Join("\n", lines));
+        ChatText.Write($"Commands ({prefix}): " + string.Join("\n", lines));
     }
 
     private void BroadcastHandler(string command)

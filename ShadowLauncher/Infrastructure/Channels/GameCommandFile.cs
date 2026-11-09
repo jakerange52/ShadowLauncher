@@ -96,13 +96,17 @@ internal static class GameCommandFile
             if (trimmed.Length == 0)
                 continue;
 
-            var sep = trimmed.IndexOf(':');
-            if (sep <= 0)
-            {
-                sep = trimmed.IndexOf('=');
-                if (sep <= 0)
-                    continue;
-            }
+            // Prefer '=' when it appears before ':' so Timestamp=TimeUtc:'...'
+            // is not split on the colon inside TimeUtc.
+            var eq = trimmed.IndexOf('=');
+            var colon = trimmed.IndexOf(':');
+            int sep;
+            if (eq > 0 && (colon < 0 || eq < colon))
+                sep = eq;
+            else if (colon > 0)
+                sep = colon;
+            else
+                continue;
 
             map[trimmed.Substring(0, sep).Trim()] = trimmed.Substring(sep + 1).Trim();
         }

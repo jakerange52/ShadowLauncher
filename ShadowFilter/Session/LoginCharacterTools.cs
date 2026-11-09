@@ -90,9 +90,15 @@ internal sealed class LoginCharacterTools
         for (var i = 0; i < _characters.Count; i++)
         {
             if (string.Equals(_characters[i].Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                PluginLog.Info(nameof(LoginCharacterTools),
+                    $"Clicking character slot {i} ({_characters[i].Name}) of {_characters.Count}");
                 return LoginByIndex(i);
+            }
         }
 
+        PluginLog.Warn(nameof(LoginCharacterTools),
+            $"Character '{name}' is not in the list ({_characters.Count} names)");
         return false;
     }
 

@@ -62,7 +62,7 @@ GameSessionService → GameLauncher.LaunchGameAsync()
   → ResolveInstancePathAsync()        ← DAT cache check + instance dir
   → LaunchWithDecal()                 ← DecalInjector or Process.Start fallback
   → WindowTitleSetter (taskbar identification)
-  → ThwargFilter and/or ShadowFilter  ← char select (ThwargFilter wins if both loaded)
+  → ThwargFilter and/or ShadowFilter  ← char select (ShadowFilter wins if both loaded)
   → WatchAndCleanupAsync()            ← delete instance dir on exit
 ```
 
@@ -106,7 +106,7 @@ Built in `GameLauncher.BuildLaunchArguments()`:
 - Users who already have **ThwargFilter** should keep it — ShadowLauncher dual-writes `%AppData%\ThwargLauncher\LaunchFiles\launch_ThwargFilter_*.txt` for character auto-login. Do not push ShadowFilter as required.
 - **ShadowFilter** is optional first-party plugin from `ShadowFilter/`; ships under `INSTALLFOLDER\ShadowFilter\`. Register only if wanted (**Settings → Help**).
 - ShadowFilter IPC: `%LocalAppData%\ShadowLauncher\`. Heartbeat reader also falls back to ThwargFilter `%AppData%\ThwargLauncher\Running\`.
-- When both filters load, ShadowFilter defers character-select clicks to ThwargFilter (`ParallelFilterGuard`).
+- When both filters load, ShadowFilter handles character-select and `/sf` commands; `/tf` is left for ThwargFilter (`ParallelFilterGuard`). ShadowFilter-only installs also accept `/tf`.
 - Auto-login parity: ThwargFilter `LauncherChooseCharacterManager` — 4-tick timer on `0xF7EA`, Decal.Hwnd mouse clicks, exact-path launch file on `0xF7E1`
 
 ### Deploy updated ShadowFilter.dll
@@ -167,7 +167,7 @@ Requires Windows + .NET 10 SDK. WiX for installer. Decal + AC client for meaning
 
 - Bypass Decal injection without explicit request
 - Make players manage DAT files manually
-- Enable `SymlinkLauncher` without privilege discussion
+- Switch instance prep to symlinks without an explicit request
 - Hard-link `.log`/`.ini` into instance dirs
 - Change `PlatformTarget` from x86
 - Add unsolicited tests or docs

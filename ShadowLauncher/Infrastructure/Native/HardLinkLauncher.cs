@@ -7,8 +7,7 @@ using ShadowLauncher.Services.Dats;
 namespace ShadowLauncher.Infrastructure.Native;
 
 /// <summary>
-/// Creates a per-instance AC directory using hard links — a zero-privilege alternative
-/// to <see cref="SymlinkLauncher"/>.
+/// Creates a per-instance AC directory using hard links.
 ///
 /// Hard links require both the link and the target to be on the same volume.
 /// If the AC install is under a protected path (Program Files), <see cref="FirstRunService"/>

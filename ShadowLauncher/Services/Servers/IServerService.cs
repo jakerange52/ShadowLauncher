@@ -13,4 +13,10 @@ public interface IServerService
     Task DeleteServerAsync(string serverId);
     Task<bool> CheckServerStatusAsync(string serverId);
     Task RefreshAllServerStatusAsync();
+
+    /// <summary>
+    /// Copies <see cref="Server.CustomDatZipUrl"/> from the beta server list onto matching
+    /// local servers (by name). Skips manually added servers.
+    /// </summary>
+    Task SyncBetaDatZipUrlsFromListAsync(IReadOnlyList<Server> betaServers);
 }

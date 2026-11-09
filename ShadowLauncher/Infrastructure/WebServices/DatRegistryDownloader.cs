@@ -101,7 +101,7 @@ public class DatRegistryDownloader
             {
                 var fileName = fileEl.Attribute("name")?.Value?.Trim() ?? string.Empty;
                 if (!string.IsNullOrEmpty(fileName))
-                    set.Files.Add(new DatFile { FileName = fileName });
+                    set.Files.Add(fileName);
             }
 
             foreach (var serverEl in setEl.Descendants("Server"))

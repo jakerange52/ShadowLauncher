@@ -31,6 +31,7 @@ public sealed class FilterCore : FilterBase
 
     protected override void Startup()
     {
+        OomGuard.Install();
         Paths.FilterPaths.EnsureDataFoldersExist();
         PluginLog.CleanOldLogs();
 
@@ -38,6 +39,8 @@ public sealed class FilterCore : FilterBase
         var fileVer = FileVersionInfo.GetVersionInfo(assembly.Location).FileVersion;
         PluginLog.Info(nameof(FilterCore),
             $"ShadowFilter starting (AssemblyVer={assembly.GetName().Version}, FileVer={fileVer}, Log={PluginLog.LogFilePath})");
+        PluginLog.Info(nameof(FilterCore),
+            "ShadowFilter owns character select and login commands. ThwargFilter is not used for those when this plugin is loaded.");
 
         Launch.LaunchFileReader.DeleteStaleLaunchFiles();
         Monitoring.HeartbeatWriter.BindServerDispatchTracker(() => _lastServerDispatchUtc);
@@ -76,8 +79,9 @@ public sealed class FilterCore : FilterBase
                 account = CoreManager.Current.CharacterFilter.AccountName ?? string.Empty;
                 server = CoreManager.Current.CharacterFilter.Server ?? string.Empty;
             }
-            catch
+            catch (Exception ex)
             {
+                OomGuard.DieIfOom(ex);
                 return _cachedLaunchInfo ?? new LaunchInfo();
             }
         }
@@ -98,64 +102,108 @@ public sealed class FilterCore : FilterBase
 
     private void OnServerDispatch(object sender, NetworkMessageEventArgs e)
     {
-        _lastServerDispatchUtc = DateTime.UtcNow;
-
-        if (e.Message.Type == 0xF7E1)
+        try
         {
-            var serverFromPacket = Convert.ToString(e.Message["server"]) ?? string.Empty;
-            if (!string.IsNullOrEmpty(serverFromPacket))
-                GameRepo.Game.SetServer(serverFromPacket);
+            _lastServerDispatchUtc = DateTime.UtcNow;
 
-            try
+            if (e.Message.Type == 0xF7E1)
             {
-                var account = CoreManager.Current.CharacterFilter.AccountName;
-                if (!string.IsNullOrEmpty(account))
-                    GameRepo.Game.SetAccount(account);
-            }
-            catch { }
+                var serverFromPacket = Convert.ToString(e.Message["server"]) ?? string.Empty;
+                if (!string.IsNullOrEmpty(serverFromPacket))
+                    GameRepo.Game.SetServer(serverFromPacket);
 
-            var launchInfo = GetLaunchInfo();
-            if (launchInfo.IsValid)
-            {
-                GameRepo.Game.SetServer(launchInfo.ServerName);
-                GameRepo.Game.SetAccount(launchInfo.AccountName);
+                try
+                {
+                    var account = CoreManager.Current.CharacterFilter.AccountName;
+                    if (!string.IsNullOrEmpty(account))
+                        GameRepo.Game.SetAccount(account);
+                }
+                catch (Exception ex)
+                {
+                    OomGuard.DieIfOom(ex);
+                }
+
+                var launchInfo = GetLaunchInfo();
+                if (launchInfo.IsValid)
+                {
+                    GameRepo.Game.SetServer(launchInfo.ServerName);
+                    GameRepo.Game.SetAccount(launchInfo.AccountName);
+                }
             }
+
+            _autoRetryLogin.OnServerDispatch(e);
+            _loginCharacterTools.OnServerDispatch(e, GetLaunchInfo);
+            _defaultFirstCharacterManager.OnServerDispatch(e);
+            _characterSelectManager.OnServerDispatch(e);
+            _loginNextCharacterManager.OnServerDispatch(e);
         }
-
-        _autoRetryLogin.OnServerDispatch(e);
-        _loginCharacterTools.OnServerDispatch(e, GetLaunchInfo);
-        _defaultFirstCharacterManager.OnServerDispatch(e);
-        _characterSelectManager.OnServerDispatch(e);
-        _loginNextCharacterManager.OnServerDispatch(e);
+        catch (Exception ex)
+        {
+            OomGuard.DieIfOom(ex);
+            throw;
+        }
     }
 
     private void OnClientDispatch(object sender, NetworkMessageEventArgs e)
     {
-        _autoRetryLogin.OnClientDispatch(e);
-        _loginCompleteMessageQueueManager.OnClientDispatch(e);
+        try
+        {
+            _autoRetryLogin.OnClientDispatch(e);
+            _loginCompleteMessageQueueManager.OnClientDispatch(e);
 
-        var launchInfo = GetLaunchInfo();
-        var account = launchInfo.IsValid ? launchInfo.AccountName : GameRepo.Game.Account;
-        var server = launchInfo.IsValid ? launchInfo.ServerName : GameRepo.Game.Server;
-        var launchCharacter = launchInfo.IsValid && launchInfo.HasValidCharacterName
-            ? launchInfo.CharacterName
-            : string.Empty;
+            // EnterGame — the character click landed. Stop further character-screen clicks.
+            if (e.Message.Type == 0xF7C8)
+            {
+                _characterSelectManager.NotifyEnteredWorld();
+                _defaultFirstCharacterManager.NotifyEnteredWorld();
+            }
 
-        _loginCommandExecutor.OnClientDispatch(e, account, server, launchCharacter);
+            var launchInfo = GetLaunchInfo();
+            var account = launchInfo.IsValid ? launchInfo.AccountName : GameRepo.Game.Account;
+            var server = launchInfo.IsValid ? launchInfo.ServerName : GameRepo.Game.Server;
+            var launchCharacter = launchInfo.IsValid && launchInfo.HasValidCharacterName
+                ? launchInfo.CharacterName
+                : string.Empty;
 
-        // Login complete (EnterWorld) — safe place to read CharacterFilter once.
-        if (e.Message.Type == 0xF7B1 && Convert.ToInt32(e.Message["action"]) == 0xA1)
-            _loginCharacterTools.TrackCharacterNameIfChanged();
+            _loginCommandExecutor.OnClientDispatch(e, account, server, launchCharacter);
+
+            // Login complete (EnterWorld) — safe place to read CharacterFilter once.
+            if (e.Message.Type == 0xF7B1 && Convert.ToInt32(e.Message["action"]) == 0xA1)
+                _loginCharacterTools.TrackCharacterNameIfChanged();
+        }
+        catch (Exception ex)
+        {
+            OomGuard.DieIfOom(ex);
+            throw;
+        }
     }
 
     private void OnCommandLineText(object sender, ChatParserInterceptEventArgs e)
     {
-        _loginCompleteMessageQueueManager.OnCommandLineText(e);
-        _defaultFirstCharacterManager.OnCommandLineText(e);
-        _loginNextCharacterManager.OnCommandLineText(e);
-        _filterCommandParser.OnCommandLineText(e);
+        try
+        {
+            _loginCompleteMessageQueueManager.OnCommandLineText(e);
+            _defaultFirstCharacterManager.OnCommandLineText(e);
+            _loginNextCharacterManager.OnCommandLineText(e);
+            _filterCommandParser.OnCommandLineText(e);
+        }
+        catch (Exception ex)
+        {
+            OomGuard.DieIfOom(ex);
+            throw;
+        }
     }
 
-    private void OnWindowMessage(object sender, WindowMessageEventArgs e) =>
-        _fastQuit.OnWindowMessage(e);
+    private void OnWindowMessage(object sender, WindowMessageEventArgs e)
+    {
+        try
+        {
+            _fastQuit.OnWindowMessage(e);
+        }
+        catch (Exception ex)
+        {
+            OomGuard.DieIfOom(ex);
+            throw;
+        }
+    }
 }

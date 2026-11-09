@@ -26,8 +26,6 @@ public class GameMonitor : IGameMonitor
     public event EventHandler<HeartbeatReceivedEventArgs>? HeartbeatReceived;
     public event EventHandler<GameExitedEventArgs>? GameExited;
 
-    // Kill-disconnected: confirm real world entry (empty actual → real name) so launch-file
-    // echo on the account-in-use dialog is not treated as InGame.
     private readonly Dictionary<string, WorldTrack> _world = [];
     private readonly HashSet<int> _watchedPids = [];
     private readonly HashSet<string> _seenHeartbeat = [];
@@ -35,12 +33,7 @@ public class GameMonitor : IGameMonitor
 
     private sealed class WorldTrack
     {
-        public bool Primed;
-        public bool SawEmptyActual;
-        public bool Confirmed;
-        /// <summary>True once we have confirmed a real world entry this session.</summary>
-        public bool EverConfirmed;
-        public DateTime? LeftWorldAt;
+        public DateTime? NotInWorldSince;
     }
 
     public GameMonitor(
@@ -115,8 +108,11 @@ public class GameMonitor : IGameMonitor
                 foreach (var session in sessions)
                 {
                     if (token.IsCancellationRequested) break;
-                    if (!ProcessHelper.IsRunning(session.ProcessId))
+                    if (!ProcessHelper.IsAcClientRunning(session.ProcessId))
+                    {
+                        await CloseSessionProcessGoneAsync(session);
                         continue;
+                    }
 
                     if (_watchedPids.Add(session.ProcessId))
                         _ = WatchForExitAsync(session.ProcessId, session.Id, token);
@@ -134,18 +130,18 @@ public class GameMonitor : IGameMonitor
                         await _sessionService.RecordHeartbeatAsync(session.Id, heartbeat!);
                         NotifyHeartbeatIfChanged(session.Id, heartbeat!);
 
-                        var track = Track(session, heartbeat!);
+                        var track = GetWorldTrack(session.Id);
 
                         // Track minimize continuously whenever a window exists so the
                         // exit-time preference is not stale by up to a full InGame cycle.
                         if (WindowFocusHelper.TryGetMinimizedState(session.ProcessId, out var minNow))
                             _sessionService.UpdateMinimizedState(session.Id, minNow);
 
-                        if (track.Confirmed)
-                            _windowPlacement.ProcessSession(session, heartbeat!.Status);
+                        if (heartbeat!.HasEnteredWorld)
+                            _windowPlacement.ProcessSession(session, heartbeat.Status);
 
                         if (_config.KillOnMissingHeartbeat
-                            && TryGetNotInWorldElapsed(session, heartbeat!, track, out var elapsed))
+                            && TryGetNotInWorldElapsed(heartbeat!, track, out var elapsed))
                         {
                             _logger.LogWarning(
                                 "PID {Pid} not in world for {Elapsed}s (timeout: {Timeout}s, status {Status}).",
@@ -171,61 +167,27 @@ public class GameMonitor : IGameMonitor
         }
     }
 
-    private WorldTrack Track(GameSession session, HeartbeatData heartbeat)
+    private WorldTrack GetWorldTrack(string sessionId)
     {
-        if (!_world.TryGetValue(session.Id, out var track))
-            _world[session.Id] = track = new WorldTrack();
-
-        var first = !track.Primed;
-        track.Primed = true;
-
-        if (!heartbeat.HasEnteredWorld)
-        {
-            track.SawEmptyActual = true;
-            if (track.Confirmed)
-            {
-                track.Confirmed = false;
-                track.LeftWorldAt ??= DateTime.UtcNow;
-            }
-            return track;
-        }
-
-        // Confirm only after seeing an empty actual first (real login). Launch-file echo on
-        // account-in-use looks in-world immediately — ignore that unless this is a restore
-        // of a session already older than the kill timeout.
-        if (track.SawEmptyActual || (first && session.GetAliveSeconds() > _config.KillHeartbeatTimeoutSeconds))
-        {
-            track.Confirmed = true;
-            track.EverConfirmed = true;
-            track.LeftWorldAt = null;
-        }
-
+        if (!_world.TryGetValue(sessionId, out var track))
+            _world[sessionId] = track = new WorldTrack();
         return track;
     }
 
     private bool TryGetNotInWorldElapsed(
-        GameSession session, HeartbeatData heartbeat, WorldTrack track, out int elapsed)
+        HeartbeatData heartbeat, WorldTrack track, out int elapsed)
     {
         var timeout = _config.KillHeartbeatTimeoutSeconds;
 
-        // In world — reset the out-of-world timer (re-entry after logout / crash recovery).
         if (heartbeat.HasEnteredWorld)
         {
-            track.LeftWorldAt = null;
+            track.NotInWorldSince = null;
             elapsed = 0;
             return false;
         }
 
-        // Never entered world — clock from launch (stuck on login / account-in-use).
-        if (!track.EverConfirmed)
-        {
-            elapsed = session.GetAliveSeconds();
-            return elapsed > timeout;
-        }
-
-        // Was in world, now out (char select, login, etc.) — clock from leaving; resets on re-entry.
-        track.LeftWorldAt ??= DateTime.UtcNow;
-        elapsed = (int)(DateTime.UtcNow - track.LeftWorldAt.Value).TotalSeconds;
+        track.NotInWorldSince ??= DateTime.UtcNow;
+        elapsed = (int)(DateTime.UtcNow - track.NotInWorldSince.Value).TotalSeconds;
         return elapsed > timeout;
     }
 
@@ -274,6 +236,23 @@ public class GameMonitor : IGameMonitor
         }
 
         return false;
+    }
+
+    private async Task CloseSessionProcessGoneAsync(GameSession session)
+    {
+        _logger.LogInformation(
+            "Closing session {Id} — PID {Pid} is not a running acclient",
+            session.Id, session.ProcessId);
+
+        var wasMinimized = session.WasMinimized;
+        ClearTracking(session.Id, session.ProcessId);
+
+        var active = (await _sessionService.GetActiveSessionsAsync()).ToList();
+        _gameLauncher.CleanupShadowFilterLaunchFileIfUnused(
+            session.AccountName, session.ServerName, active, session.ProcessId);
+        HeartbeatReader.DeleteHeartbeatFile(session.ProcessId);
+        await _sessionService.CloseSessionAsync(session.Id);
+        GameExited?.Invoke(this, new GameExitedEventArgs(session.ProcessId, wasMinimized));
     }
 
     private async Task KillSessionAsync(GameSession session, int elapsedSeconds, int timeoutSeconds)

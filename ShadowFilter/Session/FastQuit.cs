@@ -20,6 +20,9 @@ internal sealed class FastQuit
 
             PostMessageTools.ClickYes();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            OomGuard.DieIfOom(ex);
+        }
     }
 }

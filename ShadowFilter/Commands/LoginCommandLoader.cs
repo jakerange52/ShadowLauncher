@@ -16,7 +16,8 @@ internal static class LoginCommandLoader
     public static LoginCommands ReadCombined(string accountName, string serverName, string characterName)
     {
         var global = ReadFile(GetGlobalPath());
-        var specific = ReadFile(GetCharacterPath(accountName, serverName, characterName));
+        var specificPath = ResolveCharacterFile(accountName, serverName, characterName);
+        var specific = specificPath is null ? new LoginCommands() : ReadFile(specificPath);
 
         // Per-character wait wins when explicitly set in the character file.
         if (specific.HasExplicitWait)
@@ -33,15 +34,54 @@ internal static class LoginCommandLoader
     private static string GetGlobalPath() =>
         Path.Combine(FilterPaths.LoginCommandsFolder, "LoginCommandsGlobal.txt");
 
-    private static string GetCharacterPath(string accountName, string serverName, string characterName)
+    private static string? ResolveCharacterFile(string accountName, string serverName, string characterName)
     {
-        var safeAccount = Sanitize(accountName);
-        var safeServer = Sanitize(serverName);
-        var safeCharacter = Sanitize(characterName);
-        return Path.Combine(
+        if (string.IsNullOrWhiteSpace(accountName) ||
+            string.IsNullOrWhiteSpace(serverName) ||
+            string.IsNullOrWhiteSpace(characterName))
+        {
+            return null;
+        }
+
+        // Launcher writes the raw names. Older files dropped apostrophes.
+        var exact = Path.Combine(
             FilterPaths.LoginCommandsFolder,
-            $"LoginCommands-{safeAccount}-{safeServer}-{safeCharacter}.txt");
+            $"LoginCommands-{accountName}-{serverName}-{characterName}.txt");
+        if (File.Exists(exact))
+            return exact;
+
+        var legacy = Path.Combine(
+            FilterPaths.LoginCommandsFolder,
+            $"LoginCommands-{Sanitize(accountName)}-{Sanitize(serverName)}-{Sanitize(characterName)}.txt");
+        if (File.Exists(legacy))
+            return legacy;
+
+        if (!Directory.Exists(FilterPaths.LoginCommandsFolder))
+            return null;
+
+        foreach (var path in Directory.GetFiles(FilterPaths.LoginCommandsFolder, "LoginCommands-*.txt"))
+        {
+            var stem = Path.GetFileNameWithoutExtension(path);
+            if (!stem.StartsWith("LoginCommands-", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var parts = stem.Substring("LoginCommands-".Length).Split(new[] { '-' }, 3);
+            if (parts.Length != 3)
+                continue;
+
+            if (SameToken(parts[0], accountName) &&
+                SameToken(parts[1], serverName) &&
+                SameToken(parts[2], characterName))
+            {
+                return path;
+            }
+        }
+
+        return null;
     }
+
+    private static bool SameToken(string left, string right) =>
+        string.Equals(Sanitize(left), Sanitize(right), StringComparison.OrdinalIgnoreCase);
 
     private static string Sanitize(string text)
     {

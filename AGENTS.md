@@ -62,7 +62,7 @@ In the old days you kept `C:\AC-Retail\`, `C:\AC-DarkMajesty\`, `C:\AC-Seedsow\`
 - Same NTFS volume required. Program Files installs get copied once to `ACBase\` via `FirstRunService`.
 - Never hard-link write-contended files (`.log`, `.ini`, `.pdb`, `.bin`, `.avi`, `.txt`, `.rtf`, `.msi`). Hard links share inodes — two clients writing the same `acclient.log` produces a misleading DirectX init failure that will send you on a wild goose chase.
 - Partial custom sets get backfilled from retail via `CompleteDatCacheFromRetailAsync()`.
-- `SymlinkLauncher` exists but is dormant — symlinks need Developer Mode or `SeCreateSymbolicLinkPrivilege`. Hard links need neither.
+- **Hard links** — same NTFS volume required. Program Files installs get copied once to `ACBase\` via `FirstRunService`.
 
 ## Ecosystem context
 
@@ -97,7 +97,7 @@ ShadowLauncher/
 2. `ResolveInstancePathAsync()` — ensure DAT cache, call `IInstancePreparer`
 3. `HardLinkLauncher.PrepareInstanceAsync()` — build instance dir
 4. `DecalInjector.LaunchSuspendedAndInject()` — suspended start + inject
-5. Post-launch — `WindowTitleSetter`, instance cleanup watcher (intro/char-select: ThwargFilter if loaded, else ShadowFilter)
+5. Post-launch — `WindowTitleSetter`, instance cleanup watcher (intro/char-select: ShadowFilter if loaded, else ThwargFilter)
 
 DI wiring: `Application/ServiceBootstrapper.cs`.
 
@@ -145,7 +145,7 @@ Output: `ShadowLauncher.Installer.Bundle\bin\ShadowLauncher-Setup.exe`
 4. **Program Files AC install** — ACBase copy once, hard links succeed after
 5. **No Decal** — single client via `Process.Start`, clear log message
 6. **ThwargFilter-only auto-login** — default character enters world without ShadowFilter registered
-7. **Optional ShadowFilter** — heartbeats under LocalAppData when registered; defers char-select if ThwargFilter also loaded
+7. **Optional ShadowFilter** — heartbeats under LocalAppData when registered; takes priority for char-select if ThwargFilter is also loaded
 
 Logs: `%LocalAppData%\ShadowLauncher\Logs\`
 

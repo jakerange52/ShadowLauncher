@@ -86,7 +86,7 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
                 {
                     Id = name.ToLowerInvariant(),
                     Name = name,
-                    PasswordHash = password,
+                    Password = password,
                 };
 
                 if (properties.TryGetValue("Alias", out var alias) && !string.IsNullOrEmpty(alias))
@@ -120,7 +120,7 @@ public sealed class AccountFileRepository : IRepository<Account>, IDisposable
                 var parts = new List<string>
                 {
                     $"Name={AccountLineParser.Encode(a.Name)}",
-                    $"Password={AccountLineParser.Encode(a.PasswordHash)}"
+                    $"Password={AccountLineParser.Encode(a.Password)}"
                 };
                 if (!string.IsNullOrEmpty(a.Notes))
                     parts.Add($"Alias={AccountLineParser.Encode(a.Notes)}");

@@ -1,6 +1,7 @@
 using System.Windows;
 using Microsoft.Extensions.Logging;
 using ShadowLauncher.Core.Models;
+using ShadowLauncher.Presentation.Views;
 using ShadowLauncher.Services.Dats;
 
 namespace ShadowLauncher.Presentation.ViewModels;
@@ -13,8 +14,31 @@ public partial class MainWindowViewModel
         var servers = SelectedServers.ToList();
         if (accounts.Count == 0 || servers.Count == 0) return;
 
-        _logger.LogDebug("Launch requested: {AccountCount} accounts × {ServerCount} servers",
-            accounts.Count, servers.Count);
+        _launchPipelineDepth++;
+        try
+        {
+            await LaunchGameCoreAsync(accounts, servers);
+        }
+        finally
+        {
+            _launchPipelineDepth--;
+        }
+    }
+
+    private async Task LaunchGameCoreAsync(IReadOnlyList<Account> accounts, IReadOnlyList<Server> servers)
+    {
+        var idleAccounts = accounts
+            .Where(a => !IsAccountSessionActive(a))
+            .ToList();
+
+        if (idleAccounts.Count == 0)
+        {
+            StatusText = "All selected accounts already have an active session";
+            return;
+        }
+
+        _logger.LogDebug("Launch requested: {AccountCount} idle accounts × {ServerCount} servers",
+            idleAccounts.Count, servers.Count);
 
         var serversNeedingDats = new List<(Server Server, string DatSetId)>();
         foreach (var server in servers.DistinctBy(s => s.DatSetId))
@@ -31,7 +55,7 @@ public partial class MainWindowViewModel
                      && !_datSetService.IsCustomDatCachePresent(s))
             .ToList();
 
-        if (serversNeedingCustomDats.Count > 0 || serversNeedingDats.Count > 0)
+        if (serversNeedingDats.Count > 0 || serversNeedingCustomDats.Count > 0)
         {
             var fetchWindow = new Presentation.Views.DatFetchWindow(
                 System.Windows.Application.Current.MainWindow);
@@ -81,10 +105,12 @@ public partial class MainWindowViewModel
             }
         }
 
+        await PromptAndRefreshStaleDatReleasesAsync(servers);
+
         int launched = 0, failed = 0, skipped = 0;
         var errors = new List<string>();
 
-        foreach (var account in accounts)
+        foreach (var account in idleAccounts)
         {
             foreach (var server in servers)
             {
@@ -114,7 +140,7 @@ public partial class MainWindowViewModel
                         launched++;
 
                         var delay = _config.MultiLaunchDelaySeconds;
-                        if (delay > 0 && (launched + failed + skipped) < accounts.Count * servers.Count)
+                        if (delay > 0 && (launched + failed + skipped) < idleAccounts.Count * servers.Count)
                             await Task.Delay(TimeSpan.FromSeconds(delay));
                     }
                     else
@@ -136,20 +162,69 @@ public partial class MainWindowViewModel
             }
         }
 
+        var busySkipped = accounts.Count - idleAccounts.Count;
         if (failed == 0)
         {
-            StatusText = skipped == 0
+            StatusText = busySkipped == 0 && skipped == 0
                 ? $"Launched {launched} session(s)"
-                : $"Launched {launched}, skipped {skipped} already active";
+                : $"Launched {launched}, skipped {skipped + busySkipped} already active";
         }
         else
         {
-            StatusText = $"Launched {launched}, failed {failed}" + (skipped > 0 ? $", skipped {skipped}" : "");
+            StatusText = $"Launched {launched}, failed {failed}"
+                         + (skipped + busySkipped > 0 ? $", skipped {skipped + busySkipped} already active" : "");
             MessageBox.Show(
                 string.Join("\n\n", errors),
                 "Launch Failed",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
+    }
+
+    private async Task PromptAndRefreshStaleDatReleasesAsync(IReadOnlyList<Server> servers)
+    {
+        var candidates = servers
+            .DistinctBy(s => s.Id)
+            .Where(DatManagedServerHelper.UsesManagedDatSet)
+            .ToList();
+        if (candidates.Count == 0)
+            return;
+
+        var stale = new List<DatReleaseCheckResult>();
+        foreach (var server in candidates)
+        {
+            var check = await _datSetService.CheckRemoteReleaseAgainstCacheAsync(server);
+            if (check.Status == DatReleaseCheckStatus.Stale)
+                stale.Add(check);
+        }
+
+        if (stale.Count == 0)
+            return;
+
+        var owner = System.Windows.Application.Current.MainWindow;
+        if (!DatReleaseRefreshPromptWindow.PromptRefresh(owner, stale))
+            return;
+
+        foreach (var check in stale)
+        {
+            var server = candidates.First(s =>
+                string.Equals(s.Id, check.ServerId, StringComparison.OrdinalIgnoreCase));
+            try
+            {
+                await _datRefreshService.RefreshManagedDatSetAsync(server, owner);
+            }
+            catch
+            {
+                // DatRefreshService shows errors; continue with other servers.
+            }
+        }
+    }
+
+    private bool IsAccountSessionActive(Account account)
+    {
+        return ActiveSessions.Any(s =>
+                   string.Equals(s.AccountId, account.Id, StringComparison.OrdinalIgnoreCase))
+               || _launchedSessions.Values.Any(v =>
+                   string.Equals(v.Account.Id, account.Id, StringComparison.OrdinalIgnoreCase));
     }
 }

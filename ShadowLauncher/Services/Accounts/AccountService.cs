@@ -36,7 +36,7 @@ public class AccountService : IAccountService
         {
             Id = name.ToLowerInvariant(),
             Name = name,
-            PasswordHash = password,
+            Password = password,
             PreferencePath = preferencePath?.Trim() ?? string.Empty,
         };
 

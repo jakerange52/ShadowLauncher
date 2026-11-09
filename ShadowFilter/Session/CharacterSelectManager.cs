@@ -5,7 +5,7 @@ namespace ShadowFilter.Session;
 
 /// <summary>
 /// Auto-selects the character named in the ShadowLauncher launch file on 0xF7EA.
-/// Defers to ThwargFilter when both filters are loaded (ShadowLauncher dual-writes its launch files).
+/// Takes priority over ThwargFilter when both filters are loaded.
 /// </summary>
 internal sealed class CharacterSelectManager
 {
@@ -20,6 +20,8 @@ internal sealed class CharacterSelectManager
     }
 
     public void BindLaunchInfoProvider(Func<LaunchInfo> provider) => _getLaunchInfo = provider;
+
+    public void NotifyEnteredWorld() => _ticker.NotifyEnteredWorld();
 
     public void OnServerDispatch(NetworkMessageEventArgs e)
     {
@@ -37,13 +39,6 @@ internal sealed class CharacterSelectManager
 
     private void TryStartLaunchFileSelect()
     {
-        if (ParallelFilterGuard.IsThwargFilterLoaded())
-        {
-            PluginLog.Info(nameof(CharacterSelectManager),
-                "Deferring character select to ThwargFilter (both filters loaded)");
-            return;
-        }
-
         var launchInfo = _getLaunchInfo?.Invoke() ?? new LaunchInfo();
         if (!launchInfo.IsValid)
         {

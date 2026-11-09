@@ -75,6 +75,14 @@ public interface IDatSetService
     /// self-contained so instances are never silently backed by the shared retail files.
     /// </summary>
     Task CompleteDatCacheFromRetailAsync(string datCacheDir, string retailClientDir);
+
+    /// <summary>
+    /// Compares the GitHub release tag in the cache <c>.version</c> sidecar with the
+    /// current release from the configured zip URL. No download is performed.
+    /// </summary>
+    Task<DatReleaseCheckResult> CheckRemoteReleaseAgainstCacheAsync(
+        Server server,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>Progress report emitted during a DAT download.</summary>

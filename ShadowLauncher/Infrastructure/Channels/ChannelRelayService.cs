@@ -153,7 +153,7 @@ public sealed class ChannelRelayService
                 if (!characterNames.Contains(target.CharacterName))
                     continue;
 
-                EnqueueInbound(target.ProcessId, $"/tf jointeam {teamName}");
+                EnqueueInbound(target.ProcessId, "/sf jointeam " + teamName);
             }
 
             return;

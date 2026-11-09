@@ -2,7 +2,7 @@ namespace ShadowLauncher.Infrastructure.Paths;
 
 /// <summary>
 /// Runtime data paths under %LocalAppData%\ShadowLauncher\ shared with ShadowFilter.
-/// Also exposes ThwargFilter launch-file paths so both filters can run in parallel.
+/// ThwargLauncher paths are used at runtime only when ShadowFilter does not own the session.
 /// </summary>
 public static class ShadowLauncherPaths
 {
@@ -17,10 +17,6 @@ public static class ShadowLauncherPaths
     public static string CharactersFolder => Path.Combine(AppFolder, "characters");
     public static string DefaultCharactersFile => Path.Combine(AppFolder, "DefaultCharacters.json");
 
-    /// <summary>
-    /// ThwargFilter IPC root (%AppData%\ThwargLauncher). ShadowLauncher dual-writes
-    /// launch files here so users who already have ThwargFilter do not need ShadowFilter.
-    /// </summary>
     public static string ThwargLauncherAppFolder =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),

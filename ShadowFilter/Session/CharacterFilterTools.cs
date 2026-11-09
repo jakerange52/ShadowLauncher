@@ -11,8 +11,9 @@ internal static class CharacterFilterTools
             var name = CoreManager.Current.CharacterFilter.Name;
             return string.IsNullOrEmpty(name) ? fallback : name;
         }
-        catch
+        catch (Exception ex)
         {
+            OomGuard.DieIfOom(ex);
             return fallback;
         }
     }
